@@ -8,7 +8,7 @@ Sys.setenv(TZ="UTC")
 
 
 # Load prices from CSV and remove NA's
-ts.prices <- read.csv('C:/jerzy/Develop/Data/Stock ETFs.csv', stringsAsFactors=FALSE)
+ts.prices <- read.csv('C:/Data/Stock ETFs.csv', stringsAsFactors=FALSE)
 ts.prices <- xts(sapply(ts.prices[,-1], as.numeric), order.by=as.POSIXlt(ts.prices[,1]) )
 ts.prices <- na.locf(ts.prices)
 ts.prices <- na.locf(ts.prices,fromLast=TRUE)
