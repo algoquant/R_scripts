@@ -658,7 +658,7 @@ lines(ig.filtered, col='red', lwd=3)
 
 ### Calculate variance ratios for a list of time scales
 time.scales <- matrix(10:200)
-var.ratios <- cbind(time.scales, matrix(apply(time.scales, 1, var.ratio, ts.rets=rets.data, agg.min=2)))
+var.ratios <- cbind(time.scales, matrix(apply(time.scales, 1, var.ratio, ts.rets=ts.rets, agg.min=2)))
 colnames(var.ratios) <- c('time.scales','var.ratios')
 
 ### Calculate variance ratios for a list of symbols
@@ -775,6 +775,7 @@ barplot(data.pca$sdev^2/var.pca, names.arg=colnames(data.pca$rotation), las=3, y
 data.pca$rotation[,1:3]
 # Permute second principal component loadings by size
 loadings.pca2 <- as.matrix(data.pca$rotation[order(data.pca$rotation[,2], decreasing=TRUE),2])
+colnames(loadings.pca2) <- "PCA2"
 loadings.pca2
 # The option las=3 rotates the names.arg labels
 barplot(as.vector(loadings.pca2), names.arg=rownames(loadings.pca2), las=3, ylab="Loadings", xlab="Symbol", main="Loadings PCA2")
@@ -795,6 +796,7 @@ rets.pca <- cbind(ts.rets[,'IG'],rets.pca[,1:10])
 # colnames(rets.pca)[1] <- 'IG'
 index(rets.pca) <- index(rets.pca)
 var.ratios <- as.matrix(apply(rets.pca, 2, var.ratio, agg.min=1, agg.max=5))
+colnames(var.ratios) <- 'Var.Ratios'
 # Calculate cumsum(rets.pca)
 ts.pca <- cumsum(rets.pca)
 
@@ -939,8 +941,8 @@ plot(forecast.ig)
 # Prepare data
 bid.offer <- 0.125
 ts.data <- ts.1min.ig['2013-01-03/','MEDIAN']
-rets.data <- diff(ts.data)
-rets.data[1,] <- rets.data[2,]
+ts.rets <- diff(ts.data)
+ts.rets[1,] <- ts.rets[2,]
 agg.params <- matrix(c(3,5,9,13,17))
 ts.aggs <- apply(agg.params, 1, function(agg.param)
                  {
@@ -961,7 +963,7 @@ agg.pnl <- apply(ts.aggs, 2, function(ts.agg)
                    ts.forecast[1] <- 0.0
 #                         filter.dlm.poly <- dlmFilter(y=ts.data, mod=dlm.poly)
 #                         ts.filter.poly <- xts(filter.dlm.poly$m[-1,1], order.by=index(ts.data))
-                   sum(rets.data*ts.forecast)/sum(bid.offer*abs(na.omit(diff(ts.forecast))))
+                   sum(ts.rets*ts.forecast)/sum(bid.offer*abs(na.omit(diff(ts.forecast))))
                  }
                  )
 # End apply
