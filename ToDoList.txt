@@ -1,0 +1,211 @@
+#####
+Vector Auto Regression (VAR) model: package vars
+1. Set up a toy dynamic VAR model over a sliding window.
+
+2. Study the effect of adding an extra ts to the VAR model.  
+Add extra ts consisting of random returns.
+Add two extra ts consisting of the same determenistic trend plus/minus random returns that exactly offset each other.
+Does adding the second ts improve forecasts?  
+Do the forecasts deteriorate?
+
+3. Apply ensemble technique, run many models with: 
+a.) different sliding window parameters,
+b.) select the model with highest lagging forecasting power,
+
+
+#####
+Custom Vector Auto Regression model:
+1. Perform dynamic regression
+a.) identify variables with high statistical significance, and drop variables with low significance,
+b.) perform forecasting only if regression has significant forecasting power, otherwise set forecast to zero,
+
+2. Calculate a running Discounted Mean Squared Error (DMSE) or Out-of-sample R2 of model prediction errors
+a.) Is the DMSE itself predictable?  (Does it move like sine wave?)
+b.) Is the DMSE correlated to the p-values of model calibration?
+Is the quality of the model fit related to the prediction errors?
+
+3. Perform a custom forecastable components analysis (FCA)
+a.) Find the first FC: maximize scores for var.ratio or spec.frac (under shrinkage constraints),
+b.) Apply parameter shrinkage similar to ridge, LASSO or Elasticnet,
+c.) Find the second FC: statistically independent from first FC (Matteson),
+d.) Forecast each component separately (since they are statistically independent),
+
+
+4. Apply R packages: LARS, lasso, lasso2, mda, Elasticnet, glmnet, grpreg, penalized, 
+a.) 
+b.) 
+
+
+
+#####
+ForeCA Analysis
+1. Compare Omega scores with different smoothing and spectrum_method parameters: direct (default), wosa, multitaper.
+
+2. Calculate Omega scores in a sliding window, to see how much they change.
+
+3. What are the Omega score confidence intervals and p-values?
+
+4. Find maximum Omega score portfolios, in non-overlapping time periods.  
+How much do the weights change over time?  
+Are maximum Omega score portfolios stable over time?
+Create a maximum Omega score portfolio, and observe if it's still close to maximum in next time period.  
+What's the turnover of assets?
+
+5. Look at spectral density of different signals.  
+Compare scatterplots of Omega scores versus simple spectral density.
+
+6. Apply DEoptim to maximize spectral density.
+
+7. Calculate running alphas in a sliding window.
+How stable are they?  Are alphas more forecastable than the original asset returns themselves?
+
+
+#####
+Combine weighted average time series of stock, CDS, bond and Treasury to create the highest:
+	a.) VarRatio
+	b.) convexity (scatterplot)
+
+
+
+#####
+
+Create LBO screen
+Ask Glenn to get LBO lists from dealers
+Ask Seth or Chase for symbols of liquid or benchmark bonds
+Ask Seth for index option parsing
+Ask Victor to add Spanish stock futures
+
+#####
+
+Compile var.ratios, specEnergyFrac, and omega scores for all symbols
+Combine symbols with sectors, industries and geographies
+
+How does specEnergyFrac change over sliding window (per name, per sector)?
+
+How stable are names with highest specEnergyFrac over sliding window (name turnover)?
+
+Repeat the above analysis using VarRatio
+
+#####
+
+PCA Portfolio CDS Strategies
+
+1. Combine PC loadings with symbols and sectors, industries and geographies
+	a.) Identify sector portfolios
+
+2. Build PC's out of long-short sector portfolios, instead of individual CDS
+
+3. Repeat PCA using the market portfolio and sector portfolios
+
+4. Run PCA with all CDS, using multi-day percentage returns
+	a.) Take the first 10 PC's,
+	b.) For each PC take the top 20 CDS,
+	c.) Combine all the top CDS, and perform cluster analysis,
+	d.) Identify highly correlated portfolios of CDS,
+	e.) Repeat the PCA using the portfolios,
+
+#####
+
+Build an IG index model using principal components as exogenous variables.  Use several different models:
+
+1. Rank-order the individual CDS according to joint score of trending and correlation with IG index.
+	a.) Calculate PCA using only top-ranked CDS
+	b.) Repeat using percentage aggregated returns over multiday periods
+	c.) doesn't work well
+
+
+2. ARIMAX (transfer function) model: package TSA, diff the prices.
+
+3. VAR model: package vars
+	a.) First forecast prices, then diff them to forecast returns,
+	b.) Run rolling VAR model over sliding training window,
+	c.) Study PnL as function of window size,
+	d.) Create two trading strategies: trend-following and mean-reverting,
+	e.) The trend-following strategy is daily,
+	f.) The mean-reverting strategy is intra-day,
+
+4. Dynamic regression model using Kalman filter: package dlm
+	a.) Run dlmFilter over expanding apply window and compare with single-call dlmFilter
+	b.) Run dlmFilter using array of different variance parameters for observation and system noise
+	c.) Run dlmFilter over expanding apply window and update variance parameters from sd and lm calls
+start with smaller C0, the variance matrix of the pre-sample state vector.
+	d.) Create two ts proportional to each other, with jumps in beta.  Apply Dynamic Regression Model using Kalman filter to estimate the beta, and observe dependence on variance parameters.
+
+Apply the IG index model to a sine function plus ARIMA process
+
+4. 
+
+
+
+#####
+
+
+Kalman filter
+
+Create intra-day IG index model using Kalman filter
+
+Create Kalman filter model for forecasting returns one-step-ahead: this works best
+
+use difference between current price and forecast price: doesn't work as well
+
+Use difference between current price and filtered price: works, but over-trades
+	tune Kalman filter parameters to reduce over-trading
+
+apply Kalman filter to log prices and to log returns: doesn't work better
+
+Create Kalman filter model for beta: doesn't work - tries to converge to fixed value
+
+Screen names for recent trending
+
+create PCA for recent trending names
+
+create screen for European and sovereign names
+
+create model using level regression residuals between PCA and index
+	instead estimate beta using Kalman filter
+
+
+#####
+
+
+CDS momentum strategy
+
+1. Rank-order the individual CDS according to Kalman filtered percentage aggregated returns.
+	a.) Calculate PCA using only top-ranked CDS
+	b.) Repeat using percentage aggregated returns over multiday periods
+
+
+
+#####
+
+
+Generate OU process
+
+Extract cointegration vectors and plot out-of-sample residuals
+
+
+#####
+
+
+1.0 * PRICE[COLOM 6.125 01/18/41 Corp] - 0.25 * PRICE[CT30B Govt] - 0.0 * EWZ Equity
+
+1.0 * PRICE[PETBRA 4.375 05/20/2023 Corp] - 1.0 * PRICE[BRAZIL 2.625 01/05/2023 Govt]
+
+
+1 * PRICE[US105756BR01 Corp] - 2 * PRICE[US105756BU30 Corp] - 1 * PRICE[CT30 Corp] + 2 * PRICE[CT10 Corp] 
+
+PRICE[SPGB 5.85 01/31/22 Corp] + 1.0 * PRICE[BTPS 5.5 11/01/22 Corp] + 0.0 * PRICE[DBR 2 01/04/22 Corp] + 0.0 * PRICE[DAX Index] / 
+80
+
+
+#####
+
+
+For time series of CDS spreads and prices for BRAZIL CDS, BRL, CT10, IG:
+	Calibrate VAR model (no lags)
+	Extract cointegration vectors and plot out-of-sample residuals
+	Test residuals with ADF, Durbin-Watson and Ljung-Box tests
+	Calibrate VAR model (with lags)
+	Test residuals with ADF
+
+

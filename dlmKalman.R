@@ -5,7 +5,11 @@ library(forecast)
 ### Prepare data
 # Create a sine-wave price series plus noise
 ts.synth <- sin(20*(1:nrow(ts.data))/nrow(ts.data)) + 0.05*rnorm(nrow(ts.data)) + 2.0
+betas <- matrix(0.5*(0:10))
+ts.synth <- apply(betas, 1,  function(n.beta)  sin(20*(1:nrow(ts.data))/nrow(ts.data)) + n.beta*rnorm(nrow(ts.data)))
 ts.synth <- xts(ts.synth, order.by=index(ts.data))
+colnames(ts.synth) <- paste('noise',betas,sep=".")
+plot.zoo(ts.synth, xlab="", main="Sine-wave plus noise")
 # Create a step-wise price series plus noise
 ts.synth <- c(rep(0.5,times=100),rep(1.0,times=100),rep(1.5,times=100),rep(1.0,times=100),rep(0.5,times=(nrow(ts.rets)-400))) + 0.05*rnorm(nrow(ts.data))
 ts.synth <- xts(ts.synth, order.by=index(ts.data))

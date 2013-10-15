@@ -10,10 +10,11 @@ library(dynlm)
 library(fArma)
 library(caTools)
 library(RTisean)
-library(ForeCA)
 
 # Set the time-zone to GMT (UTC)
 Sys.setenv(TZ="UTC")
+# Show time-zone
+Sys.timezone()
 
 # Load ROneTick
 library(ROneTick)
@@ -677,38 +678,93 @@ ts.prices.top <- ts.prices[,names(var.ratios.top)]
 ts.prices.top <- ts.prices.top[,colnames(ts.prices.top)!='RESCAP']
 
 
-### Calculate spectrum percentages for a list of symbols
+### Calculate spectrum scores for a list of symbols
 data.spec <- as.matrix(apply(ts.rets, 2, function(ts.ret) tryCatch(spectral.frac(ts.ret), error=function(e) writeMessage(e)) ))
 # Sort
-data.spec <- data.spec[order(data.spec, decreasing=TRUE),1]
-data.spec <- as.matrix(data.spec)
+data.spec <- as.matrix(data.spec[order(data.spec, decreasing=TRUE),1])
 colnames(data.spec) <- 'Spectrum.Scores'
 #colnames(data.spec) <- c('CMATicker','Spectrum.Energyfrac')
 barplot(as.vector(data.spec[1:22,]), names.arg=rownames(data.spec)[1:22], las=3, ylab="Spec.ratios", xlab="TS", main="Spec.ratio scores")
 write.csv(data.spec, "S:/Data/R_Data/data.spec.csv")
+# Plot scatterplot
+plot(x=var.ratios, y=data.spec, xlab=colnames(var.ratios), ylab=colnames(data.spec), main='Scores')
+# Add reg line
+data.lm <- lm(data.spec ~ var.ratios)
+abline(data.lm)
+summary(data.lm)
+# Add labels
+text(x=var.ratios, y=data.spec, labels=rownames(var.ratios), cex= 0.7, pos=2)
+# Add labels by clicking
+identify(var.ratios, data.spec, labels=rownames(var.ratios), cex = 0.7)
+# Plot scatterplot with wordcloud labels to prevent label overlaps
+library(wordcloud)
+library(tm)
+wordcloud::textplot(x=var.ratios, y=data.spec, words=rownames(var.ratios), xlab=colnames(var.ratios), ylab=colnames(data.spec), main='Scores', cex= 0.7, xlim=c(min(var.ratios),max(var.ratios)), ylim=c(min(data.spec),max(data.spec)))
 
 
-# Calculate spectrum percentages for a list of ARIMA processes (autocorrelation parameters)
-length.ar <- dim(ts.rets)[1]
+# Calculate spectrum scores for a list of ARIMA processes (autocorrelation parameters)
+length.ar <- nrow(ts.rets)
 coeffs.ar <- as.matrix(0.1*(1:9))
 data.ar <- apply(coeffs.ar, 1, function(coeff.ar) spectral.frac(arima.sim(n=length.ar, model=list(ar=coeff.ar))) )
 data.ar <- cbind(coeffs.ar,data.ar)
+colnames(data.ar) <- c('AR coeffs','Spectrum.Scores')
 
 
 ### Calculate Omega scores for some symbols
 # Omega score of zero means not forecastable (white noise); 100 score means perfectly forecastable (a sinusoid).
-Omega(rets.pca)
-Omega(ts.rets[,rownames(data.spec)[1:22]])
+library(ForeCA)
 Omega(ts.rets[,'NOKIA'])
-### Calculate omega scores for a list of symbols
+data.omega <- t(as.matrix(Omega(ts.rets, spectrum_method="wosa")))
+colnames(data.omega) <- 'Omega.Scores'
+
+# Calculate omega scores for a list of symbols
 data.omega <- apply(ts.rets, 2, function(ts.ret,...) tryCatch(Omega(ts.ret,...), error=function(e) writeMessage(e)), spectrum_method="multitaper")
 data.omega <- as.matrix(data.omega)
 data.omega <- data.omega[order(data.omega, decreasing=TRUE),1]
 data.omega <- as.matrix(data.omega)
 colnames(data.omega) <- 'Omega.Scores'
-write.csv(data.omega, "S:/Data/R_Data/data.omega.csv")
+write.csv(data.omega, "C:/Data/data.omega.csv")
 barplot(as.vector(data.omega[1:22,]), names.arg=rownames(data.omega)[1:22], las=3, ylab="Omega", xlab="TS", main="Omega scores")
 plot.zoo(ts.prices[,rownames(head(data.omega,11))])
+
+# Scatterplot omega scores for a list of ts
+plot(omega.wosa, omega.multitaper, ylab="multitaper", xlab="wosa", main='Omega scores')
+
+# Calculate omega scores for sine wave plus random ts
+data.omega <- as.matrix(apply(matrix(0.1*(1:10)), 1, function(rand.param,...) tryCatch(Omega(rand.param*sin(20*(1:nrow(ts.prices))/nrow(ts.prices)) + rnorm(nrow(ts.prices)),...), error=function(e) writeMessage(e)), spectrum_method="wosa"))
+colnames(data.omega) <- 'Omega.Scores'
+
+
+# Calculate rolling variance scores for multiple ts
+agg.min <- 2
+agg.max <- 10
+ts.var.ratios <- as.matrix(apply(ts.rets, 2, function(ts.ret) {
+  ts.ratios <- apply.rolling(ts.ret, width=look.back, FUN="var.ratio", agg.min=agg.min, agg.max=agg.max)
+  ts.ratios[1:(look.back-1),] <- ts.ratios[look.back,]
+  ts.ratios
+  } ))
+ts.var.ratios <- xts(ts.var.ratios, order.by=index(ts.rets))
+colnames(ts.var.ratios) <- colnames(ts.rets)
+plot.zoo(ts.var.ratios, main=paste(c('var.ratios ',format(Sys.time(),'%m-%d-%y',tz="UTC"))), xlab="")
+
+
+# Calculate efficiently rolling variance scores for multiple ts
+# This actually gives slightly different result - as it should
+ts.var.ratios <- as.matrix(apply(ts.rets, 2, function(ts.ret) {
+  var.agg.min <- runMean(ts.ret,n=agg.min)
+  var.agg.min[1:(agg.min-1)] <- var.agg.min[agg.min]
+  var.agg.min <- runSD(var.agg.min,n=look.back)
+  var.agg.max <- runMean(ts.ret,n=agg.max)
+  var.agg.max[1:(agg.max-1)] <- var.agg.max[agg.max]
+  var.agg.max <- runSD(var.agg.max,n=look.back)
+  ts.ratios <- (var.agg.max/var.agg.min)*(agg.min/agg.max)/2
+  ts.ratios[1:(look.back-1)] <- ts.ratios[look.back]
+  ts.ratios
+} ))
+ts.var.ratios <- xts(ts.var.ratios, order.by=index(ts.rets))
+colnames(ts.var.ratios) <- colnames(ts.rets)
+plot.zoo(ts.var.ratios, main=paste(c('var.ratios ',format(Sys.time(),'%m-%d-%y',tz="UTC"))), xlab="")
+
 
 ### Calculate regression credit betas for a list of symbols
 # Prepare cumulated returns data
@@ -1346,7 +1402,7 @@ magn <- length(periodogram$spec)/5
 plot(periodogram$freq[1:magn], periodogram$spec[1:magn], ylab="Spectrum", xlab="Freq", main=paste(symbol.cds," periodogram"))
 
 
-# Calculate the percentage of the signal's energy spectrum in high frequencies
+# Calculate the percentage of the signal's energy spectrum in low frequencies
 cutoff <- 0.25
 energy.frac <- spectral.frac(ts.rets, cutoff=cutoff)
 
@@ -1710,8 +1766,9 @@ model.test <- update.alphaModel(model=model.test, develop.mode=FALSE, init.posit
 
 
 ### Run alphaModel for VAR model
+library(vars)
 # Load data
-mex.prices <- read.csv('S:/Data/Market/MEX.csv', stringsAsFactors=FALSE)
+mex.prices <- read.csv(paste(data.dir, "MEX.csv", sep=""), stringsAsFactors=FALSE)
 mex.prices <- xts(mex.prices[,-1], order.by=as.POSIXlt(mex.prices[,1]) )
 colnames(mex.prices) <- c('mex.cds','EWW','IG','OIL','MXN','MXN.vol')
 # plot.zoo(mex.prices, main=paste(c('MEXICO ', format(Sys.time(),'%m-%d-%y', tz="GMT"))))
@@ -1719,6 +1776,9 @@ mex.rets <- diff(log(mex.prices))
 mex.rets[1,] <- mex.rets[2,]
 
 # Run alphaModel
+source(paste(alpha.dir, "alphaModel.R", sep=""))
+source(paste(alpha.dir, "utilLib.R", sep=""))
+source(paste(rmodels.dir, "chartLib.R", sep=""))
 source(paste(rmodels.dir, "alphaModelVAR.R", sep=""))
 ts.bidoffers <- xts(rep(0.017, nrow(mex.prices)), order.by=index(mex.prices))
 func.signal <- list(signal.func="signals.ancillary1.1.alphaModel", filter.func="VAR", filter.params=c(200,0.01), normalize.returns=FALSE, normalize.signal=FALSE)
@@ -1726,6 +1786,8 @@ trading.rules <- list(rules.func="fillOrders4.2.alphaModel", rules.params=0.0)
 model.test <- alphaModel("MEXICO rets VAR Model")
 model.test <- update.alphaModel(model=model.test, func.signal=func.signal, trading.rules=trading.rules, ts.prices=mex.rets, ts.bidoffers=ts.bidoffers)
 model.test <- recalc.alphaModel(model.test)
+chart.data <- cbind(model.test)
+chart_Series(chart.data[,'PnLs'], name="mex.prices")
 # Make sure that in function calcProfitLoss.alphaModel  the line is: asset.returns <- (model$prices[,1])
 plot.alphaModel(model.test, time.range="2012-10-01/", n.flips.max=500)
 
@@ -2045,7 +2107,7 @@ write.csv(model.test$signals, "S:/Data/R_Data/signals.csv")
 library(DEoptim)
 
 ### Load data
-stock.sectors.prices <- read.csv('S:/Data/R_Data/Stock_Sectors.csv', stringsAsFactors=FALSE)
+stock.sectors.prices <- read.csv(paste(alpha.dir, "Stock_Sectors.csv", sep=""), stringsAsFactors=FALSE)
 stock.sectors.prices <- xts(stock.sectors.prices[,-1], order.by=as.POSIXlt(stock.sectors.prices[,1]))
 ts.rets <- diff(stock.sectors.prices,lag=1)
 ts.rets[1,] <- ts.rets[2,]
@@ -2060,9 +2122,10 @@ hurst.exponents <- as.matrix(apply(ts.rets['2012/'], 2, Hurst))
 ### Simple Portfolio Optimization
 # Objective function
 func.objective <- function(v.weights, ts.rets) {
-  v.weights <- v.weights/sqrt(sum((v.weights)^2))
+#  v.weights <- v.weights/sqrt(sum((v.weights)^2))
 #  -as.vector(Hurst(ts.rets=ts.rets %*% v.weights))
-  -as.vector(var.ratio(ts.rets=ts.rets %*% v.weights, agg.min=1, agg.max=5))
+#  -spectral.frac(ts.rets %*% c(1,v.weights))
+  -as.vector(var.ratio(ts.rets=ts.rets %*% c(1,v.weights), agg.min=2, agg.max=10))
 #  -as.vector(Hurst(ts.rets=ts.rets %*% v.weights)) + 10*abs(1-sum((v.weights)^2))
 #  -as.vector(var.ratio(ts.rets=ts.rets %*% v.weights, agg.min=1, agg.max=5)) + 10*abs(1-sum((v.weights)^2))
 #  single.rets <- xts(ts.rets %*% v.weights, order.by=index(ts.rets))
@@ -2072,33 +2135,50 @@ func.objective <- function(v.weights, ts.rets) {
 # End func.objective
 
 ### Simple Optimization with optim()
-optim.obj <- optim(par=rep(1,dim(ts.rets)[2]), fn=func.objective, ts.rets=ts.rets, method="L-BFGS-B", lower=-rep(100,dim(ts.rets)[2]), upper=rep(100,dim(ts.rets)[2]), control=list(trace=1, pgtol=1e-2, factr=1e7))
+n.col <- ncol(ts.rets)
+init.weights <- rep(0,n.col-1)
+max.weights <- rep(10,n.col-1)
+optim.obj <- optim(par=init.weights, fn=func.objective, ts.rets=ts.rets, method="L-BFGS-B", lower=-max.weights, upper=max.weights, control=list(trace=1, pgtol=1e-2, factr=1e7))
 
-v.weights <- as.matrix(optim.obj$par)
+v.weights <- as.matrix(c(1,optim.obj$par))
 rownames(v.weights) <- colnames(ts.rets)
 colnames(v.weights) <- 'weights'
-optim.rets <- xts(ts.rets %*% v.weights, order.by=index(ts.rets))
-chart.TimeSeries(cumsum(optim.rets), main="Optimal Portfolio", ylab="", xlab="", legend.loc='topright')
 
 ### Optimization with DEoptim()
 set.seed(1234)
-init.weights <- rep(1,dim(ts.rets)[2])
-max.weights <- rep(1,dim(ts.rets)[2])
 optim.obj <- DEoptim(fn=func.objective, lower=-max.weights, upper=max.weights, control=list(storepopfrom=1), ts.rets=ts.rets)
 optim.obj$optim$bestval
-v.weights <- as.matrix(optim.obj$optim$bestmem)
-v.weights <- v.weights/sqrt(sum((v.weights)^2))
+v.weights <- as.matrix(c(1,optim.obj$optim$bestmem))
+# v.weights <- v.weights/sqrt(sum((v.weights)^2))
 rownames(v.weights) <- colnames(ts.rets)
 colnames(v.weights) <- 'weights'
-v.weights
+# Plot convergence
 plot(optim.obj, plot.type="storepop")
 
+# Plot optim.rets
+optim.rets <- xts(ts.rets %*% v.weights, order.by=index(ts.rets))
+colnames(optim.rets) <- 'optim.rets'
+chart_Series(cumsum(optim.rets), name="Optimal Portfolio", xlab="", ylab="", legend.loc='topright')
 
-### Calculate PnLs from a simple trending strategy
-ts.signals <- lag(runSum(optim.rets,2))
-# ts.signals <- lag(optim.rets)
-ts.signals[1:2] <- 0
-plot.zoo(cumsum(cbind(-optim.rets,ts.signals*optim.rets)))
+# Sort v.weights
+sorted.weights <- as.matrix(v.weights[order(v.weights, decreasing=TRUE),1])
+colnames(sorted.weights) <- 'Spectrum.Scores'
+barplot(as.vector(sorted.weights), names.arg=rownames(sorted.weights), las=3, xlab="", ylab="", main="Sorted.weights")
+
+
+### Calculate PnLs for a simple trending strategy
+ts.temp <- optim.rets
+look.back <- 5
+# ts.signals <- lag(ts.temp)
+ts.signals <- lag(sign(ts.temp)*sqrt(abs(ts.temp)))
+ts.signals[1] <- ts.signals[2]
+# ts.signals <- lag(sign(runSum(ts.temp,look.back)))
+# ts.signals[1:(look.back+1)] <- 0
+colnames(ts.signals) <- 'signals'
+ts.pnls <- ts.signals*ts.temp
+colnames(ts.pnls) <- 'PnLs'
+plot.zoo(cumsum(cbind(ts.temp,ts.pnls)), xlab="", ylab="", main="Simple Trending Strategy")
+chart_Series(cumsum(ts.pnls), name="Simple Trending Strategy", xlab="", ylab="", legend.loc='topright')
 
 
 ### Create overlaping time windows
@@ -2117,36 +2197,54 @@ end.points <- c(1,end.points)
 
 ### Perform out-of-sample optimization over sliding window
 # range.date <- matrix(look.back:(nrow(ts.data)-1))
-optim.rets <- 0.0*ts.rets[1:end.points[look.back],1]
-# optim.rets <- 0.0*ts.rets[optim.windows[[1]],1]
-colnames(optim.rets) <- 'optim.rets'
+ts.rets <- xts(diff(ts.prices[,c('EEM','IVV')]), order.by=index(ts.prices))
+ts.rets[1,] <- ts.rets[2,]
+optim.weights <- NA*ts.rets[1:end.points[look.back]]
+# optim.weights <- xts(NA*(1:end.points[look.back]), order.by=index(ts.rets[1:end.points[look.back]]))
+# optim.weights <- 0.0*ts.rets[optim.windows[[1]],1]
+colnames(optim.weights) <- paste('weights',colnames(optim.weights),sep='-')
+# Add another column for optim.value
+optim.weights <- cbind(NA*ts.rets[1:end.points[look.back],1], optim.weights)
+colnames(optim.weights) <- c('optim.value',colnames(optim.weights)[-1])
 
 
-### Find optim.rets
+### Find optim.weights
+max.weights <- rep(10,ncol(ts.rets)-1)
+init.weights <- rep(0,ncol(ts.rets)-1)
 # Perform a rolling optimization over a sliding window to find the weights of the most forecastable portfolios
 # Apply the optimal weights out of sample to obtain rolling forecastable portfolios
 v.weights <- apply(matrix(look.back:(length(end.points)-1)), 1, function(end.point)
   {
     in.sample.rets <- ts.rets[end.points[end.point-look.back+1]:end.points[end.point],]
     optim.obj <- optim(par=init.weights, fn=func.objective, ts.rets=in.sample.rets, method="L-BFGS-B", lower=-max.weights, upper=max.weights, control=list(trace=1, pgtol=1e-2, factr=1e7))
-    v.local.weights <- as.matrix(optim.obj$par)
+    init.weights <<- as.matrix(optim.obj$par)
 # Scale weights and make XLP weight positive
-#    v.local.weights <- sign(v.local.weights[2])*v.local.weights/sqrt(sum((v.local.weights)^2))
-    v.local.weights <- v.local.weights/sqrt(sum((v.local.weights)^2))
-    rownames(v.local.weights) <- colnames(ts.rets)
-    colnames(v.local.weights) <- 'weights'
-    out.sample.rets <- ts.rets[(end.points[end.point]+1):end.points[end.point+1],]
-    local.optim.rets <- xts(out.sample.rets %*% v.local.weights, order.by=index(out.sample.rets))
+#    init.weights <- sign(init.weights[2])*init.weights/sqrt(sum((init.weights)^2))
+    out.weights <- c(1,init.weights)/sqrt(1+sum((init.weights)^2))
+    out.weights <- c(optim.obj$value,out.weights)
+#    rownames(init.weights) <- colnames(ts.rets)
+#    colnames(init.weights) <- 'weights'
+    out.rets <- ts.rets[(end.points[end.point]+1):end.points[end.point+1],]
+#    local.optim.weights <- xts(out.rets %*% init.weights, order.by=index(out.rets))
+#    local.optim.weights <- xts(rep(init.weights,nrow(in.sample.rets)), order.by=index(in.sample.rets))
+    local.optim.weights <- xts(matrix(rep(out.weights,nrow(out.rets)),ncol=length(out.weights),byrow=TRUE), order.by=index(out.rets))
 # Scale rets to enforce constant SD budget
 #    blah <- -func.objective(v.weights=as.matrix(optim.obj$par), ts.rets=in.sample.rets)
-#    local.optim.rets <- blah*local.optim.rets/sd.rets
-    sd.rets <- as.vector(sqrt(var(local.optim.rets)))
-    local.optim.rets <- local.optim.rets/sd.rets
-    optim.rets <<- rbind.xts(optim.rets, local.optim.rets)
-#    v.local.weights
+#    local.optim.weights <- blah*local.optim.weights/sd.rets
+#    sd.rets <- as.vector(sqrt(var(local.optim.weights)))
+#    local.optim.weights <- local.optim.weights/sd.rets
+    optim.weights <<- rbind.xts(optim.weights, local.optim.weights)
+    optim.obj$value
+#    optim.weights <<- c(optim.weights, rep(init.weights,nrow(in.sample.rets)))
+#    init.weights
   }
 )
 # End apply
+optim.weights <- na.locf(optim.weights)
+optim.weights <- na.locf(optim.weights,fromLast=TRUE)
+optim.rets <- xts(rowSums(optim.weights[,-1]*ts.rets), order.by=index(ts.rets))
+colnames(optim.rets) <- 'optim.rets'
+plot.zoo(cbind(ts.prices[,c('EEM','IVV')], cumsum(optim.rets),optim.weights), main=paste(c('Weights ',format(Sys.time(),'%m-%d-%y',tz="UTC"))), xlab="")
 
 
 ### Find optim portfolios
@@ -2166,9 +2264,9 @@ v.weights <- apply(matrix(look.back:(length(end.points)-1)), 1, function(end.poi
     in.sample.rets <- xts(in.sample.rets %*% v.local.weights, order.by=index(in.sample.rets))
     sd.rets <- as.vector(sqrt(var(in.sample.rets)))
     v.local.weights <- v.local.weights/sd.rets
-    out.sample.rets <- ts.rets[(end.points[end.point]+1):end.points[end.point+1],]
-    out.sample.rets <- xts(out.sample.rets %*% v.local.weights, order.by=index(out.sample.rets))
-    optim.portfolio <<- rbind.xts(optim.portfolio, out.sample.rets)
+    out.rets <- ts.rets[(end.points[end.point]+1):end.points[end.point+1],]
+    out.rets <- xts(out.rets %*% v.local.weights, order.by=index(out.rets))
+    optim.portfolio <<- rbind.xts(optim.portfolio, out.rets)
   }
 )
 # End apply
@@ -2190,9 +2288,9 @@ v.weights <- apply(matrix(look.back:(nrow(ts.rets)-1)), 1, function(end.point)
     colnames(v.local.weights) <- 'weights'
     lag.rets <- as.vector(ts.rets[end.point,] %*% v.local.weights)
 #    lag.rets <- sum(as.vector(ts.rets[(end.point-1):end.point,] %*% v.local.weights))
-    out.sample.rets <- ts.rets[end.point+1,]
-    out.sample.rets <- lag.rets*xts(out.sample.rets %*% v.local.weights, order.by=index(out.sample.rets))
-    optim.portfolio <<- rbind.xts(optim.portfolio, out.sample.rets)
+    out.rets <- ts.rets[end.point+1,]
+    out.rets <- lag.rets*xts(out.rets %*% v.local.weights, order.by=index(out.rets))
+    optim.portfolio <<- rbind.xts(optim.portfolio, out.rets)
   }
 )
 # End apply

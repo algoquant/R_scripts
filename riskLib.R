@@ -273,14 +273,15 @@ var.agg <- function(ts.rets, agg.window=NULL, bmean=FALSE) {
 }
 
 
-# Calculate the percentage of the signal's energy spectrum in high frequencies
+# Calculate the percentage of the signal's energy spectrum in low frequencies
 spectral.frac <- function(ts.rets, cutoff=0.25) {
+#  specDensity <- SDF(coredata(ts.rets),'wosa')
   specDensity <- spectrum(coredata(ts.rets), plot=FALSE)$spec
-  specDensity[1:5] <- 0.0
-  specLength <- length(specDensity)
+#  specDensity[1:5] <- 0.0
+#  specLength <- length(specDensity)
 #  plot(spectrum(ts.rets))
-  hfreqEnergy <- sum(tail(specDensity, cutoff*specLength))
-  hfreqFrac <- 100*hfreqEnergy/sum(specDensity)
+  hfreqEnergy <- sum(head(specDensity, cutoff*length(specDensity)))
+  hfreqFrac <- 100*hfreqEnergy/sum(specDensity)/cutoff
   hfreqFrac
 }
 
@@ -513,7 +514,7 @@ aggStat <- function(ts.price) {
 optimObjective <- function(ts.rets) 100*varProfile(ts.rets, nScale=1:5)$coef[2] / varProfile(ts.rets, nScale=1:10)$coef[2]
 
 ### Calculate the variance ratio
-var.ratio <- function(ts.rets, agg.min, agg.max) var.agg(ts.rets, agg.window=agg.max)/var.agg(ts.rets, agg.window=agg.min)*(agg.min/agg.max)/2
+var.ratio <- function(ts.rets, agg.min=2, agg.max=10) 100*var.agg(ts.rets, agg.window=agg.max)/var.agg(ts.rets, agg.window=agg.min)*(agg.min/agg.max)/2
 
 
 ### Calculate Hurst exponent using range
