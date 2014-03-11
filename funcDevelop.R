@@ -194,6 +194,275 @@ coordinates.matrix <- function(var.matrix, func.matrix) {
   coordinates
 }
 
+
+### Recursive functions
+
+# Recursive Fibonacci sequence
+FibRec <- function(n.num) {
+  if (n.num > 2) {
+    fib.seq <- FibRec(n.num-1)  # recursion
+    c(fib.seq, sum(tail(fib.seq, 2)))
+  } else {
+    c(1, 1)  # initialize
+  }
+}  # end FibRec
+FibRec(10)
+tail(FibRec(10), 2)
+
+# Recursive sum using dots
+SumDots <- function(n.var, ...) {
+  if (length(list(...)) == 0) {
+    return(n.var)
+  } else {
+    n.var + SumDots(...)
+  }
+}  # end SumDots
+
+
+# Function that returns another function as its value
+FuncPower <- function(n.exp) {
+  function(n.arg) {
+    n.arg^n.exp
+  }
+}
+FuncSquare <- FuncPower(2)
+FuncCube <- FuncPower(3)
+FuncSquare(4)
+FuncCube(2)
+
+
+# pseudo-random function
+MyRandom <- function(seed) {  # seed must be an integer
+# Returns pseudo-random generating function based on logistic map
+# the formal argument 'seed' exists in the evaluation environment of MyRandom
+  pseudo.random <- as.numeric(paste('0.', seed, sep=''))  # initialize
+#  pseudo.random <- seed/4  # initialize
+#  cat("ls()= ", ls(), c(seed=seed, pseudo.random=pseudo.random))
+  NewRandom <- function(n.rand=1) {  # assign function name for recursion
+    pseudo.random <<- 4*pseudo.random*(1 - pseudo.random)
+    if(n.rand == 1) {
+      return(pseudo.random)
+    } else {
+      return(c(pseudo.random, NewRandom(n.rand - 1)))
+    }
+  }
+}  # end MyRandom
+
+# now run MyRandom:
+# seed the pseudo-random function
+PseudoRandom <- MyRandom(88)
+# plot histogram of pseudo-random numbers
+hist(PseudoRandom(500), breaks=30, main="Poor quality pseudo-random numbers", xlim=c(0.0, 1.0), 
+     xlab="", ylab="", freq = FALSE)
+lines(density(ts.rets[, 1]), col='red', lwd=2)  # draw density
+# title(main=ch.title, line=-1)  # add title
+
+
+# bank account example (from Venables) demonstrates mutable states
+# the formal argument 'balance' exists in the OpenAccount evaluation environment
+# this allows 'balance' to be persistent between function calls
+# the super-assignment operator '<<-' adjusts the balance
+OpenAccount <- function(balance) {
+# returns a list of functions that perform account operations
+  list(
+
+    deposit = function(amount) {
+# make account deposit
+      if(amount > 0) {
+        balance <<- balance + amount  # '<<-' super-assignment operator
+        cat(amount, "deposited. Your balance is now:", balance, "\n")
+      } else {
+        cat("Deposits must be positive!\n")
+      }
+    },  # end deposit
+
+    withdraw = function(amount) {
+# make account withdrawal
+      if(amount <= balance) {
+        balance <<- balance - amount  # '<<-' super-assignment operator
+        cat(amount, "withdrawn. Your balance is now:", balance, "\n")
+      } else {
+        cat("You don't have that much money!\n")
+      }
+    },  # end withdraw
+
+    get.balance = function() {
+# get account balance
+      cat("Your current balance is:", balance, "\n")
+    }  # end get.balance
+
+  )  # end list
+
+}  # end OpenAccount
+
+# perform account operations
+my.account <- OpenAccount(100)  # open an account with 100 deposit
+attach(my.account)  # add my.account to search path
+withdraw(30)  # withdraw from account to buy groceries
+deposit(100)  # deposit paycheck to account
+withdraw(200)  # withdraw from account to buy Gucci bag
+get.balance()  # get account balance
+
+ls(environment(get.balance))  # list objects in scope of get.balance
+
+detach(my.account)  # remove my.account from search path
+
+
+#############
+### Exception handling
+#############
+
+MySqrt <- function(n.inp) {  # function that throws error
+  if (n.inp > 0) {
+    sqrt(n.inp)
+  } else {
+    stop('bad input!')  # throw error
+  }
+}
+
+# set option to turn warnings into errors
+options(warn=2)
+
+stop('my error')  # stop and produce error condition
+
+args(tryCatch)  # get arguments of tryCatch()
+
+tryCatch(  # without error handler
+  {  # evaluate expressions
+    n.val <- 101  # assign
+    stop('my error')  # throw error
+  }, 
+  finally=print(paste("n.val=", n.val))
+)  # end tryCatch
+
+tryCatch(  # with error handler
+  {  # evaluate expressions
+    n.val <- 101  # assign
+    stop('my error')  # throw error
+  }, 
+  error=function(e.cond)  # handler captures error condition
+    print(paste("error handler: ", e.cond)),
+  finally=print(paste("n.val=", n.val))
+)  # end tryCatch
+
+# apply loop without tryCatch
+apply(as.matrix(1:5), 1, function(n.val) {  # anonymous function
+  stopifnot(n.val != 3)  # check for error
+  cat("(cat) n.val=", n.val)  # broadcast
+  paste("(return) n.val=", n.val)  # return value
+}  # end anonymous function
+)  # end apply
+
+# apply loop with tryCatch
+apply(as.matrix(1:5), 1, function(n.val) {  # anonymous function
+  tryCatch(  # with error handler
+{  # body
+  stopifnot(n.val != 3)  # check for error
+  cat("(cat) n.val=", n.val)  # broadcast
+  paste("(return) n.val=", n.val)  # return value
+},
+error=function(e.cond)  # handler captures error condition
+  paste("handler: ", e.cond),
+finally=print(paste("(finally) n.val=", n.val))
+  )  # end tryCatch
+}  # end anonymous function
+)  # end apply
+
+# this loop throws error with little information
+for (my.index in 1:10) {  # loop
+  stopifnot(my.index < 6)
+}  # end for
+
+for (my.index in 1:10) {  # loop with tryCatch
+  tryCatch(stopifnot(my.index < 6), 
+           error=function(e) print(paste("my.index=", my.index, "error: ", e)),
+           finally=print(paste("my.index=", my.index)))
+}  # end for
+
+for (my.index in 1:10) {  # loop with tryCatch
+  tryCatch(stopifnot(my.index < 6), 
+           error=function(e) print(paste("my.index=", my.index, "error: ", e)))
+}  # end for
+
+
+ErrorHandler <- function(try.cond) {
+# wrapper for error handler (returns a function)
+  function(try.cond) {  # error handler
+    message("error for: ", n.inp, "\nerror message:", try.cond)
+    return(NA)  # return NA on error
+  }  # end error handler
+}  # end error wrapper
+
+WarningHandler <- function(try.cond) {
+# wrapper for warning handler (returns a function)
+  function(try.cond) {  # warning handler
+    message("warning for: ", n.inp, "\nwarning message: ", try.cond)
+    return(NULL)  # return NULL on warning
+  }  # end warning handler
+}  # end warning wrapper
+
+
+# define wrapper function for tryCatch (wrapper needed for apply)
+TrySqrt <- function(n.inp) {  # wrapper for tryCatch
+  tryCatch(
+    {  # expressions to be evaluated
+      message("start processing: ", n.inp)
+      sqrt(n.inp)
+    },  # end expressions
+    error=ErrorHandler(try.cond),  # error handler
+    warning=WarningHandler(try.cond),  # warning handler
+    finally=message("finished processing: ", n.inp)  # end finally
+  )  # end tryCatch
+}  # end wrapper
+
+
+v.inp <- c(2:6, -1, 7:10)
+# run regular sqrt - loop stops on first error
+for (n.inp in v.inp) {
+  print(paste("sqrt of", n.inp, "=", sqrt(n.inp)))
+}
+# run TrySqrt - loop continues after error
+for (n.inp in v.inp) {
+  print(paste("sqrt of", n.inp, "=", TrySqrt(n.inp)))
+}
+
+# run tryCatch without wrapper function
+for (n.inp in v.inp) {
+  try.sqrt <- tryCatch(
+    expr={  # expressions to be evaluated
+      message("start processing: ", n.inp)
+      #      MySqrt(n.inp)
+      sqrt(n.inp)
+    },  # end expressions
+    error=ErrorHandler(try.cond),  # error handler
+    warning=WarningHandler(try.cond),  # warning handler
+    finally=message("finished processing: ", n.inp)  # end finally
+  )  # end tryCatch
+  print(paste("sqrt of", n.inp, "=", try.sqrt))
+}
+
+# tryCatch with handlers using anonymous functions (without wrapper)
+for (n.inp in v.inp) {
+  try.sqrt <- tryCatch(
+    expr={  # expressions to be evaluated
+      message("start processing: ", n.inp)
+      #      MySqrt(n.inp)
+      sqrt(n.inp)
+    },  # end expressions
+    error=  function(try.cond) {  # anonymous error handler
+      message("error for: ", n.inp, "\nerror message:", try.cond)
+      return(NA)  # return NA on error
+    },  # end error handler
+    warning=function(try.cond) {  # anonymous warning handler
+      message("warning for: ", n.inp, "\nwarning message: ", try.cond)
+      return(NULL)  # return NULL on warning
+    },  # end warning handler
+    finally=message("finished processing: ", n.inp)  # end finally
+  )  # end tryCatch
+  print(paste("sqrt of", n.inp, "=", try.sqrt))
+}
+
+
 #############
 ### Rolling Functions
 #############
