@@ -1,3 +1,12 @@
+##########################################
+### Information Functions  ###############
+##########################################
+
+R.Version()
+
+
+
+
 ################################################
 ### Miscelaneous Data Functions  ###############
 ################################################
@@ -22,6 +31,61 @@ file.data <- "S:/Data/R_Data/Time_Series.RData"
 # load(file=file.data, envir=test.env)
 # ls(test.env)
 
+
+### script for reading panel data from *.csv file and creating xts object
+# panel data consists of prices by ticker symbol and dates
+
+# read into data frame
+df.data <- read.csv(file='sampleJ.csv', stringsAsFactors=FALSE)
+
+# convert dates to POSIX
+df.data[,"date"] <- as.POSIXct(df.data[,"date"], format="%m/%d/%Y")
+
+# sort by date
+# df.data <- df.data[order(df.data[,"date"]), ]
+# sort by ticker then by date
+df.data <- df.data[order(df.data[,"ticker"], df.data[,"date"]), ]
+
+# calculate returns
+# the returns for the first date should be disregarded
+df.data[,"return"] <- c(0, diff(log(df.data[, "price"])))
+
+# more code to create list of xts
+# get all ticker names
+ticker.names <- unique(df.data[, "ticker"])
+
+# extract matrices by ticker name - creates list of matrices
+list.data <- apply(as.matrix(ticker.names), 1, 
+                   function(ticker.name) 
+                     df.data[df.data[, "ticker"] == ticker.name, c("date", "price")]
+)  # end apply
+names(list.data) <- ticker.names
+
+# extract matrices by ticker name - creates list of smaller matrices
+list.data <- apply(as.matrix(ticker.names), 1, 
+                   function(ticker.name) 
+                     df.data[df.data[, "ticker"] == ticker.name, c("date", "price")]
+)  # end apply
+names(list.data) <- ticker.names
+
+# extract matrices by ticker name - creates list of xts
+list.data <- apply(as.matrix(ticker.names), 1, 
+                   function(ticker.name) {
+                     xts.data <- df.data[df.data[, "ticker"] == ticker.name, c("date", "price")]
+                     xts.data <- xts(x=xts.data[, "price"], order.by=xts.data[, "date"])
+                     colnames(xts.data) <- ticker.name
+                     xts.data
+                   }
+)  # end apply
+names(list.data) <- ticker.names
+
+
+# convert list of matrices to one big matrix
+matrix.data <- do.call(rbind, list.data)
+rownames(matrix.data) <- NULL
+
+
+####
 
 cbind.SavGol <- function(ts.price, func.signal) {
 # Extract function name
