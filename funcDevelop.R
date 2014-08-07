@@ -8,7 +8,7 @@ update.packages(ask=FALSE, checkBuilt=TRUE)
 
 
 ################################################
-### Miscelaneous Data Functions  ###############
+### Miscelaneous Data Loading Functions  #######
 ################################################
 
 
@@ -650,3 +650,27 @@ rollingLmSignals <- function(ts.returns, end.period, look.back, lags, expand.win
 ### End rollingLmSignals
 
 
+################################################
+### HF data aggregation and moment estimation  #
+################################################
+
+# compute beta coefficients from robust regressions
+my.lmr.beta <- function (object, classic = FALSE) {
+  if(class(object) != "lmRob")
+    stop("Object must be of class 'lmRob'")
+  model <- object$model
+  num <- sapply(model, is.numeric)  # numeric vars only
+  b <- object$coefficients[num][-1]  # final coefficients w/o intercept
+  ## compute robust covariance
+  covr <- NULL
+  try(covr <- diag(covRob(model[num])$cov), silent = TRUE)
+  if(is.null(covr) & classic == FALSE)
+    warning("covRob() coud not be computed, instead covClassic() was applied.")
+  ## compute classic covariance if robust failed
+  if(is.null(covr) | classic == TRUE)
+    covr <- diag(covClassic(model[num])$cov)
+  sx <- sqrt(covr[-1])  # standard deviation of x's
+  sy <- sqrt(covr[1])  # standard deviation of y
+  beta <- b * sx/sy
+  return(beta)
+}  # End my.lmr.beta
