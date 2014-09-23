@@ -160,6 +160,7 @@ colnames(prices_mid) <- 'trade_price'
 
 ### create test data
 
+# sine function with jumps
 prices_mid <- xts(sin(22*(1:dim(daily_prices)[1])/dim(daily_prices)[1]), order.by=index(daily_prices))
 # prices_mid <- sin(22*(1:dim(daily_prices)[1])/dim(daily_prices)[1])
 prices_mid[c(1000,3000,5000,7000)] <- 1
@@ -168,11 +169,16 @@ colnames(prices_mid) <- 'trade_price'
 # prices_scrub <- prices_mid
 plot(prices_mid, xlab="", ylab="", type='l')
 
+# median filter
+test.blob <- xts(runmed(x=coredata(prices_mid), 11), order.by=index(prices_mid))
+plot(prices_mid, xlab="", ylab="", type='l')
+lines(test.blob, col='red', lwd=1)
+
 
 # calculate log returns
-# daily_returns <- diff(log(prices_mid[, 'trade_price']))/c(1, diff(.index(prices_mid)))
-daily_returns <- diff(prices_mid[, 'trade_price'])/c(1, diff(.index(prices_mid)))
-# daily_returns <- diff(prices_mid[, 'trade_price'])
+# daily_returns <- diff(log(prices_mid))/c(1, diff(.index(prices_mid)))
+daily_returns <- diff(prices_mid)/c(1, diff(.index(prices_mid)))
+# daily_returns <- diff(prices_mid)
 # daily_returns <- diff(prices_mid)
 daily_returns[1, ] <- 0
 
@@ -181,7 +187,7 @@ daily_returns[1, ] <- 0
 
 # calculate the (symmetric) running average absolute deviation
 agg_vol_window <- 51
-daily_diffs <- diff(prices_mid[, 'trade_price'])
+daily_diffs <- diff(prices_mid)
 daily_diffs[1, ] <- 0
 # abs_returns <- abs(as.vector(daily_returns))  # vector dispatches faster code
 # daily_vol <- runMean(abs_returns, n=agg_vol_window)
@@ -193,6 +199,8 @@ daily_diffs[1, ] <- 0
 # daily_vol <- runmad(x=as.vector(prices_mid), k=agg_vol_window, endrule="constant", align="center")
 # daily_vol <- runmean(x=abs(as.vector(daily_returns)-daily_mean), k=agg_vol_window, alg="fast", endrule="constant", align="center")
 daily_vol <- runmean(x=abs(as.vector(daily_diffs)), k=agg_vol_window, alg="fast", endrule="constant", align="center")
+plot(daily_vol, xlab="", ylab="", type='l')
+plot.zoo(cbind(abs(daily_diffs), daily_vol), xlab="", ylab="", type='l')
 
 
 # scrub the data
@@ -201,8 +209,9 @@ daily_vol <- runmean(x=abs(as.vector(daily_diffs)), k=agg_vol_window, alg="fast"
 # lag_daily_returns[1,] <- 0.0
 
 # find suspect values
-# daily_suspect <- ((abs(daily_returns)>2*daily_vol) & (abs(daily_returns+lag(daily_returns, -1))<2*daily_vol))
-daily_suspect <- ((abs(daily_diffs)>daily_vol) & (abs(daily_diffs+lag(daily_diffs, -1))<daily_vol))
+suspect_window <- 3
+# daily_suspect <- ((abs(daily_returns)>suspect_window*daily_vol) & (abs(daily_returns+lag(daily_returns, -1))<suspect_window*daily_vol))
+daily_suspect <- ((abs(daily_diffs)>suspect_window*daily_vol) & (abs(daily_diffs+lag(daily_diffs, -1))<suspect_window*daily_vol))
 # daily_suspect <- ((abs(daily_returns)>0.5*daily_vol) & (abs(daily_returns+lag(daily_returns, -1))<0.5*daily_vol))
 daily_suspect[dim(daily_suspect)[1]] <- FALSE
 plot(daily_suspect, xlab="", ylab="", type='l')
@@ -210,17 +219,17 @@ sum(daily_suspect)
 
 # replace suspect values with NA
 # prices_scrub <- prices_mid
-prices_scrub <- prices_mid[, 'trade_price']
+prices_scrub <- prices_mid
 prices_scrub[daily_suspect] <- NA
 prices_scrub <- na.locf(prices_scrub)
 
 # plot
 plot(prices_scrub, xlab="", ylab="", type='l')
-plot(prices_mid[, 'trade_price'], xlab="", ylab="", type='l')
+plot(prices_mid, xlab="", ylab="", type='l')
 lines(prices_scrub, col='red', lwd=1)
 
 # calculate scrubbed returns
-returns_scrub <- diff(prices_scrub[, 'trade_price'])/c(1, diff(.index(prices_scrub)))
+returns_scrub <- diff(prices_scrub)/c(1, diff(.index(prices_scrub)))
 returns_scrub[1,] <- 0.0
 
 # prices_mid <- xts(raw.data[,2], order.by=as.POSIXlt(raw.data[,1]))
@@ -248,9 +257,9 @@ plot.zoo(test.blob[7990:8010])
 agg_price_window <- 10  # number of periods per aggregation
 num_agg <- trunc(dim(daily_prices)[1]/agg_price_window)  # number of aggregations
 # min end_points
-end_points <- dim(daily_prices)[1] - (agg_price_window*(num_agg+1) - 1) + agg_price_window*(1:num_agg)
+# end_points <- dim(daily_prices)[1] - (agg_price_window*(num_agg+1) - 1) + agg_price_window*(1:num_agg)
 # max end_points
-end_points <- dim(daily_prices)[1] - agg_price_window*num_agg + agg_price_window*(1:num_agg)
+# end_points <- dim(daily_prices)[1] - agg_price_window*num_agg + agg_price_window*(1:num_agg)
 # range of end_points
 agg_range <- dim(daily_prices)[1] - (agg_price_window*(num_agg+1) - 1):(agg_price_window*num_agg)
 
@@ -260,7 +269,6 @@ agg_range <- dim(daily_prices)[1] - (agg_price_window*(num_agg+1) - 1):(agg_pric
 prices_mid <- daily_prices[end_points, 'Trade.Price']
 colnames(prices_mid) <- 'trade_price'
 
-daily_agg_returns <- NULL
 # calculate aggregated returns given aggregation index start point
 agg_returns <- function(agg_start) {
   prices_mid <- prices_scrub[(agg_start + agg_price_window*(1:num_agg)), ]
@@ -271,14 +279,23 @@ agg_returns <- function(agg_start) {
   #  coredata(daily_returns)
 }  # end agg_returns
 
+
+daily_agg_returns <- NULL
 agg_out <- sapply(agg_range, agg_returns)
 colnames(daily_agg_returns) <- 'returns'
 daily_agg_returns <- sqrt(agg_price_window)*daily_agg_returns
 
 
+# calculate stddev, skewness, and quantiles
+sd(x=coredata(daily_agg_returns))
+skewness(x=coredata(daily_agg_returns))
+quantile(x=daily_agg_returns, probs=c(0.05, 0.95))
+quantile(x=daily_agg_returns, probs=c(0.1, 0.9))
+
+
 # plot histograms of daily returns
 hist(daily_agg_returns, breaks=200, main="returns", xlab="", ylab="", freq=FALSE)
-lines(density(daily_returns), col='red', lwd=1)  # draw density
+lines(density(daily_agg_returns), col='red', lwd=1)  # draw density
 
 hist(returns_scrub, breaks=200, main="returns", xlab="", ylab="", freq=FALSE)
 lines(density(returns_scrub), col='red', lwd=1)  # draw density
@@ -348,39 +365,47 @@ Warning message:
 ###
 
 # get data from multiple .Rdata files
-getSymbols.FI <- function (Symbols, from="2010-01-01", to=Sys.Date(), ..., 
-          dir="", return.class="xts", extension="rda", split_method=c("days", 
-                                                                              "common"), use_identifier=NA, date_format=NULL, verbose=TRUE, 
-          days_to_omit=c("Saturday", "Sunday"), indexTZ=NA)
-{
+getSymbols.FI <- function (symbols_list, date_from="2010-01-01", to=Sys.Date(), ..., 
+          dir="", return_class="xts", extension="rda", split_method=c("days", "common"), 
+          use_identifier=NA, date_format=NULL, verbose=TRUE, 
+          days_to_omit=c("Saturday", "Sunday"), indexTZ=NA) {
+
+# looks redundant
   if (is.null(date_format)) 
     date_format <- "%Y.%m.%d"
+# what's this?
   if (is.null(days_to_omit)) 
     days_to_omit <- "NULL"
-  this.env <- environment()
+
+# not sure why this is needed
+  this_env <- environment()
   for (var in names(list(...))) {
-    assign(var, list(...)[[var]], this.env)
+    assign(var, list(...)[[var]], this_env)
   }
-  do.call.rbind <- function(lst) {
-    while (length(lst) > 1) {
-      idxlst <- seq(from=1, to=length(lst), by=2)
-      lst <- lapply(idxlst, function(i) {
-        if (i == length(lst)) {
-          return(lst[[i]])
+
+# define 'rbind' function for list arguments
+  rbind_list <- function(list_var) {
+    while (length(list_var) > 1) {
+      idx_list_var <- seq(from=1, to=length(list_var), by=2)
+      list_var <- lapply(idx_list_var, function(i) {
+        if (i==length(list_var)) {
+          return(list_var[[i]])
         }
-        return(rbind(lst[[i]], lst[[i + 1]]))
-      })
-    }
-    lst[[1]]
-  }
-  if (hasArg.from <- hasArg(from)) 
-    .from <- from
+        return(rbind(list_var[[i]], list_var[[i+1]]))
+      })  # end lapply
+    }  # end while
+    list_var[[1]]
+  }  # end rbind_list
+
+# assign input argument values to hidden '.*' variables
+  if (hasArg.date_from <- hasArg(date_from)) 
+    .date_from <- date_from
   if (hasArg.to <- hasArg(to)) 
     .to <- to
   if (hasArg.dir <- hasArg(dir)) 
     .dir <- dir
-  if (hasArg.return.class <- hasArg(return.class)) 
-    .return.class <- return.class
+  if (hasArg.return_class <- hasArg(return_class)) 
+    .return_class <- return_class
   if (hasArg.extension <- hasArg(extension)) 
     .extension <- extension
   if (hasArg.split_method <- hasArg(split_method)) 
@@ -395,11 +420,14 @@ getSymbols.FI <- function (Symbols, from="2010-01-01", to=Sys.Date(), ...,
     .days_to_omit <- days_to_omit
   if (hasArg.indexTZ <- hasArg(indexTZ)) 
     .indexTZ <- indexTZ
+
   importDefaults("getSymbols.FI")
-  default.from <- from
+
+# the variables below aren't used anywhere ?
+  default.date_from <- date_from
   default.to <- to
   default.dir <- dir
-  default.return.class <- return.class
+  default.return_class <- return_class
   default.extension <- extension
   default.split_method <- split_method[1]
   default.use_identifier <- use_identifier
@@ -407,127 +435,157 @@ getSymbols.FI <- function (Symbols, from="2010-01-01", to=Sys.Date(), ...,
   default.verbose <- verbose
   default.days_to_omit <- days_to_omit
   default.indexTZ <- indexTZ
+# end unused variables
+
   auto.assign <- if (hasArg(auto.assign)) {
     auto.assign
+  } else {
+    TRUE
   }
-  else TRUE
+
   env <- if (hasArg(env)) {
     env
   }
   else .GlobalEnv
-  pickArg <- function(x, Symbol) {
+
+# get default load parameters for symbol
+  pickArg <- function(x, symbol_name) {
     if (get(paste("hasArg", x, sep="."))) {
       get(paste(".", x, sep=""))
     }
-    else if (!is.null(SymbolLookup[[Symbol]][[x]])) {
-      SymbolLookup[[Symbol]][[x]]
+    else if (!is.null(symbol_lookup[[symbol_name]][[x]])) {
+      symbol_lookup[[symbol_name]][[x]]
     }
     else get(paste("default", x, sep="."))
-  }
-  SymbolLookup <- getSymbolLookup()
-  fr <- NULL
-  datl <- lapply(1:length(Symbols), function(i) {
-    from <- pickArg("from", Symbols[[i]])
-    to <- pickArg("to", Symbols[[i]])
-    dir <- pickArg("dir", Symbols[[i]])
-    return.class <- pickArg("return.class", Symbols[[i]])
-    extension <- pickArg("extension", Symbols[[i]])
-    split_method <- pickArg("split_method", Symbols[[i]])
-    use_identifier <- pickArg("use_identifier", Symbols[[i]])
-    date_format <- pickArg("date_format", Symbols[[i]])
-    verbose <- pickArg("verbose", Symbols[[i]])
-    days_to_omit <- pickArg("days_to_omit", Symbols[[i]])
-    indexTZ <- pickArg("indexTZ", Symbols[[i]])
-    instr_str <- NA
-    if (!is.na(use_identifier)) {
-      tmp_instr <- try(getInstrument(Symbols[[i]], silent=FALSE))
-      if (inherits(tmp_instr, "try-error") || !is.instrument(tmp_instr)) 
-        stop("must define instrument first to call with 'use_identifier'")
-      if (!use_identifier == "primary_id") {
-        instr_str <- make.names(tmp_instr$identifiers[[use_identifier]])
-      }
-      else instr_str <- make.names(tmp_instr[[use_identifier]])
-      if (length(instr_str) == 0L) 
-        stop("Could not find instrument. Try with use_identifier=NA")
-    }
-    Symbol <- ifelse(is.na(instr_str), make.names(Symbols[[i]]), 
-                     instr_str)
-    ndc <- nchar(dir)
-    if (substr(dir, ndc, ndc) == "/") 
-      dir <- substr(dir, 1, ndc - 1)
-    ssd <- strsplit(dir, "/")[[1]]
-    if (identical(character(0), ssd) || (!identical(character(0), 
-                                                    ssd) && ssd[length(ssd)] != Symbol)) 
-      dir <- paste(dir, Symbol, sep="/")
-    if (!dir == "" && !file.exists(dir)) {
-      if (verbose) 
-        cat("\ndirectory ", dir, " does not exist, skipping\n")
-    }
-    else {
-      if (verbose) 
-        cat("loading ", Symbols[[i]], ".....\n")
-      switch(split_method[1], days={
-        StartDate <- as.Date(from)
-        EndDate <- as.Date(to)
-        date.vec <- as.Date(StartDate:EndDate)
-        date.vec <- date.vec[!weekdays(date.vec) %in% 
-                               days_to_omit]
-        date.vec <- format(date.vec, format=date_format)
-        sym.files <- paste(date.vec, Symbol, extension, 
-                           sep=".")
-        if (dir != "") sym.files <- file.path(dir, sym.files)
-        dl <- lapply(sym.files, function(fp) {
-          sf <- strsplit(fp, "/")[[1]]
-          sf <- sf[length(sf)]
-          if (verbose) cat("Reading ", sf, "...")
-          if (!file.exists(fp)) {
-            if (verbose) cat(" failed. File not found in ", 
-                             dir, " ... skipping\n")
-          } else {
-            if (verbose) cat(" done.\n")
-            local.name <- load(fp)
-            dat <- get(local.name)
-            if (!is.na(indexTZ) && !is.null(dat)) indexTZ(dat) <- indexTZ
-            dat
-          }
-        })
-        if (verbose) cat("rbinding data ... ")
-        fr <- do.call.rbind(dl)
-      }, common=, {
-        sym.file <- paste(Symbol, extension, sep=".")
-        if (dir != "") sym.file <- file.path(dir, sym.file)
-        if (!file.exists(sym.file)) {
-          if (verbose) cat("file ", paste(Symbol, extension, 
-                                          sep="."), " does not exist in ", dir, "....skipping\n")
-        } else {
-          local.name <- load(sym.file)
-          dat <- get(local.name)
-          if (!is.na(indexTZ) && !is.null(dat)) indexTZ(dat) <- indexTZ
-          assign("fr", dat)
-          if (verbose) cat("done.\n")
-        }
-      })
-      fr <- quantmod:::convert.time.series(fr=fr, return.class=return.class)
-      Symbols[[i]] <- make.names(Symbols[[i]])
-      tmp <- list()
-      tmp[[Symbols[[i]]]] <- fr
-      if (verbose) 
-        cat("done.\n")
-      tmp
-    }
-  })
-  if (length(Filter("+", lapply(datl, length))) == 0) {
+  }  # end pickArg
+
+# get default load parameters for all Symbols
+  symbol_lookup <- getSymbolLookup()
+
+  fr <- NULL  # this is never used
+  datl <- lapply(1:length(symbols_list),  # load data for list of symbols
+                 function(symbol_index) {  # load data for single symbol
+                   symbol_i <- symbols_list[[symbol_index]]
+
+                   # get default load parameters for symbol_i
+                   from <- pickArg("from", symbol_i)
+                   to <- pickArg("to", symbol_i)
+                   dir <- pickArg("dir", symbol_i)
+                   return_class <- pickArg("return_class", symbol_i)
+                   file_extension <- pickArg("extension", symbol_i)
+                   split_method <- pickArg("split_method", symbol_i)
+                   use_identifier <- pickArg("use_identifier", symbol_i)
+                   date_format <- pickArg("date_format", symbol_i)
+                   verbose <- pickArg("verbose", symbol_i)
+                   days_to_omit <- pickArg("days_to_omit", symbol_i)
+                   indexTZ <- pickArg("indexTZ", symbol_i)
+                   instr_str <- NA
+
+                   # if use_identifier is set, then extract identifier from symbol
+                   if (!is.na(use_identifier)) {
+                     tmp_instr <- try(getInstrument(symbol_i, silent=FALSE))
+                     if (inherits(tmp_instr, "try-error") || !is.instrument(tmp_instr)) 
+                       stop("must define instrument first to call with 'use_identifier'")
+                     if (!use_identifier=="primary_id") {
+                       instr_str <- make.names(tmp_instr$identifiers[[use_identifier]])
+                     }
+                     else instr_str <- make.names(tmp_instr[[use_identifier]])
+                     if (length(instr_str)==0L) 
+                       stop("Could not find instrument. Try with use_identifier=NA")
+                   }
+
+                   # assign symbol name from either identifier or symbol
+                   symbol_name <- ifelse(is.na(instr_str), make.names(symbol_i), instr_str)
+
+                   # drop last "/" from dir
+                   ndc <- nchar(dir)
+                   if (substr(dir, ndc, ndc)=="/")
+                     dir <- substr(dir, 1, ndc - 1)
+                   # add symbol_name to dir
+                   ssd <- strsplit(dir, "/")[[1]]
+                   if (identical(character(0), ssd) || 
+                         (!identical(character(0), ssd) && ssd[length(ssd)] != symbol_name))
+                     dir <- paste(dir, symbol_name, sep="/")
+
+                   # load data for single symbol from its directory
+                   if (!dir=="" && !file.exists(dir)) {
+                     if (verbose)
+                       cat("\ndirectory ", dir, " does not exist, skipping\n")
+                   } else {
+                     if (verbose)
+                       cat("loading ", symbol_i, ".....\n")
+                     switch(split_method[1],
+                            ### load from daily files
+                            days={
+                              # create vector of dates and file names
+                              StartDate <- as.Date(from)
+                              EndDate <- as.Date(to)
+                              vec_dates <- as.Date(StartDate:EndDate)
+                              vec_dates <- vec_dates[!weekdays(vec_dates) %in% days_to_omit]
+                              vec_dates <- format(vec_dates, format=date_format)
+                              vec_file_names <- paste(vec_dates, symbol_name, file_extension, sep=".")
+                              if (dir != "") vec_file_names <- file.path(dir, vec_file_names)
+
+                              # loop over file names and load data
+                              data_list <- lapply(vec_file_names, function(file_name_full) {
+                                file_name <- strsplit(file_name_full, "/")[[1]]
+                                file_name <- file_name[length(file_name)]
+                                if (verbose) cat("Reading ", file_name, "...")
+                                if (!file.exists(file_name_full)) {
+                                  if (verbose) cat(" failed. File not found in ", dir, " ... skipping\n")
+                                } else {
+                                  data_name <- load(file_name_full)  # load invisibly and get character string of object names
+                                  data_object <- get(data_name)  # get value of named object
+                                  if (!is.na(indexTZ) && !is.null(data_object)) indexTZ(data_object) <- indexTZ
+                                  if (verbose) cat(" done.\n")
+                                  data_object  # return data from loop
+                                }  # end if
+                              }  # end anon function
+                              )  # end lapply
+                              
+                              if (verbose) cat("rbinding data ... ")
+                              data_complete <- rbind_list(data_list)
+                            },  # end days
+
+                            common={
+                              file_name <- paste(symbol_name, file_extension, sep=".")
+                              if (dir != "") file_name <- file.path(dir, file_name)
+                              if (!file.exists(file_name)) {
+                                if (verbose) cat("file ", paste(symbol_name, file_extension, sep="."), " does not exist in ", dir, "....skipping\n")
+                              } else {
+                                data_name <- load(file_name)
+                                data_object <- get(data_name)
+                                if (!is.na(indexTZ) && !is.null(data_object)) indexTZ(data_object) <- indexTZ
+                                assign("data_complete", data_object)
+                                if (verbose) cat("done.\n")
+                              }
+                            }  # end common
+                     )  # end switch
+
+                     data_complete <- quantmod:::convert.time.series(data_complete=data_complete, return_class=return_class)
+                     symbol_i <- make.names(symbol_i)
+                     data_out <- list()
+                     data_out[[symbol_i]] <- data_complete
+                     if (verbose) 
+                       cat("done.\n")
+                     data_out
+                   }  # end load data for single symbol
+                 }  # end anon function for loading single symbol
+
+  )  # end lapply over list of symbols
+
+  if (length(Filter("+", lapply(datl, length)))==0) {
     warning("No data found.")
     return(NULL)
   }
+
   datl.names <- do.call(c, lapply(datl, names))
-  missing <- Symbols[!Symbols %in% datl.names]
+  missing <- symbols_list[!symbols_list %in% datl.names]
   if (length(missing) > 0) 
     warning("No data found for ", paste(missing, collapse=" "))
   if (auto.assign) {
     out <- Filter(function(x) length(x) > 0, datl)
-    invisible(lapply(out, function(x) assign(names(x), x[[1]], 
-                                             pos=env)))
+    invisible(lapply(out, function(x) assign(names(x), x[[1]], pos=env)))
     return(datl.names)
   }
   else {
@@ -535,14 +593,15 @@ getSymbols.FI <- function (Symbols, from="2010-01-01", to=Sys.Date(), ...,
       if (length(x) > 0) 
         x[[1]]
     })
-    if (length(out) == 1) 
+    if (length(out)==1) 
       return(out[[1]])
     else {
-      names(out) <- Symbols
+      names(out) <- symbols_list
       return(out)
     }
   }
 }
+
 <environment: namespace:FinancialInstrument>
 
 
