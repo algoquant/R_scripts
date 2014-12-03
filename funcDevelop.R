@@ -141,8 +141,30 @@ chart.Series <- function(ts.data, name.plot) {
 # End chart.Series
 
 
+
 #############
-### Toy Functions
+# higher-order functions
+#############
+
+# inspect function environments
+peek_in <- function(f, name=NULL) {
+  env <- environment(f)
+  if (is.null(name)) {
+    return(ls(envir=env))
+  }
+  if (name %in% ls(envir=env)) {
+    return(get(name, env))
+  }
+  return(NULL)
+}
+
+peek_in(f1)
+peek_in(f1, "n")
+
+
+
+#############
+# toy functions
 #############
 
 # Toy function returning list
@@ -233,7 +255,7 @@ funcScope <- function(model=NULL) {
 }
 
 # Some misc code
-# out.put <- sapply(someSymbols, function(symb) { funEcho(symb); readline(prompt = "Pause. Press <Enter> to continue...")  })
+# out.put <- sapply(someSymbols, function(symb) { funEcho(symb); readline(prompt="Pause. Press <Enter> to continue...")  })
 
 funcCropout <- function(var.input) { stopifnot(is.xts(var.input)); length(var.input) }
 
@@ -317,12 +339,15 @@ MyRandom <- function(seed) {  # seed must be an integer
 PseudoRandom <- MyRandom(88)
 # plot histogram of pseudo-random numbers
 hist(PseudoRandom(500), breaks=30, main="Poor quality pseudo-random numbers", xlim=c(0.0, 1.0), 
-     xlab="", ylab="", freq = FALSE)
+     xlab="", ylab="", freq=FALSE)
 lines(density(ts.rets[, 1]), col='red', lwd=2)  # draw density
 # title(main=ch.title, line=-1)  # add title
 
 
+
+#############################################
 # bank account example (from Venables) demonstrates mutable states
+#############################################
 # the formal argument 'balance' exists in the OpenAccount evaluation environment
 # this allows 'balance' to be persistent between function calls
 # the super-assignment operator '<<-' adjusts the balance
@@ -330,7 +355,7 @@ OpenAccount <- function(balance) {
 # returns a list of functions that perform account operations
   list(
 
-    deposit = function(amount) {
+    deposit=function(amount) {
 # make account deposit
       if(amount > 0) {
         balance <<- balance + amount  # '<<-' super-assignment operator
@@ -340,7 +365,7 @@ OpenAccount <- function(balance) {
       }
     },  # end deposit
 
-    withdraw = function(amount) {
+    withdraw=function(amount) {
 # make account withdrawal
       if(amount <= balance) {
         balance <<- balance - amount  # '<<-' super-assignment operator
@@ -350,7 +375,7 @@ OpenAccount <- function(balance) {
       }
     },  # end withdraw
 
-    get.balance = function() {
+    get.balance=function() {
 # get account balance
       cat("Your current balance is:", balance, "\n")
     }  # end get.balance
@@ -376,9 +401,9 @@ detach(my.account)  # remove my.account from search path
 ### Exception handling
 #############
 
-MySqrt <- function(n.inp) {  # function that throws error
-  if (n.inp > 0) {
-    sqrt(n.inp)
+MySqrt <- function(arg_var) {  # function that throws error
+  if (arg_var > 0) {
+    sqrt(arg_var)
   } else {
     stop('bad input!')  # throw error
   }
@@ -452,7 +477,7 @@ for (my.index in 1:10) {  # loop with tryCatch
 ErrorHandler <- function(try.cond) {
 # wrapper for error handler (returns a function)
   function(try.cond) {  # error handler
-    message("error for: ", n.inp, "\nerror message:", try.cond)
+    message("error for: ", arg_var, "\nerror message: ", try.cond)
     return(NA)  # return NA on error
   }  # end error handler
 }  # end error wrapper
@@ -460,70 +485,70 @@ ErrorHandler <- function(try.cond) {
 WarningHandler <- function(try.cond) {
 # wrapper for warning handler (returns a function)
   function(try.cond) {  # warning handler
-    message("warning for: ", n.inp, "\nwarning message: ", try.cond)
+    message("warning for: ", arg_var, "\nwarning message: ", try.cond)
     return(NULL)  # return NULL on warning
   }  # end warning handler
 }  # end warning wrapper
 
 
 # define wrapper function for tryCatch (wrapper needed for apply)
-TrySqrt <- function(n.inp) {  # wrapper for tryCatch
+TrySqrt <- function(arg_var) {  # wrapper for tryCatch
   tryCatch(
     {  # expressions to be evaluated
-      message("start processing: ", n.inp)
-      sqrt(n.inp)
+      message("start processing: ", arg_var)
+      sqrt(arg_var)
     },  # end expressions
     error=ErrorHandler(try.cond),  # error handler
     warning=WarningHandler(try.cond),  # warning handler
-    finally=message("finished processing: ", n.inp)  # end finally
+    finally=message("finished processing: ", arg_var)  # end finally
   )  # end tryCatch
 }  # end wrapper
 
 
-v.inp <- c(2:6, -1, 7:10)
+arg_vec <- c(2:6, -1, 7:10)
 # run regular sqrt - loop stops on first error
-for (n.inp in v.inp) {
-  print(paste("sqrt of", n.inp, "=", sqrt(n.inp)))
+for (arg_var in arg_vec) {
+  print(paste("sqrt of", arg_var, "=", sqrt(arg_var)))
 }
 # run TrySqrt - loop continues after error
-for (n.inp in v.inp) {
-  print(paste("sqrt of", n.inp, "=", TrySqrt(n.inp)))
+for (arg_var in arg_vec) {
+  print(paste("sqrt of", arg_var, "=", TrySqrt(arg_var)))
 }
 
 # run tryCatch without wrapper function
-for (n.inp in v.inp) {
+for (arg_var in arg_vec) {
   try.sqrt <- tryCatch(
     expr={  # expressions to be evaluated
-      message("start processing: ", n.inp)
-      #      MySqrt(n.inp)
-      sqrt(n.inp)
+      message("start processing: ", arg_var)
+      #      MySqrt(arg_var)
+      sqrt(arg_var)
     },  # end expressions
     error=ErrorHandler(try.cond),  # error handler
     warning=WarningHandler(try.cond),  # warning handler
-    finally=message("finished processing: ", n.inp)  # end finally
+    finally=message("finished processing: ", arg_var)  # end finally
   )  # end tryCatch
-  print(paste("sqrt of", n.inp, "=", try.sqrt))
+  print(paste("sqrt of", arg_var, "=", try.sqrt))
 }
 
 # tryCatch with handlers using anonymous functions (without wrapper)
-for (n.inp in v.inp) {
+for (arg_var in arg_vec) {
   try.sqrt <- tryCatch(
     expr={  # expressions to be evaluated
-      message("start processing: ", n.inp)
-      #      MySqrt(n.inp)
-      sqrt(n.inp)
+      message("start processing: ", arg_var)
+      #      MySqrt(arg_var)
+      sqrt(arg_var)
     },  # end expressions
     error=  function(try.cond) {  # anonymous error handler
-      message("error for: ", n.inp, "\nerror message:", try.cond)
+      message("error for: ", arg_var, "\nerror message: ", try.cond)
       return(NA)  # return NA on error
     },  # end error handler
     warning=function(try.cond) {  # anonymous warning handler
-      message("warning for: ", n.inp, "\nwarning message: ", try.cond)
+      message("warning for: ", arg_var, "\nwarning message: ", try.cond)
       return(NULL)  # return NULL on warning
     },  # end warning handler
-    finally=message("finished processing: ", n.inp)  # end finally
+    finally=message("finished processing: ", arg_var)  # end finally
   )  # end tryCatch
-  print(paste("sqrt of", n.inp, "=", try.sqrt))
+  print(paste("sqrt of", arg_var, "=", try.sqrt))
 }
 
 
@@ -531,7 +556,7 @@ for (n.inp in v.inp) {
 ### Rolling Functions
 #############
 
-### Lag function for xts data when lag > 1
+### Lag function performs a vector of lags on xts data when lag > 1
 L <- function(ts.data, n.lag=1) {
   if(length(n.lag) > 1)
     {
@@ -655,7 +680,7 @@ rollingLmSignals <- function(ts.returns, end.period, look.back, lags, expand.win
 ################################################
 
 # compute beta coefficients from robust regressions
-my.lmr.beta <- function (object, classic = FALSE) {
+my.lmr.beta <- function (object, classic=FALSE) {
   if(class(object) != "lmRob")
     stop("Object must be of class 'lmRob'")
   model <- object$model
@@ -663,7 +688,7 @@ my.lmr.beta <- function (object, classic = FALSE) {
   b <- object$coefficients[num][-1]  # final coefficients w/o intercept
   ## compute robust covariance
   covr <- NULL
-  try(covr <- diag(covRob(model[num])$cov), silent = TRUE)
+  try(covr <- diag(covRob(model[num])$cov), silent=TRUE)
   if(is.null(covr) & classic == FALSE)
     warning("covRob() coud not be computed, instead covClassic() was applied.")
   ## compute classic covariance if robust failed

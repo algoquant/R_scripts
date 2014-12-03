@@ -4,8 +4,9 @@
 
 # Load Systematic Investor Toolbox (SIT)
 setInternet2(TRUE)
-con = gzcon(url('https://github.com/systematicinvestor/SIT/raw/master/sit.gz', 'rb'))
+con=gzcon(url('https://github.com/systematicinvestor/SIT/raw/master/sit.gz', 'rb'))
 source(con)
 close(con)
+
 
 
