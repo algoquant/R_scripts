@@ -5,6 +5,51 @@
 R.Version()
 update.packages(ask=FALSE, checkBuilt=TRUE)
 
+# good package loading script inside functions
+stopifnot("package:xts" %in% search() || require("xts", quietly=TRUE))
+
+rm(list=ls())
+
+options(max.print=40)
+
+
+
+
+################################################
+### Functions under development  #######
+################################################
+
+
+### check if variable exists in globalenv
+is_exist <- function(stringy) {
+  stringy %in% ls(globalenv())
+}
+is_exist("etf_rets")
+
+
+### plot a few risk_ret_points in portfolio scatterplot
+risk_ret_points <- function(rets=etf_rets, 
+        risk=c("sd", "ETL"), sym_bols=c("VTI", "IEF")) {
+  risk <- match.arg(risk)  # match to arg list
+  if (risk=="ETL") {
+    stopifnot("package:PerformanceAnalytics" %in% search() || 
+              require("PerformanceAnalytics", quietly=TRUE))
+  }  # end if
+  risk <- match.fun(risk)  # match to function
+  risk_ret <- t(sapply(rets[, sym_bols], 
+     function(x_ts) c(ret=mean(x_ts), risk=abs(risk(x_ts)))))
+  points(x=risk_ret[, "risk"], y=risk_ret[, "ret"], 
+         col="red", lwd=3, pch=21)
+  text(x=risk_ret[, "risk"], y=risk_ret[, "ret"], 
+       labels=rownames(risk_ret), col="red", 
+       lwd=2, pos=4)
+}  # end risk_ret_points
+
+
+match_arg <- function(risk=c("sd", "ETL")) {
+  cat(match.arg(risk))
+}
+
 
 
 ################################################
@@ -162,50 +207,6 @@ peek_in(f1)
 peek_in(f1, "n")
 
 
-
-#############
-# toy functions
-#############
-
-# Toy function returning list
-funcTest <- function(input)
-  {
-    a <- input+1
-    b <- input+2
-    output <- list()
-#  return(output)
-#  output <- c(a,b)
-    output$a <- a
-    output$b <- b
-#  names(output) <- c("a","b")
-#    output
-    lapply(output, function(outp) cat(outp, ","))
-  }
-
-# Toy function accepting matrix
-funcTest <- function(input)
-  {
-    sapply(1:(dim(input)[1]), function(row.ind) cat(input[row.ind,], sep="\t", "\n"))
-  }
-
-
-# Testing sapply
-funcSapplyTest <- function(input, ...) {
-#    output <- 1
-#    rolls <- 17:18
-  table.symbols <- read.table(input, sep=",", header=TRUE)
-
-  output <- sapply(table.symbols[,1], 
-                   function(symbol) {
-                     symbol
-#                     ts.price <- loadCDS(symbol, ...)
-#                     input+roll
-                   }
-                   )
-  output
-}
-
-
 # Test: passing a function as argument, and passing its arguments as "..."
 funcTestFunc <- function(func.name, ...) {
   inputFunc <- match.fun(func.name)
@@ -226,6 +227,18 @@ funcTestFunc <- function(input.list) {
 }
 
 
+# Function that returns another function as its value
+FuncPower <- function(n.exp) {
+  function(n.arg) {
+    n.arg^n.exp
+  }
+}
+FuncSquare <- FuncPower(2)
+FuncCube <- FuncPower(3)
+FuncSquare(4)
+FuncCube(2)
+
+
 # Test: Returning a function
 # from http://www.markmfredrickson.com/thoughts/2011-02-06-peeking-inside-r-functions.html
 funcAdder <- function(n) {
@@ -241,7 +254,97 @@ funcAdder <- function(n) {
 # f2(10)
 
 
-# Test: Return args - second function argument is optional
+
+#############
+# test functions
+#############
+
+
+### test deparse function
+dep_fun <- function(arg_var) {
+  my_var <- 2
+  names(my_var) <- deparse(substitute(arg_var))
+  my_var
+}  # end dep_fun
+dep_fun(hey)
+
+
+### test function returning list
+funcTest <- function(input)
+  {
+    a <- input+1
+    b <- input+2
+    output <- list()
+#  return(output)
+#  output <- c(a,b)
+    output$a <- a
+    output$b <- b
+#  names(output) <- c("a","b")
+#    output
+    lapply(output, function(outp) cat(outp, ","))
+  }
+
+
+### test function accepting matrix
+funcTest <- function(input)
+  {
+    sapply(1:(dim(input)[1]), function(row.ind) cat(input[row.ind,], sep="\t", "\n"))
+  }
+
+
+### test sapply
+funcSapplyTest <- function(input, ...) {
+#    output <- 1
+#    rolls <- 17:18
+  table.symbols <- read.table(input, sep=",", header=TRUE)
+
+  output <- sapply(table.symbols[,1], 
+                   function(symbol) {
+                     symbol
+#                     ts.price <- loadCDS(symbol, ...)
+#                     input+roll
+                   }
+                   )
+  output
+}
+
+
+### test sapply
+temp_fun <- function(data, stuff=1, some_stuff=2) {
+  c(data, stuff, some_stuff)
+}
+
+in_data <- 5:9
+
+# sapply binds "in_data" to "data", and binds remaining arguments either by name or position
+sapply(in_data, temp_fun, stuff=2)
+sapply(in_data, temp_fun, stuff=2, some_stuff=3)
+sapply(in_data, temp_fun, 2, 3)
+
+
+### read numeric lines from input, and return them
+fun_input <- function() {
+  x <- readline("Enter the value of x: ")
+  y <- readline("Enter the value of y: ")
+  
+  x <- as.numeric(unlist(strsplit(x, ",")))
+  y <- as.numeric(unlist(strsplit(y, ",")))
+  
+  return(c(x, y))
+}  # end fun_input
+
+
+### read lines one by one, and return them
+f_con <- file("stdin")
+open(f_con)
+while (length(line <- readLines(f_con, n=1)) > 0) {
+  # process line
+  write(line, stderr())
+}  # end while
+close(f_con)
+
+
+# test: return args - second function argument is optional
 funcEcho <- function(input1, input2=NULL) {
   if (is.null(input2))
     input1
@@ -272,7 +375,9 @@ na.init <- function(ts.data) {
   ts.data
 }
 
+
 # Calculate row and column of the extreme value of a matrix
+# which(..., arr.ind=TRUE) does the same
 coordinates.matrix <- function(var.matrix, func.matrix) {
   func.name <- match.fun(func.matrix)
   tmp <- which(var.matrix==func.name(var.matrix), arr.ind=T)
@@ -303,18 +408,6 @@ SumDots <- function(n.var, ...) {
     n.var + SumDots(...)
   }
 }  # end SumDots
-
-
-# Function that returns another function as its value
-FuncPower <- function(n.exp) {
-  function(n.arg) {
-    n.arg^n.exp
-  }
-}
-FuncSquare <- FuncPower(2)
-FuncCube <- FuncPower(3)
-FuncSquare(4)
-FuncCube(2)
 
 
 # pseudo-random function
@@ -699,3 +792,4 @@ my.lmr.beta <- function (object, classic=FALSE) {
   beta <- b * sx/sy
   return(beta)
 }  # End my.lmr.beta
+

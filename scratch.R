@@ -1,14 +1,17 @@
 rm(list=ls())
-options(max.print=20)
+options(max.print=80)
+options(digits=3)
 
 library(zoo)
 # good package loading script inside functions
 stopifnot("package:xts" %in% search() || require("xts", quietly=TRUE))
 
 
-###
 
-# ideas for HW and tests
+#################################
+### ideas for HW and tests
+#################################
+
 
 ### create function that throws error if argument is negative
 test_func <- function(arg_var) {
@@ -515,6 +518,48 @@ chart.RiskReward(maxSTARR_DEOpt, risk.col="ES", return.col="mean")
 
 
 
+
+########################
+### efficient frontier (without optimize.portfolio)
+
+
+### this doesn't produce good scatterplot
+
+portf_comb <- combine.portfolios(
+  list(maxSR=portf_maxSR, maxSRN=portf_maxSRN))
+
+maxSR_comb <- optimize.portfolio(
+  R=etf_rets[, portf_names],  # specify returns
+  portfolio=portf_comb,  # specify portfolio
+  optimize_method="DEoptim", # use DEoptim
+  maxSR=TRUE,  # maximize Sharpe
+  trace=TRUE, traceDE=0)
+
+chart.RiskReward(
+  maxSR_comb,
+  risk.col="StdDev",
+  return.col="mean")
+
+
+
+########################
+### running optimize.portfolio
+
+# produces something - but no way to get it out
+portfolio_rolling <- optimize.portfolio.rebalancing(
+  R=etf_rets[, portf_names],
+  portfolio=portf_maxSR,
+  optimize_method="DEoptim",
+  rebalance_on="months",
+  trailing_periods=12,
+  training_period=12,
+  trace=TRUE,
+  traceDE=0
+)
+
+
+
+
 ########################
 ### efficient frontier (without optimize.portfolio)
 
@@ -615,10 +660,362 @@ SortinoRebalance <- optimize.portfolio.rebalancing(R=indexes[,1:4], constraints=
 
 
 
+########################
+### running backtest strategy
+
+
+### calculate risk_ret_stats for some symbols, over a range of dates
+risk_ret_stats <- function(x_ts=etf_rets,  # daily returns
+                           sym_bols=colnames(x_ts),  # names
+                           range=index(x_ts),  # date range
+                           ret="sum",  # return stat
+                           risk="mad"  # risk stat
+                           ) {
+  ret <- match.fun(ret)  # match to function
+  risk <- match.fun(risk)  # match to function
+  stats <- sapply(x_ts[range, sym_bols], function(ts) {
+    c(ret=ret(ts), risk=risk(ts))
+  })
+  t(stats)
+}  # end risk_ret_stats
+
+# example
+head(risk_ret_stats(range=
+              periods[[1]]$back))
+
+
+
+
+### calculate weights and pnl for a given period
+pnl_period <- function(period_stat, de_mean=FALSE) {
+  weights <- period_stat[, "ret"]/period_stat[, "risk"]
+  weights <- weights - de_mean*mean(weights)
+  weights <- weights/sum(abs(weights))
+  c(sum(period_stat[, "fut_ret"] * weights), weights)
+}  # end pnl_period
+
+
+
+### set up parameters
+
+# rebalancing period
+re_balance <- "weeks"
+# create index of rebalancing period end points
+end_points <- endpoints(etf_rets, on=re_balance)
+end_points[1] <- 1
+# look-back period in number of re_balance
+win_dow <- 5
+# create index of rebalancing periods
+periods <- lapply(win_dow:(length(end_points)-1),
+                  function(point)
+                    list(back=end_points[point-win_dow+1]:(end_points[point]-1),
+                      fwd=end_points[point]:end_points[point+1])
+                  )  # end sapply
+
+
+
+### main loop over windows
+
+# calculate stats over overlaping period date windows
+period_stats <- lapply(periods,
+                       function(point)
+                         cbind(risk_ret_stats(range=point$back),
+                          fut_ret=sapply(etf_rets[point$fwd, ], sum))
+)  # end lapply
+head(period_stats[[1]])
+
+
+### calculate weights and pnls
+
+pnl_xts <- t(sapply(period_stats, pnl_period))
+pnl_xts <- xts(pnl_xts,
+               order.by=index(etf_rets)[end_points[win_dow:(length(end_points)-1)]])
+colnames(pnl_xts)[1] <- "pnl"
+
+
+# calculate transaction costs
+bid_offer <- 0.001  # 10 bps for liquid ETFs
+co_sts <- bid_offer*abs(diff(pnl_xts[, -1]))
+co_sts[1, ] <- 0
+co_sts <- rowSums(co_sts)
+pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - co_sts
+co_sts <- xts(co_sts,
+               order.by=index(etf_rets)[end_points[win_dow:(length(end_points)-1)]])
+colnames(co_sts) <- "costs"
+plot(cumsum(co_sts))
+sum(co_sts)
+
+
+
+library(xtsExtra)
+# plot cumulative pnl
+plot(cumsum(pnl_xts[, "pnl"]), main=colnames(pnl_xts[, "pnl"]))
+# plot weights
+plot.zoo(pnl_xts[, portf_names], main="")
+# calculate xts of net beta
+betas <- c(1, etf_reg_stats[, 3])
+names(betas)[1] <- colnames(pnl_xts[, 2])  # "VTI"
+# weights times betas
+betas <- pnl_xts[, -1] * betas
+betas <- xts(rowSums(betas), order.by=index(pnl_xts))
+colnames(betas) <- "betas"
+plot(betas, t="l")
+plot.zoo(cbind(betas, cumsum(etf_rets[, 1])[index(betas)]),
+         main="betas & VTI", xlab="")
+plot(cbind(betas, cumsum(etf_rets[, 1])[index(betas)]),
+     main="betas & VTI", xlab="")
+
+
+
+### create trading function
+
+tot_pnl <- function(win_dow) {
+  periods <- lapply(win_dow:(length(end_points)-1),
+                    function(point)
+                      list(back=end_points[point-win_dow+1]:(end_points[point]-1),
+                           fwd=end_points[point]:end_points[point+1])
+  )  # end sapply
+  period_stats <- lapply(periods,
+                         function(point)
+                           cbind(risk_ret_stats(range=point$back),
+                                 fut_ret=sapply(etf_rets[point$fwd, ], sum))
+  )  # end lapply
+  pnl_xts <- t(sapply(period_stats, pnl_period))
+  co_sts <- bid_offer*abs(diff(pnl_xts[, -1]))
+  co_sts <- rowSums(co_sts)
+  co_sts <- c(0, co_sts)
+  pnl_xts[, 1] <- pnl_xts[, 1] - co_sts
+  sum(pnl_xts[, 1])
+}  # end tot_pnl
+tot_pnl(4)
+strat_profile <- sapply(3:10, tot_pnl)
+plot(cbind(3:10, strat_profile), t="l")
+
+
+
+### simplified version for single asset
+
+periods_back <- sapply(win_dow:(length(end_points)-1),
+                       function(point)
+                         end_points[point-win_dow+1]:(end_points[point]-1)
+)
+
+periods_fwd <- sapply(win_dow:(length(end_points)-1),
+                      function(point)
+                        end_points[point]:end_points[point+1]
+)
+
+rets_xts <- etf_rets[, "VTI"]
+risk_ret <- sapply(periods_back, function(period) c(ret=sum(rets_xts[period]), risk=sd(rets_xts[period])))
+risk_ret <- t(risk_ret)
+risk_ret <- cbind(risk_ret, risk_ret[, 1]/risk_ret[, 2])
+colnames(risk_ret)[3] <- "sr"
+
+fut_ret <- sapply(periods_fwd, function(period) sum(rets_xts[period]))
+# calculate pnl
+risk_ret <- cbind(risk_ret, risk_ret[, 3]*fut_ret)
+colnames(risk_ret)[4] <- "pnl"
+plot(cumsum(risk_ret[, 4]), t="l")
+
+# calculate transaction costs
+co_sts <- abs(diff(risk_ret[, "sr"]))
+co_sts[1] <- 0
+sum(bid_offer*co_sts)
+
+
+### create histogram of risk and return stats
+
+# flatten list into data.frame
+period_stats <- do.call(rbind, period_stats)
+period_stats <- as.data.frame(period_stats)
+
+
+# create vectors of risk and return bins (for histogram)
+ret_vec <- sort(period_stats[, "ret"])
+ret_vec <- c(first(ret_vec), 
+             ret_vec[(length(ret_vec) %/% 10) * (1:9)], 
+             last(ret_vec))
+# ret_vec <- range(period_stats[, "ret"])
+# ret_vec <- seq(ret_vec[1], ret_vec[2], length.out=11)
+# sapply(1:10, function(ret_ind) sum(
+#   ret_vec[ret_ind]<period_stats[, "ret"] &
+#     ret_vec[ret_ind+1]>period_stats[, "ret"]))
+# sapply(1:10, function(ret_ind) with(period_stats,
+#   mean(period_stats[ret_vec[ret_ind]<ret &
+#     ret_vec[ret_ind+1]>ret, "fut_ret"]))
+#   )  # end sapply
+
+
+risk_vec <- sort(period_stats[, "risk"])
+risk_vec <- c(first(risk_vec), 
+             risk_vec[(length(risk_vec) %/% 10) * (1:9)], 
+             last(risk_vec))
+# risk_vec <- range(period_stats[, "risk"])
+# risk_vec <- seq(risk_vec[1], risk_vec[2], length.out=11)
+
+# calculate histogram of future returns
+fut_ret_mat <- matrix(numeric(100), ncol=10)
+for (ret_ind in 1:10) {
+  for (risk_ind in 1:10) {
+    fut_ret_mat[ret_ind, risk_ind] <- with(period_stats,
+                        mean(
+                          period_stats[(ret>ret_vec[ret_ind] & 
+                                          ret<ret_vec[ret_ind+1] & 
+                                          risk>risk_vec[risk_ind] & 
+                                          risk<risk_vec[risk_ind+1]), "fut_ret"]
+                          )  # end mean
+                        )  # end with
+  }  # end for risk_ind
+}  # end for ret_ind
+
+
+# plot histogram
+persp(ret_vec[1:10], risk_vec[1:10], fut_ret_mat,
+      theta = 45, phi = 30,
+      shade = 0.5,
+      col = rainbow(50),
+      border = "green",
+      main = "fut_ret")
+
+
+
+### mostly unnecessary code
+# but it's cute, so keep it around for reuse
+
+# create rebalancing period dates
+period_dates <- endpoints(etf_rets, on=re_balance)
+period_dates <- index(etf_rets)[period_dates]
+period_dates <- c(index(etf_rets[1, ]), period_dates)
+
+# create overlaping period date windows
+period_windows <- lapply(win_dow:(length(period_dates)-1),
+                         function(end_point)
+                           c(look_back=paste(
+                             period_dates[end_point-win_dow], 
+                             "/", 
+                             period_dates[end_point], sep=""),
+                             look_fwd=paste(
+                               period_dates[end_point], 
+                               "/", 
+                               period_dates[end_point+1], sep=""))
+)  # end lapply
+period_windows <- do.call(rbind, period_windows)
+period_windows <- xts(period_windows, 
+                      order.by=period_dates[win_dow:(length(period_dates)-1)])
+
+### end unnecessary code - period date windows
+
 
 
 #################################
-### ggplot2 ####
+### factorAnalytics
+#################################
+
+load(file="C:/Develop/data/etf_analysis.RData")
+load(file="C:/Develop/data/portf_optim.RData")
+library(factorAnalytics)
+
+# fit a two-factor model using principal component analysis
+factor_pca <- fitSfm(etf_rets, k=3)
+# factor loadings
+head(factor_pca$loadings)
+# factor realizations (time series)
+head(factor_pca$factors)
+# residuals from regression
+factor_pca$residuals[1:3, 1:3]
+# estimated alphas
+factor_pca$alpha
+# R-squared from regression
+factor_pca$r2
+# covariance matrix estimated by factor model
+factor_pca$Omega[1:3, 4:6]
+
+
+?plot.sfm
+# screeplot of eigenvalues
+plot(factor_pca, which.plot.group=1, loop=FALSE, eig.max=0.9, cex.names=0.9, cex.axis=0.9, cex.main=0.8)
+
+# time series plot of estimated factors
+library(PortfolioAnalytics)
+plot(factor_pca, which.plot.group=2, loop=FALSE)
+chart.CumReturns(factor_pca$factors, lwd=2, ylab="", legend.loc="topleft", main="")
+
+# factor loadings
+plot(factor_pca, which.plot.group=3, n.max=30, loop=FALSE)
+
+# R-squared histogram
+plot(factor_pca, which.plot.group=4, loop=FALSE)
+
+# residual volatility histogram
+plot(factor_pca, which.plot.group=5, loop=FALSE)
+
+# residual correlations
+plot(factor_pca, which.plot.group=6, loop=FALSE)
+
+# asset correlations - "hclust" for hierarchical clustering order
+plot(factor_pca, which.plot.group=7, loop=FALSE, order="hclust", method="ellipse")
+plot(factor_pca, which.plot.group=7, n.max=30, loop=FALSE, order="hclust", method="ellipse")
+
+# factor contribution to SD
+plot(factor_pca, which.plot.group=8, loop=FALSE)
+
+# factor contribution to ES
+plot(factor_pca, which.plot.group=9, loop=FALSE)
+
+# factor contribution to VAR
+plot(factor_pca, which.plot.group=10, loop=FALSE)
+
+
+### individual asset plots
+
+# cumulative residuals
+chart.CumReturns(factor_pca$residuals[, c("IEF", "DBC", "XLF")], lwd=2, ylab="", legend.loc="topleft", main="")
+
+# actual and fitted returns
+plot(factor_pca, asset.name="VTI", which.plot.single=1, plot.single=TRUE, loop=FALSE)
+
+# residuals with standard error bands
+plot(factor_pca, asset.name="VTI", which.plot.single=2, plot.single=TRUE, loop=FALSE)
+
+# squared residuals
+plot(factor_pca, asset.name="VTI", which.plot.single=3, plot.single=TRUE, loop=FALSE)
+
+# absolute residuals
+plot(factor_pca, asset.name="VTI", which.plot.single=4, plot.single=TRUE, loop=FALSE)
+
+# SACF and PACF of residuals
+plot(factor_pca, asset.name="VTI", which.plot.single=5, plot.single=TRUE, loop=FALSE)
+
+# SACF and PACF of squared residuals
+plot(factor_pca, asset.name="VTI", which.plot.single=6, plot.single=TRUE, loop=FALSE)
+
+# SACF and PACF of absolute residuals
+plot(factor_pca, asset.name="VTI", which.plot.single=7, plot.single=TRUE, loop=FALSE)
+
+# residual histogram with normal curve 
+plot(factor_pca, asset.name="VTI", which.plot.single=8, plot.single=TRUE, loop=FALSE, xlim=c(-0.007, 0.007))
+
+# residual qq-plot
+plot(factor_pca, asset.name="VTI", which.plot.single=9, plot.single=TRUE, loop=FALSE)
+
+# 
+plot(factor_pca, asset.name="VTI", which.plot.single=10, plot.single=TRUE, loop=FALSE)
+
+# 
+plot(factor_pca, asset.name="VTI", which.plot.single=11, plot.single=TRUE, loop=FALSE)
+
+# 
+plot(factor_pca, asset.name="VTI", which.plot.single=12, plot.single=TRUE, loop=FALSE)
+
+
+# 
+plot(factor_pca, asset.name="VTI", which.plot.single=9, plot.single=TRUE, loop=FALSE)
+
+
+
+
+#################################
+### ggplot2
 #################################
 
 library(car)
@@ -627,13 +1024,7 @@ qqPlot(dax_rets, distribution="t", df=5, ylab="DAX Returns", envelope=FALSE)
 # Box Plots
 
 
-
-
-#################################
-### ggplot2 ####
-#################################
-
-
+### autoplot
 autoplot(object=ar_zoo,  # plot AR returns
          main="Autoregressive process (phi=0.2)", 
          facets=Series ~ .) + facet_grid(Series ~ ., scales="free_y") +
@@ -819,50 +1210,8 @@ zoo_series <- suppressWarnings(  # load MSFT data
 
 
 #################################
-### analyzing some functions ####
+### functions under development ####
 #################################
 
-### read numeric lines from input, and return them
-fun_input <- function() {
-  x <- readline("Enter the value of x: ")
-  y <- readline("Enter the value of y: ")
-
-  x <- as.numeric(unlist(strsplit(x, ",")))
-  y <- as.numeric(unlist(strsplit(y, ",")))
-
-  return(c(x, y))
-}  # end fun_input
-
-
-### read lines one by one, and return them
-f_con <- file("stdin")
-open(f_con)
-while (length(line <- readLines(f_con, n=1)) > 0) {
-  # process line
-  write(line, stderr())
-}  # end while
-close(f_con)
-
-
-### test deparse code
-dep_fun <- function(arg_var) {
-  my_var <- 2
-  names(my_var) <- deparse(substitute(arg_var))
-  my_var
-}  # end dep_fun
-dep_fun(hey)
-
-
-### test sapply code
-temp_fun <- function(data, stuff=1, some_stuff=2) {
-  c(data, stuff, some_stuff)
-}
-
-in_data <- 5:9
-
-# sapply binds "in_data" to "data", and binds remaining arguments either by name or position
-sapply(in_data, temp_fun, stuff=2)
-sapply(in_data, temp_fun, stuff=2, some_stuff=3)
-sapply(in_data, temp_fun, 2, 3)
 
 
