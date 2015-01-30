@@ -1,0 +1,127 @@
+inventory of this directory:
+C:\Develop\R\scripts
+directory contains R script files for developing and testing trading models
+
+
+#########
+# scripts
+
+scripts.R
+	misc scripts for testing
+
+scripts_hist.R
+Rhistory 07-12-14.txt
+	command history files
+	HFREQ data scrubbing scripts using FinancialInstrument, blotter, quantstrat, and Defaults
+	other misc scripts - delete them after extracting any valuable code
+
+lecturing.R
+	scripts for lectures
+
+funcDevelop.R
+	functions under development
+
+alphaScripts.R
+	very big collection of legacy scripts for data munging and backtests
+
+newScripts.R
+	simple backtests of momentum and VAR models
+
+
+#########
+# develop
+
+hfreq_aggregation.R
+	parsing and aggregating HFREQ data
+
+AdaptiveAssetAllocation GL.R by GL
+	legacy Jan-13 script to test Butler Adaptive Asset Allocation.pdf
+	PortfolioAnalytics, DEoptim
+	CDS momentum strategy
+
+AdaptiveAssetAllocation erbas.R
+	some third-party script
+
+Chiara factor model forecasting.R
+	scripts from Chiara Factor Model Forecasting.pdf
+
+varsMod.R
+alphaModelVAR.R
+varsToyMod.R
+	VAR models using package vars with alphaLib signals.ancillary
+
+Single asset SMA.R
+	scripts to replicate Siegel Faber moving average strategy using blotter package
+
+Zivot portfolio.R by Zivot
+	old portfolio optimization code
+
+dlmDynReg.R by Zivot
+	bynamic beta time-varying regression state space models using package dlm
+
+Fossati State Space Models.R by Fossati
+dlm_ex.R by Fossati
+Petris State Space Models.R
+	state space models using package dlm
+
+v39i02.R by Fernando Tusell
+	R chunks for "Kalman Filtering in R"
+
+TimeTrial.R by GL
+	filtSavGol model parallel backtests and parameter grid search using package snow with alphaLib
+
+SIT code.r
+SIT examples.R
+	Systematic Investor Toolbox (SIT) by Michael Kapler
+
+
+#########
+# examples
+
+option_vol.R
+option_vol.txt
+	implied volatility calibration example
+
+timely exploring_factors_with_rcharts.R
+	scripts to plot Fama and French using factorAnalytics and rCharts
+
+quantmod examples.R - move
+	very simple quantmod data loading code
+	delete after extracting any valuable code
+
+quantstrat examples.R
+quantstrat scripts.R
+	legacy scripts for using quantstrat
+
+
+#########
+# legacy scripts
+
+alphaModelsTemp.R
+	experimental alphaLib signals.ancillary and fillOrders
+
+tsdPlotCoint.R
+	legacy function to plot cointegration
+
+chartScreen.R
+	legacy scripts for CDS screens
+
+GraphData.R
+snUniverse.R
+GenerateSimpleEquityGraph.R
+GraphPortfolio.R
+PortfolioGraphBase.R
+GraphHighReturns.R
+	legacy scripts for CDS plots
+
+
+#########
+# delete?
+
+temp.R
+	legacy code scraps - delete?
+
+Tsay backtest.R by Ruey Tsay - delete?
+Tsay foreplot.R by Ruey Tsay - delete?
+	ugly backtest functions
+

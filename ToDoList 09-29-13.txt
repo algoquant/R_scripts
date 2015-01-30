@@ -1,22 +1,3 @@
-
-
-############
-# high frequency data scrubbing
-
-analyze code in functions:
-	getSymbols.FI
-	loadInstruments
-
-adopt .Rdata file and directory conventions
-
-analyze code in:
-	scripts_hist.R
-	Rhistory 07-12-14.txt
-	copy anything useful and then delete files
-
-create new script file for 
-
-
 #####
 Vector Auto Regression (VAR) model: package vars
 1. Set up a toy dynamic VAR model over a sliding window.

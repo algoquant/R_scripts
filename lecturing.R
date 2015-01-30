@@ -1,6 +1,15 @@
-rm(list=ls())
+########################
+### contains scripts for lectures
+########################
+
+
+rm(list=ls())  # remove all
+
 options(max.print=80)
 options(digits=3)
+
+par(new=TRUE)  # allow new plot on same chart
+par(las=1)  # set text printing to "horizontal"
 
 library(zoo)
 # good package loading script inside functions
@@ -8,10 +17,14 @@ stopifnot("package:xts" %in% search() || require("xts", quietly=TRUE))
 
 
 
-#################################
-### ideas for HW and tests
-#################################
+########################
+### optimization examples
 
+
+
+
+########################
+### ideas for HW and tests
 
 ### create function that throws error if argument is negative
 test_func <- function(arg_var) {
@@ -142,9 +155,9 @@ library(lubridate)
 ymd(paste0(19, my_date), tz="America/New_York")
 # as.POSIXct("1997-05-18")
 as.POSIXct(
-paste(paste0(19, substr(my_date, 1, 2)), 
-      substr(my_date, 3, 4), 
-      substr(my_date, 5, 6), sep="-")
+  paste(paste0(19, substr(my_date, 1, 2)), 
+        substr(my_date, 3, 4), 
+        substr(my_date, 5, 6), sep="-")
 )
 
 ###
@@ -201,15 +214,15 @@ coordinates.matrix <- function(var.matrix, func.matrix) {
 # the formal argument 'seed' persists in the evaluation environment of seed_random
 seed_random <- function(seed) {  # seed must be an integer
   random_number <- as.numeric(paste0('0.', seed))  # initialize
-# anon function returns a vector of pseudo-random numbers of length length_rand
+  # anon function returns a vector of pseudo-random numbers of length length_rand
   function(length_rand=1) {
     rand_vector <- numeric(length_rand)
     for (inter in 1:length_rand) {
-# logistic map
+      # logistic map
       random_number <<- 4*random_number*(1 - random_number)
       rand_vector[inter] <- random_number
     }  # end for
-  rand_vector
+    rand_vector
   }  # end anon
 }  # end seed_random
 
@@ -222,13 +235,109 @@ ls(environment(make_random))  # list objects in scope of make_random
 
 
 
-#################################
-### numerical methods ####
-#################################
+########################
+### dates and time series
+
 
 
 ########################
-### optimization examples
+### regression
+
+
+
+
+########################
+### plotting ggplot2
+
+library(car)
+# qqPlot with t-quantiles
+qqPlot(dax_rets, distribution="t", df=5, ylab="DAX Returns", envelope=FALSE)
+# Box Plots
+
+
+### autoplot
+autoplot(object=ar_zoo,  # plot AR returns
+         main="Autoregressive process (phi=0.2)", 
+         facets=Series ~ .) + facet_grid(Series ~ ., scales="free_y") +
+  xlab("") + ylab("") + 
+  theme(legend.position=c(0.1, 0.5), 
+        plot.title=element_text(vjust=-2.0), 
+        plot.margin=unit(c(-0.5, 0.0, -0.5, 0.0), "cm"), 
+        plot.background=element_blank(),
+        axis.text.y=element_blank())
+
+autoplot(object=ar_zoo, 
+         facets="Series ~ .", 
+         main="Autoregressive process (phi=0.2)") + 
+  facet_grid("Series ~ .", scales="free_y") +
+  xlab("") + ylab("") + 
+  theme(
+    legend.position="none", 
+    #  plot.title=element_text(vjust=-1.0), 
+    #  plot.margin=unit(c(-0.5, 0.0, -0.5, 0.0), "cm"), 
+    plot.background=element_blank(),
+    axis.text.y=element_blank())
+
+
+ar_data_frame <- as.data.frame(ar_zoo)
+ggplot(data=ar_zoo, mapping=aes(x=index(ar_zoo), y=ar_zoo[, 2])) + geom_line()
+ggplot(data=ar_data_frame, mapping=aes(x=rownames(ar_data_frame), y=ar_data_frame[, 2])) + geom_line()
+
+
+
+###
+
+# autoplot.zoo with some examples
+# http://www.inside-r.org/packages/cran/zoo/docs/autoplot.zoo
+
+x.Date <- as.Date(paste(2003, 02, c(1, 3, 7, 9, 14), sep="-"))
+x <- zoo(rnorm(5), x.Date)
+xlow <- x - runif(5)
+xhigh <- x + runif(5)
+z <- cbind(x, xlow, xhigh)
+
+# univariate plot
+autoplot(x)
+
+# multivariate plotting in multiple or single panels
+# multiple panels + no legend
+autoplot(z)
+# by rows + legend + series-dependent color/linetype
+autoplot(z, facets="Series ~ .")
+# by rows + no legend
+autoplot(z, facets="Series ~ .") + theme(legend.position="none")
+# by columns + no legend
+autoplot(z, facets=". ~ Series") + theme(legend.position="none")
+# single panel + no legend
+autoplot(z, facets=NULL) + theme(legend.position="none")
+
+autoplot(as.zoo(EuStockMarkets))
+
+# point plot
+autoplot(z, geom="point")
+# plot with connected points
+autoplot(z, facets=NULL) + geom_point()
+# b&w plot
+autoplot(z, facets=NULL) + scale_colour_grey() + theme_bw()
+
+autoplot(z) +
+  aes(colour = NULL, linetype = NULL) + 
+  facet_grid("Series ~ .", scales = "free_y")
+
+
+
+########################
+### functions
+
+
+
+########################
+### numerical methods
+
+
+
+########################
+### optimization generic
 
 ### single variable optimization
 # ?optimize
@@ -236,29 +345,29 @@ ls(environment(make_random))  # list objects in scope of make_random
 # ?optim
 
 
-### optimization example: fit normal variables
+### optimization one-dim example: fit normal variables
 
 # target vector is histogram of normal distribution
 histo_gram <- hist(rnorm(100, mean=4, sd=2), 
-  main="histogram of normal variables")  # end hist
+                   main="histogram of normal variables")  # end hist
 target_vector <- histo_gram$density
 target_vector <- rnorm(100, mean=4, sd=2)
 # objective function is log-likelihood
 object_ive <- function(parm, target) {
-#  cat(c(parm[1], parm[2]), "\n")
-#  -sum(log(max(dnorm(target, mean=parm[1], sd=parm[2]), 0.01)))
+  #  cat(c(parm[1], parm[2]), "\n")
+  #  -sum(log(max(dnorm(target, mean=parm[1], sd=parm[2]), 0.01)))
   sum(2*log(parm[2]) + ((target - parm[1])/parm[2])^2)
 }  # end object_ive
 
-blah <- (-20:60)/10
-plot(x=blah, 
-     y=sapply(blah, function(parm)
+objective_grid <- (-20:60)/10
+plot(x=objective_grid, 
+     y=sapply(objective_grid, function(parm)
        object_ive(c(parm, 0.1), 
                   target_vector)),
      type="l")
-blah <- (10:40)/10
-plot(x=blah, 
-     y=sapply(blah, function(parm)
+objective_grid <- (10:40)/10
+plot(x=objective_grid, 
+     y=sapply(objective_grid, function(parm)
        object_ive(c(4.0, parm), 
                   target_vector)),
      type="l")
@@ -278,19 +387,19 @@ optim_run$par
 optim_run$convergence
 
 
-### optimization example: fit mixture of normal variables
+### optimization one-dim example: fit mixture of normal variables
 
 # target vector is histogram of mixture of normal distributions
 target_vector <- c(rnorm(100, sd=1.0), rnorm(100, mean=4, sd=1.0))
 histo_gram <- hist(target_vector, 
-  main="mixture of normal distributions")  # end hist
+                   main="mixture of normal distributions")  # end hist
 target_vector <- histo_gram$density
 # objective function is log-likelihood of mixture
 object_ive <- function(parm, target) {
-#     parm[1]*sum(2*log(parm[3]) + ((target - parm[2])/parm[3])^2) +
-#     (1-parm[1])*sum(2*log(parm[5]) + ((target - parm[4])/parm[5])^2)
-#   likelihood <- parm[1]/parm[3] * dnorm(target, mean=parm[2], sd=parm[3]) +
-#     (1-parm[1])/parm[5] * dnorm(target, mean=parm[4], sd=parm[5])
+  #     parm[1]*sum(2*log(parm[3]) + ((target - parm[2])/parm[3])^2) +
+  #     (1-parm[1])*sum(2*log(parm[5]) + ((target - parm[4])/parm[5])^2)
+  #   likelihood <- parm[1]/parm[3] * dnorm(target, mean=parm[2], sd=parm[3]) +
+  #     (1-parm[1])/parm[5] * dnorm(target, mean=parm[4], sd=parm[5])
   likelihood <- parm[1]/parm[3] * dnorm((target - parm[2])/parm[3]) +
     (1-parm[1])/parm[5] * dnorm((target - parm[4])/parm[5])
   if(any(likelihood <= 0))
@@ -299,17 +408,17 @@ object_ive <- function(parm, target) {
     -sum(log(likelihood))
 }  # end object_ive
 
-blah <- (1:9)/10
-plot(x=blah, 
-     y=sapply(blah, function(parm)
+objective_grid <- (1:9)/10
+plot(x=objective_grid, 
+     y=sapply(objective_grid, function(parm)
        object_ive(c(parm, 0, 1.0, 4, 1.0), 
                   target_vector)),
      type="l")
-blah <- (-20:20)/10
-blah <- (5:40)/10
-plot(x=blah, 
-     y=sapply(blah, function(parm)
-              object_ive(c(0.5, 1, parm, 4, 1), 
+objective_grid <- (-20:20)/10
+objective_grid <- (5:40)/10
+plot(x=objective_grid, 
+     y=sapply(objective_grid, function(parm)
+       object_ive(c(0.5, 1, parm, 4, 1), 
                   target_vector)),
      type="l")
 
@@ -318,11 +427,11 @@ par_init <- c(weight=0.5, m1=0, s1=1, m2=4, s2=1)
 
 # perform optimization
 optim_run <- optim(par=par_init, 
-            fn=object_ive, 
-            target=target_vector,
-            method="L-BFGS-B",
-            upper=c(1,2,2,10,2),
-            lower=c(0,-2,0.2,-1,0.2))
+                   fn=object_ive, 
+                   target=target_vector,
+                   method="L-BFGS-B",
+                   upper=c(1,2,2,10,2),
+                   lower=c(0,-2,0.2,-1,0.2))
 str(optim_run)
 optim_run$par
 optim_run$convergence
@@ -335,6 +444,7 @@ fit_func <- function(x, parm) {
 
 curve(expr=fit_func(x, parm=optim_run$par), add=TRUE,
       xlim=c(-5, 7), type="l", lwd=2, col="red")
+
 
 
 
@@ -364,8 +474,9 @@ str(portf_init)
 portf_init$assets
 
 
+
 ########################
-### visualize portfolio
+### portfolio visualization
 
 plot_portf <- function(portfolio, rets_data=etf_rets) {
   portf_weights <- portfolio$weights
@@ -398,7 +509,7 @@ plot_portf <- function(portfolio, rets_data=etf_rets) {
 
 # add constraint such that the portfolio weights sum to 0*
 portf_init <- add.constraint(portf_init, type="weight_sum",
-                           min_sum=-0.01, max_sum=0.01)
+                             min_sum=-0.01, max_sum=0.01)
 # add box constraint such that no asset can have a weight of greater than
 # 20% or less than -20%
 portf_init <- add.constraint(portf_init, type="box", min=-0.2, max=0.2)
@@ -407,7 +518,7 @@ portf_init <- add.constraint(portf_init, type="position_limit", max_pos=20)
 # add constraint such that the portfolio beta is between -0.25 and 0.25
 betas <- t(CAPM.beta(etf_rets, market, Rf))
 portf_init <- add.constraint(portf_init, type="factor_exposure", B=betas,
-                           lower=-0.25, upper=0.25)
+                             lower=-0.25, upper=0.25)
 
 ### add objectives
 
@@ -427,8 +538,8 @@ portf_rand <- random_portfolios(portf_init, 10000, "sample")
 
 # perform optimization using random portfolios
 portf_optim <- optimize.portfolio(R=etf_rets[, portf_names], portfolio=portf_objective,
-                             optimize_method="random", rp=portf_rand,
-                             trace=TRUE)
+                                  optimize_method="random", rp=portf_rand,
+                                  trace=TRUE)
 
 plot(portf_optim, main="Dollar Neutral Portfolio", risk.col="StdDev", neighbors=10)
 
@@ -458,11 +569,11 @@ portf_maxSR <- add.objective(portfolio=portf_maxSR, type="risk", name="StdDev")
 
 
 maxSR_ROI <- optimize.portfolio(
-                R=etf_rets[, portf_names], 
-                portfolio=portf_maxSR, 
-                optimize_method="ROI", 
-                maxSR=TRUE, 
-                trace=TRUE)
+  R=etf_rets[, portf_names], 
+  portfolio=portf_maxSR, 
+  optimize_method="ROI", 
+  maxSR=TRUE, 
+  trace=TRUE)
 
 
 # visualize
@@ -481,12 +592,12 @@ portf_maxSTARR <- add.constraint(portfolio=portf_maxSTARR, type="long_only")
 # add objectives
 portf_maxSTARR <- add.objective(portfolio=portf_maxSTARR, type="return", name="mean")
 portf_maxSTARR <- add.objective(portfolio=portf_maxSTARR, type="risk", name="ES",
-                            arguments=list(p=0.925))
+                                arguments=list(p=0.925))
 
 # perform optimization using ROI
 maxSTARR_ROI <- optimize.portfolio(R=etf_rets[, portf_names], portfolio=portf_maxSTARR, 
-                                      optimize_method="ROI",
-                                      trace=TRUE)
+                                   optimize_method="ROI",
+                                   trace=TRUE)
 maxSTARR_ROI
 
 # visualize
@@ -500,9 +611,9 @@ portf_maxSTARR$constraints[[1]]$max_sum=1.1
 
 # random portfolios optimization
 maxSTARR_RP <- optimize.portfolio(R=etf_rets[, portf_names], portfolio=portf_maxSTARR, 
-                                     optimize_method="random",
-                                     search_size=2000,
-                                     trace=TRUE)
+                                  optimize_method="random",
+                                  search_size=2000,
+                                  trace=TRUE)
 maxSTARR_RP
 # visualize
 plot_portf(portfolio=maxSTARR_RP)
@@ -515,7 +626,6 @@ maxSTARR_DEOpt <- optimize.portfolio(R=etf_rets[, portf_names], portfolio=portf_
                                      trace=TRUE)
 maxSTARR_DEOpt
 chart.RiskReward(maxSTARR_DEOpt, risk.col="ES", return.col="mean")
-
 
 
 
@@ -543,8 +653,9 @@ chart.RiskReward(
 
 
 ########################
-### running optimize.portfolio
+### optimize.portfolio
 
+# doesn't work
 # produces something - but no way to get it out
 portfolio_rolling <- optimize.portfolio.rebalancing(
   R=etf_rets[, portf_names],
@@ -556,7 +667,6 @@ portfolio_rolling <- optimize.portfolio.rebalancing(
   trace=TRUE,
   traceDE=0
 )
-
 
 
 
@@ -635,11 +745,10 @@ chart.Weights.EF(efficient_front, colorset=bluemono, match.col="StdDev", main=""
 
 
 
-
 ### older
 
 # Set the MAR parameter
-MAR =.005 #~6%/year
+MAR <- 0.005 # ~6%/year
 
 # Example 1 maximize Sortino Ratio
 SortinoConstr <- constraint(assets = colnames(indexes[,1:4]), min = 0.05, max = 1, min_sum=.99, max_sum=1.01, weight_seq = generatesequence(by=.001))
@@ -659,9 +768,8 @@ SortinoRebalance <- optimize.portfolio.rebalancing(R=indexes[,1:4], constraints=
 
 
 
-
 ########################
-### running backtest strategy
+### backtest strategy
 
 
 ### calculate risk_ret_stats for some symbols, over a range of dates
@@ -670,7 +778,7 @@ risk_ret_stats <- function(x_ts=etf_rets,  # daily returns
                            range=index(x_ts),  # date range
                            ret="sum",  # return stat
                            risk="mad"  # risk stat
-                           ) {
+) {
   ret <- match.fun(ret)  # match to function
   risk <- match.fun(risk)  # match to function
   stats <- sapply(x_ts[range, sym_bols], function(ts) {
@@ -681,7 +789,7 @@ risk_ret_stats <- function(x_ts=etf_rets,  # daily returns
 
 # example
 head(risk_ret_stats(range=
-              periods[[1]]$back))
+                      periods[[1]]$back))
 
 
 
@@ -709,8 +817,8 @@ win_dow <- 5
 periods <- lapply(win_dow:(length(end_points)-1),
                   function(point)
                     list(back=end_points[point-win_dow+1]:(end_points[point]-1),
-                      fwd=end_points[point]:end_points[point+1])
-                  )  # end sapply
+                         fwd=end_points[point]:end_points[point+1])
+)  # end sapply
 
 
 
@@ -720,7 +828,7 @@ periods <- lapply(win_dow:(length(end_points)-1),
 period_stats <- lapply(periods,
                        function(point)
                          cbind(risk_ret_stats(range=point$back),
-                          fut_ret=sapply(etf_rets[point$fwd, ], sum))
+                               fut_ret=sapply(etf_rets[point$fwd, ], sum))
 )  # end lapply
 head(period_stats[[1]])
 
@@ -740,7 +848,7 @@ co_sts[1, ] <- 0
 co_sts <- rowSums(co_sts)
 pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - co_sts
 co_sts <- xts(co_sts,
-               order.by=index(etf_rets)[end_points[win_dow:(length(end_points)-1)]])
+              order.by=index(etf_rets)[end_points[win_dow:(length(end_points)-1)]])
 colnames(co_sts) <- "costs"
 plot(cumsum(co_sts))
 sum(co_sts)
@@ -848,8 +956,8 @@ ret_vec <- c(first(ret_vec),
 
 risk_vec <- sort(period_stats[, "risk"])
 risk_vec <- c(first(risk_vec), 
-             risk_vec[(length(risk_vec) %/% 10) * (1:9)], 
-             last(risk_vec))
+              risk_vec[(length(risk_vec) %/% 10) * (1:9)], 
+              last(risk_vec))
 # risk_vec <- range(period_stats[, "risk"])
 # risk_vec <- seq(risk_vec[1], risk_vec[2], length.out=11)
 
@@ -858,13 +966,13 @@ fut_ret_mat <- matrix(numeric(100), ncol=10)
 for (ret_ind in 1:10) {
   for (risk_ind in 1:10) {
     fut_ret_mat[ret_ind, risk_ind] <- with(period_stats,
-                        mean(
-                          period_stats[(ret>ret_vec[ret_ind] & 
-                                          ret<ret_vec[ret_ind+1] & 
-                                          risk>risk_vec[risk_ind] & 
-                                          risk<risk_vec[risk_ind+1]), "fut_ret"]
-                          )  # end mean
-                        )  # end with
+           mean(
+             period_stats[(ret>ret_vec[ret_ind] & 
+                             ret<ret_vec[ret_ind+1] & 
+                             risk>risk_vec[risk_ind] & 
+                             risk<risk_vec[risk_ind+1]), "fut_ret"]
+           )  # end mean
+      )  # end with
   }  # end for risk_ind
 }  # end for ret_ind
 
@@ -907,9 +1015,8 @@ period_windows <- xts(period_windows,
 
 
 
-#################################
+########################
 ### factorAnalytics
-#################################
 
 load(file="C:/Develop/data/etf_analysis.RData")
 load(file="C:/Develop/data/portf_optim.RData")
@@ -1013,91 +1120,8 @@ plot(factor_pca, asset.name="VTI", which.plot.single=9, plot.single=TRUE, loop=F
 
 
 
-
-#################################
-### ggplot2
-#################################
-
-library(car)
-# qqPlot with t-quantiles
-qqPlot(dax_rets, distribution="t", df=5, ylab="DAX Returns", envelope=FALSE)
-# Box Plots
-
-
-### autoplot
-autoplot(object=ar_zoo,  # plot AR returns
-         main="Autoregressive process (phi=0.2)", 
-         facets=Series ~ .) + facet_grid(Series ~ ., scales="free_y") +
-  xlab("") + ylab("") + 
-  theme(legend.position=c(0.1, 0.5), 
-        plot.title=element_text(vjust=-2.0), 
-        plot.margin=unit(c(-0.5, 0.0, -0.5, 0.0), "cm"), 
-        plot.background=element_blank(),
-        axis.text.y=element_blank())
-
-autoplot(object=ar_zoo, 
-         facets="Series ~ .", 
-         main="Autoregressive process (phi=0.2)") + 
-  facet_grid("Series ~ .", scales="free_y") +
-  xlab("") + ylab("") + 
-  theme(
-    legend.position="none", 
-    #  plot.title=element_text(vjust=-1.0), 
-    #  plot.margin=unit(c(-0.5, 0.0, -0.5, 0.0), "cm"), 
-    plot.background=element_blank(),
-    axis.text.y=element_blank())
-
-
-ar_data_frame <- as.data.frame(ar_zoo)
-ggplot(data=ar_zoo, mapping=aes(x=index(ar_zoo), y=ar_zoo[, 2])) + geom_line()
-ggplot(data=ar_data_frame, mapping=aes(x=rownames(ar_data_frame), y=ar_data_frame[, 2])) + geom_line()
-
-
-
-###
-
-# autoplot.zoo with some examples
-# http://www.inside-r.org/packages/cran/zoo/docs/autoplot.zoo
-
-x.Date <- as.Date(paste(2003, 02, c(1, 3, 7, 9, 14), sep="-"))
-x <- zoo(rnorm(5), x.Date)
-xlow <- x - runif(5)
-xhigh <- x + runif(5)
-z <- cbind(x, xlow, xhigh)
-
-# univariate plot
-autoplot(x)
-
-# multivariate plotting in multiple or single panels
-# multiple panels + no legend
-autoplot(z)
-# by rows + legend + series-dependent color/linetype
-autoplot(z, facets="Series ~ .")
-# by rows + no legend
-autoplot(z, facets="Series ~ .") + theme(legend.position="none")
-# by columns + no legend
-autoplot(z, facets=". ~ Series") + theme(legend.position="none")
-# single panel + no legend
-autoplot(z, facets=NULL) + theme(legend.position="none")
-
-autoplot(as.zoo(EuStockMarkets))
-
-# point plot
-autoplot(z, geom="point")
-# plot with connected points
-autoplot(z, facets=NULL) + geom_point()
-# b&w plot
-autoplot(z, facets=NULL) + scale_colour_grey() + theme_bw()
-
-autoplot(z) +
-aes(colour = NULL, linetype = NULL) + 
-facet_grid("Series ~ .", scales = "free_y")
-
-
-
-#################################
-### download data ####
-#################################
+########################
+### data download
 
 ### scrape ETF ticker table using XML, qmao packages - from 2012, doesn't work now
 # http://stackoverflow.com/questions/5246843/how-to-get-a-complete-list-of-ticker-symbols-from-yahoo-finance
@@ -1144,11 +1168,11 @@ library(tseries)
 sym_bol <- "MSFT"
 field_names <- c("AdjClose", "Volume")
 zoo_series <- suppressWarnings(  # load MSFT data
-get.hist.quote(instrument=sym_bol, 
-               quote=field_names,
-               start=Sys.Date()-365, 
-               end=Sys.Date(), 
-               origin="1970-01-01")
+  get.hist.quote(instrument=sym_bol, 
+                 quote=field_names,
+                 start=Sys.Date()-365, 
+                 end=Sys.Date(), 
+                 origin="1970-01-01")
 )  # end suppressWarnings
 
 
@@ -1180,13 +1204,13 @@ etf_gg <- autoplot(zoo_series[, "VTI.Close"],
                    main="Vanguard Total Stock Market ETF") + 
   xlab("") + ylab("") + 
   theme(
-#  legend.position="none", 
-  legend.position=c(0.1, 0.5), 
-  plot.title=element_text(vjust=-2.0), 
-#  plot.margin=unit(c(-0.0,0.0,-0.5,0.0),"cm"), 
-#  axis.text.y=element_blank(),
-  plot.background=element_blank()
-)  # end theme
+    #  legend.position="none", 
+    legend.position=c(0.1, 0.5), 
+    plot.title=element_text(vjust=-2.0), 
+    #  plot.margin=unit(c(-0.0,0.0,-0.5,0.0),"cm"), 
+    #  axis.text.y=element_blank(),
+    plot.background=element_blank()
+  )  # end theme
 # render ggplot
 etf_gg
 
@@ -1194,24 +1218,67 @@ etf_gg
 ###
 
 tick_data <- read.csv("http://ichart.finance.yahoo.com/table.csv?s=BAC&a=fM&b=fD&c=fY&d=M&e=D&f=Y", 
-                 header=FALSE)
+                      header=FALSE)
 
 # version with anon function
 zoo_series <- suppressWarnings(  # load MSFT data
   sapply(sym_bols, function(sym_bol, ...) {
     coredata(get.hist.quote(sym_bol, ...))
   },
-         quote=field_names,
-         start=Sys.Date()-365, 
-         end=Sys.Date(), 
-         origin="1970-01-01")
+  quote=field_names,
+  start=Sys.Date()-365, 
+  end=Sys.Date(), 
+  origin="1970-01-01")
 )  # end suppressWarnings
 
 
 
-#################################
-### functions under development ####
-#################################
+########################
+### extra unused code
 
 
+# contingency table doesn't return zero for bins with missing values (hist does)
+pois_table <- table(random_var)  # calculate contingency table
+pois_table <- pois_table/sum(pois_table)  # calculate frequency table
+pois_table
+names(pois_table)  # get names of table
+
+# open Windows graphics device
+x11(width=11, height=7, title="function plot")
+1
+# create barplot
+barplot(pois_table, col="blue", ylab="Frequency of events", xlab="No. of events", main="Poisson distribution")
+x_var <- 0:max(random_var)
+lines(x=x_var, y=dpois(x_var, lambda=4), lwd=2, col="red")
+
+graphics.off()  # close all graphics devices
+
+# combines together first two values
+hist(random_var, freq=FALSE, col="grey", breaks=x_var)
+
+hist(random_var, freq=FALSE, col="grey", breaks="FD")
+
+# doesn't work
+curve(expr=dpois(x, lambda=6), xlim=c(0, 11), ylab="", 
+      lwd=2, col="red")
+curve(expr=dpois(x, lambda=4), add=TRUE, xlim=c(0, 11), ylab="", 
+      lwd=2, col="blue")
+# doesn't work
+plot(x=dpois(x, lambda=6), type="l", xlim=c(0, 11), ylab="", lwd=2, col="red")
+plot(x=dnorm, type="l", xlim=c(-2, 2), ylab="", lwd=2, col="red")
+plot(x=dnorm(x, mean=1), type="l", xlim=c(-1, 3), ylab="", lwd=2, col="red")
+curve(expr=dnorm(x, mean=1), type="l", xlim=c(-1, 3), ylab="", lwd=2, col="red")
+
+
+# add title
+title(main="sine and cosine functions", cex=1.5, line=0.1)
+# add legend
+legend(x="topright", legend=c("sine", "cosine"),
+       title="legend", inset=0.05, cex=1.0, bg="white",
+       lwd=2, lty=c(1, 1), col=c("red", "blue"))
+
+
+
+########################
+### misc stuff for deletion
 

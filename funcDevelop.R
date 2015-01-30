@@ -27,6 +27,35 @@ is_exist <- function(stringy) {
 is_exist("etf_rets")
 
 
+# inspect function environment
+peek_in <- function(in_var, name=NULL) {
+  envy <- environment()
+  if (is.null(name)) {
+    return(ls(envir=envy))
+  }
+  if (name %in% ls(envir=envy)) {
+    return(get(name, envy))
+  }
+  return(NULL)
+}  # end peek_in
+my_var <- 1
+peek_in(my_var)
+peek_in(my_var, name="n")
+
+
+# copy named dots arguments into function environment
+peek_in <- function (in_var, ...) {
+  cat("top: ", ls(environment()), "\n")
+  envy <- environment()
+  for (var in names(list(...))) {
+    assign(var, list(...)[[var]], envy)
+  }
+  cat("bottom: ", ls(environment()), "\n")
+}  # end peek_in
+peek_in(my_var)
+peek_in(my_var, one=1, two=2, three=3)
+
+
 ### plot a few risk_ret_points in portfolio scatterplot
 risk_ret_points <- function(rets=etf_rets, 
         risk=c("sd", "ETL"), sym_bols=c("VTI", "IEF")) {
@@ -191,22 +220,6 @@ chart.Series <- function(ts.data, name.plot) {
 # higher-order functions
 #############
 
-# inspect function environments
-peek_in <- function(f, name=NULL) {
-  env <- environment(f)
-  if (is.null(name)) {
-    return(ls(envir=env))
-  }
-  if (name %in% ls(envir=env)) {
-    return(get(name, env))
-  }
-  return(NULL)
-}
-
-peek_in(f1)
-peek_in(f1, "n")
-
-
 # Test: passing a function as argument, and passing its arguments as "..."
 funcTestFunc <- function(func.name, ...) {
   inputFunc <- match.fun(func.name)
@@ -227,17 +240,8 @@ funcTestFunc <- function(input.list) {
 }
 
 
-# Function that returns another function as its value
-FuncPower <- function(n.exp) {
-  function(n.arg) {
-    n.arg^n.exp
-  }
-}
-FuncSquare <- FuncPower(2)
-FuncCube <- FuncPower(3)
-FuncSquare(4)
-FuncCube(2)
 
+### functions that return functions as their value
 
 # Test: Returning a function
 # from http://www.markmfredrickson.com/thoughts/2011-02-06-peeking-inside-r-functions.html
@@ -246,13 +250,24 @@ funcAdder <- function(n) {
     n+i
   }
 }
-
 # Examples:
 # f1 <- funcAdder(7)
 # f2 <- funcAdder(3)
 # f1(10)
 # f2(10)
 
+
+# function factory for power functions
+factory_power <- function(n_exp) {  # wrapper function
+  function(n_base) {  # anonymous closure
+#    cat(ls(environment()), "\n")
+    n_base^n_exp
+  }
+}  # end factory_power
+f_square <- factory_power(2)
+f_square(2)
+f_cube <- factory_power(3)
+f_cube(2)
 
 
 #############
