@@ -6,14 +6,14 @@
 
 rm(list=ls())  # remove all objects
 
-library(quantstrat)
 library(utils)
 library(quantmod)
 library(caTools)
-library(highfrequency)
 library(lubridate)
+library(highfrequency)
+library(quantstrat)
 
-Sys.setenv(TZ="GMT")  # Set the time-zone to GMT
+Sys.setenv(TZ="America/New_York")  # Set the time-zone to GMT
 setwd("C:/Develop/data")
 # search()  # get search path
 options(digits.secs=6)
@@ -33,6 +33,9 @@ data_dir <- "E:/mktdata/sec/"
 
 ###########
 # code for loading instruments data
+
+sym_bols <- read.csv(file="etf_list_hf.csv")
+sym_bols <- sym_bols[[1]]
 
 ### load list of instrument definitions: creates .instrument environment
 loadInstruments(file_name='E:/mktdata/instruments.rda')
@@ -139,7 +142,7 @@ SPY <- sapply(head(file_names), function(file_name) {
 length(SPY)
 
 # scrub and aggregate the data
-SPY <- sapply(SPY, to_minutes)
+SPY <- sapply(SPY, scrub_agg)
 
 # flatten list into xts - blows up or takes very long!!!
 # SPY <- do.call(rbind, SPY)
@@ -157,15 +160,44 @@ chartSeries(SPY["2008-01-04/2008-01-06"], name="SPY", theme=chartTheme("white"))
 
 
 # function for scrubbing and aggregating a single set of xts data
-to_minutes <- function(daily_prices, agg_vol_window=51, suspect_threshold=1) {
-# subset data to trading hours and return NULL if no data
+scrub_agg <- function(daily_prices, agg_vol_window=51, suspect_threshold=1) {
+  stopifnot(
+      (("package:xts" %in% search()) || require("xts", quietly=TRUE))
+    &&
+      (("package:caTools" %in% search()) || require("caTools", quietly=TRUE))
+    &&
+      (("package:lubridate" %in% search()) || require("lubridate", quietly=TRUE))
+  )
+# convert time index to New_York
+  index(daily_prices) <- with_tz(index(daily_prices), "America/New_York")
+# subset data to trading hours
   daily_prices <- daily_prices['T09:30:00/T16:00:00', ]
+# return NULL if no data
   if (nrow(daily_prices)==0)  return(NULL)
+  daily_date <- as.Date(index(first(daily_prices)))
+
+# calculate bid-offer spread
+  bid_offer <- daily_prices[, 'Ask.Price'] - daily_prices[, 'Bid.Price']
+  bid_offer <- na.omit(bid_offer)
+# calculate daily_vol as running quantile
+  daily_vol <- runquantile(x=abs(as.vector(bid_offer)), k=agg_vol_window, probs=0.9, endrule="constant", align="center")
+  daily_vol <- xts(daily_vol, order.by=index(bid_offer))
+  colnames(daily_vol) <- "vol"
+# carry forward non-zero daily_vol values
+  daily_vol[daily_vol==0] <- NA
+  daily_vol <- na.locf(daily_vol)
+
+# find suspect values
+# suspect if bid_offer greater than daily_vol
+  daily_suspect <- (abs(bid_offer) > 1.5*suspect_threshold*daily_vol)
+# scrub (remove) suspect values
+  daily_prices <- daily_prices[!daily_suspect]
+  cat("date:", format(daily_date), "\tscrubbed", sum(daily_suspect), "suspect bid-offer values\n")
+
 # calculate mid bid-offer prices
   prices_mid <- 0.5 * (daily_prices[, 'Bid.Price'] + daily_prices[, 'Ask.Price'])
   prices_mid <- na.omit(prices_mid)
   colnames(prices_mid) <- "Mid.Price"
-  daily_date <- as.Date(index(first(prices_mid)))
 # calculate simple returns
   daily_diffs <- diff(prices_mid)
   daily_diffs[1, ] <- 0
@@ -190,7 +222,9 @@ to_minutes <- function(daily_prices, agg_vol_window=51, suspect_threshold=1) {
       (abs(daily_diffs+fut_diffs) < 2*suspect_threshold*daily_vol)
   )
   colnames(daily_suspect) <- "suspect"
-  cat("date:", format(daily_date), "\tfound", sum(daily_suspect), "suspect values\n")
+  cat("date:", format(daily_date), "\tscrubbed", sum(daily_suspect), "suspect hairline values\n")
+# cat("Parsing", deparse(substitute(daily_prices)), "\n")
+# cat("Parsing", strsplit(deparse(substitute(daily_prices)), split="[.]")[[1]][4], "on date:", format(daily_date), "\tscrubbed", sum(daily_suspect), "suspect values\n")
 # replace suspect values with NA
   prices_scrub <- prices_mid
   prices_scrub[daily_suspect] <- NA
@@ -198,14 +232,14 @@ to_minutes <- function(daily_prices, agg_vol_window=51, suspect_threshold=1) {
   prices_scrub <- cbind(prices_scrub, daily_prices[index(prices_scrub), "Volume"])
   prices_scrub[is.na(prices_scrub[, "Volume"]), "Volume"] <- 0
 
-  # aggregate to OHLC minutes data and cumulative volume
+# aggregate to OHLC minutes data and cumulative volume
   prices_scrub <- to.period(x=prices_scrub, period="minutes")
-  # round up times to next minute
-  index(prices_scrub) <- ceiling_date(x=index(prices_scrub), unit="minute")
+# round up times to next minute
+  index(prices_scrub) <- align.time(x=index(prices_scrub), 60)
   prices_scrub
-}  # end to_minutes
+}  # end scrub_agg
 
-daily_scrub <- to_minutes(daily_prices=(SPY[[6]])['T09:30:00/T16:00:00', ], sym_bol="SPY")
+daily_scrub <- scrub_agg(daily_prices=(SPY[[6]])['T09:30:00/T16:00:00', ], sym_bol="SPY")
 chartSeries(daily_scrub, name="SPY", theme=chartTheme("white"))
 
 # SPY <- NULL
@@ -459,6 +493,52 @@ period.apply(prices_mid[, 'volume'], INDEX=endpoints(prices_mid, "hours"), sum)
 pnls <- period.apply(prices_mid[, 'volume'], INDEX=endpoints(prices_mid, "minutes"), sum)
 
 # get index of dates
+
+
+
+###########
+# load and scrub multiple days of data for a single symbol
+load_data <- function(sym_bol) {
+
+# create path to directory with *.RData files
+  file_dir <- file.path(data_dir, sym_bol)
+# get list of *.RData files
+  file_list <- list.files(file_dir)
+# create paths to *.RData files
+  file_names <- file.path(file_dir, file_list)
+
+# load data into list
+  data <- sapply(file_names, function(file_name) {
+    cat("loading", sym_bol, "frome file: ", file_name, "\n")
+    data_name <- load(file_name)
+    get(data_name)
+  })
+
+# scrub and aggregate the data
+  data <- sapply(data, scrub_agg)
+
+# recursively "rbind" the list into a single xts
+  data <- rbind_list(data)
+
+  colnames(data) <- sapply(strsplit(colnames(data), split="[.]"), 
+                           function(strng) paste(sym_bol, strng[-1], sep="."))
+
+  assign(sym_bol, data)
+
+  save(list=eval(sym_bol), file=paste0(sym_bol, ".RData"))
+
+}  # end load_data
+
+# load list of symbols
+sym_bols <- read.csv(file="etf_list_hf.csv")
+sym_bols <- sym_bols[[1]]
+
+# load data for a single symbol
+load_data("IWF")
+# load data for list of symbols
+sapply(head(sym_bols), load_data)
+
+
 
 
 ### extra legacy code

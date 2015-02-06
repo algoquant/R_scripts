@@ -3,18 +3,35 @@
 ############
 # high frequency data scrubbing
 
+save scrubbed data in daily files
+to trading hours
+duplicate time stamps
+calculate mid price
+NA omit
+NA volumes to zero
+scrub on mid price:
+	bid-oofer spread
+	hairlines
+
+calculate and save returns of scrubbed data in daily files
+
+
+
 analyze code in functions:
-	getSymbols.FI
+	rmOutliers
 	loadInstruments
+	getSymbols.FI - done
 
 adopt .Rdata file and directory conventions
 
 analyze code in:
-	scripts_hist.R
-	Rhistory 07-12-14.txt
-	copy anything useful and then delete files
+	scripts_hist.R - done
+	Rhistory 07-12-14.txt - done
+	copy anything useful and then delete files - done
 
 create new script file for 
+
+calculate tail shape of return frequency distribution and demonstrate power law
 
 
 #####
