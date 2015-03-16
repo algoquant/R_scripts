@@ -13,6 +13,50 @@ rm(list=ls())
 options(max.print=40)
 
 
+################################################
+### operator overloading  #######
+################################################
+
+# overloading "+" operator
+# first define variables with explicit "character" class
+# char1 <- "a"
+# class(char1) <- "character"
+# char2 <- "b"
+# class(char2) <- "character"
+# or
+char1 <- structure("a", class="character")
+char2 <- structure("b", class="character")
+
+# define "+" method for "character" class
+"+.character" <- function (a, b, ...) {
+  in_dex <- (which(letters==substr(a, 1, 1)) + which(letters==substr(b, 1, 1))) %% length(letters)
+  letters[in_dex]
+}  # end +.character
+
+# modified above to define "+" as "paste"
+"+.character" <- function (a, b, ...) {
+  paste(a, "plus", b)
+}  # end +.character
+
+# add two "character" objects
+char1 + char2
+
+
+
+################################################
+### operator overwriting  #######
+################################################
+
+###  overwrite "+" operator
+http://stackoverflow.com/questions/4730551/making-a-string-concatenation-operator-in-r
+"+" = function(a, b) {
+  if(is.character(a) && is.character(b)) {
+    paste(a, "plus", b)
+  } else {
+    .Primitive("+") (a, b)
+  }
+}
+
 
 
 ################################################
@@ -375,14 +419,28 @@ funcScope <- function(model=NULL) {
 # Some misc code
 # out.put <- sapply(someSymbols, function(symb) { funEcho(symb); readline(prompt="Pause. Press <Enter> to continue...")  })
 
-funcCropout <- function(var.input) { stopifnot(is.xts(var.input)); length(var.input) }
+funcCropout <- function(in_put) { stopifnot(is.xts(in_put)); length(in_put) }
 
-
-funcSwitch <- function(var.input, var.type="one") {
-  var.out <- ifelse(var.type=="one", {var.out <- var.input; var.out <- paste("first", var.out)},
-                    ifelse(var.type=="two", paste("second", var.input), "something else"))
+# switch using ifelse
+switch_test <- function(in_put, op_tion="one") {
+  var.out <- ifelse(op_tion=="one", {var.out <- in_put; var.out <- paste("first", var.out)},
+                    ifelse(op_tion=="two", paste("second", in_put), "something else"))
   var.out
-}
+}  # end switch_test
+
+# switch using switch
+switch_test <- function(in_put, op_tion="one") {
+  switch(op_tion,
+         one=paste("first option:", in_put),
+         two=paste("second option:", in_put),
+         "1 min"=paste("1 min option:", in_put),
+         paste("something else:", in_put)
+  )  # end switch
+}  # end switch_test
+switch_test("hello")
+switch_test(in_put="hello", op_tion="two")
+switch_test(in_put="hello", op_tion="1 min")
+switch_test(in_put="hello", op_tion="blah")
 
 # Fix the first NA in a xts (it's snooping data)
 na.init <- function(ts.data) {

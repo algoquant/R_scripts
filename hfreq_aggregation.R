@@ -8,10 +8,12 @@ rm(list=ls())  # remove all objects
 
 library(utils)
 library(quantmod)
+library(qmao)
 library(caTools)
 library(lubridate)
 library(highfrequency)
 library(quantstrat)
+library(HighFreq)
 
 Sys.setenv(TZ="America/New_York")  # Set the time-zone to GMT
 setwd("C:/Develop/data")
@@ -26,14 +28,28 @@ options(max.print=80)
 # data_dir <- "/home/storage/settles/"
 # data_dir <- "/home/storage/sec/"
 data_dir <- "E:/mktdata/sec/"
+scrub_dir <- "E:/scrubdata/"
 # data_dir <- "/home/storage/tick/"
 # print(data_dir)
 
+
+###########
+# code for loading xts data
+
+# load and save data for a single symbol
+save_OHLC("IWF")
+# load data for list of symbols
+sapply(head(sym_bols), save_OHLC)
+
+# load data for a single symbol
+load(file="SPY.RData")
+chartSeries(SPY["2013"], name=sym_bol, theme=chartTheme("white"))
 
 
 ###########
 # code for loading instruments data
 
+# load list of symbols
 sym_bols <- read.csv(file="etf_list_hf.csv")
 sym_bols <- sym_bols[[1]]
 
@@ -117,7 +133,8 @@ setDefaults(getSymbols.FI,
 ### load seconds bar data using getSymbols.FI
 
 # run loadInstruments() first
-getSymbols("SPY")  # takes very long!!!
+sym_bol <- "SPY"
+getSymbols(sym_bol)  # takes very long!!!
 dim(SPY)
 SPY[10000:10020, ]
 
@@ -127,126 +144,242 @@ SPY[10000:10020, ]
 # load ts data using custom functions
 
 # create path to directory with *.RData files
-file_dir <- file.path(data_dir, "SPY")
+file_dir <- file.path(data_dir, sym_bol)
 # get list of *.RData files
 file_list <- list.files(file_dir)
 # create paths to *.RData files
 file_names <- file.path(file_dir, file_list)
 
 # load data into list
-SPY <- sapply(head(file_names), function(file_name) {
+daily_xts <- sapply(head(file_names), function(file_name) {
   cat("loading", file_name, "\n")
   data_name <- load(file_name)
   get(data_name)
 })
-length(SPY)
+length(daily_xts)
 
 # scrub and aggregate the data
-SPY <- sapply(SPY, scrub_agg)
+daily_xts <- lapply(daily_xts, scrub_agg)
 
 # flatten list into xts - blows up or takes very long!!!
-# SPY <- do.call(rbind, SPY)
+# daily_xts <- do.call(rbind, daily_xts)
 # recursively "rbind" the list into a single xts
-SPY <- rbind_list(SPY)
+daily_xts <- do_call_rbind(daily_xts)
 
-sym_bol <- "SPY"
+
 # rename the colnames
-colnames(SPY) <- sapply(strsplit(colnames(SPY), split="[.]"), 
+colnames(daily_xts) <- sapply(strsplit(colnames(daily_xts), split="[.]"), 
                                  function(strng) paste(sym_bol, strng[-1], sep="."))
 
-head(SPY)
-chartSeries(SPY, name="SPY", theme=chartTheme("white"))
-chartSeries(SPY["2008-01-04/2008-01-06"], name="SPY", theme=chartTheme("white"))
+head(daily_xts)
+chartSeries(daily_xts, name=sym_bol, theme=chartTheme("white"))
+chartSeries(daily_xts["2008-01-04/2008-01-06"], name=sym_bol, theme=chartTheme("white"))
+
+# install HighFreq
+install.packages(pkgs="C:/Develop/R/HighFreq", repos=NULL, type="source")
+install.packages(pkgs="C:/Develop/R/HighFreq", repos=NULL, type="source", lib="C:/Users/Jerzy/Downloads")
+install.packages(pkgs="C:/Develop/R/HighFreq", repos=NULL, type="source", lib="C:/Users/Jerzy/Documents/R/win-library/3.1")
+library(HighFreq)
+
+# package library path
+.rs.rpc.get_package_install_context()
+.libPaths()
+normalizePath(R.home())
+normalizePath(R.home("Library"))
+normalizePath(.Library)
+
+install.packages("devtools")
+library(devtools)
+install_github("hadley/devtools")
+install_github(repo="hadley/babynames")
 
 
-# function for scrubbing and aggregating a single set of xts data
-scrub_agg <- function(daily_prices, agg_vol_window=51, suspect_threshold=1) {
+###########
+# scrubbing functions
+
+
+### identify suspect bid_offer values in univariate xts time series
+extreme_values <- function(bid_offer, vol_window=51, thresh_old=2) {
+
+  stopifnot(
+    (("package:xts" %in% search()) || require("xts", quietly=TRUE))
+    &&
+      ("package:caTools" %in% search()) || require("caTools", quietly=TRUE)
+  )
+
+# calculate vo_lat as running quantile
+  vo_lat <- runquantile(x=abs(as.vector(bid_offer)), k=vol_window, probs=0.9, endrule="constant", align="center")
+  vo_lat <- xts(vo_lat, order.by=index(bid_offer))
+  colnames(vo_lat) <- "volat"
+# carry forward non-zero vo_lat values
+  vo_lat[vo_lat==0] <- NA
+  vo_lat[1] <- 1
+  vo_lat <- na.locf(vo_lat)
+#  vo_lat <- na.locf(vo_lat, fromLast=TRUE)
+  
+# find suspect values
+# suspect if bid_offer greater than vo_lat
+  sus_pect <- (abs(bid_offer) > 2*thresh_old*vo_lat)
+  sus_pect[1] <- FALSE
+
+  cat("date:", format(as.Date(index(first(bid_offer)))), "\tscrubbed", sum(sus_pect), "suspect bid-offer values\n")
+  sus_pect
+}  # end extreme_values
+
+
+### identify suspect jump values in univariate xts price time series
+jump_values <- function(price_data, vol_window=51, thresh_old=2) {
+
+  stopifnot(
+    (("package:xts" %in% search()) || require("xts", quietly=TRUE))
+    &&
+      ("package:caTools" %in% search()) || require("caTools", quietly=TRUE)
+  )
+
+# calculate simple returns
+  diff_prices <- diff(price_data)
+  diff_prices[1, ] <- 0
+  colnames(diff_prices) <- "diffs"
+  diff_prices_fut <- lag(diff_prices, -1)
+  diff_prices_fut[nrow(diff_prices_fut)] <- 0
+  colnames(diff_prices_fut) <- "diff_prices_fut"
+
+# calculate vo_lat as running quantile
+  vo_lat <- runquantile(x=abs(as.vector(diff_prices)), k=vol_window, probs=0.9, endrule="constant", align="center")
+  vo_lat <- xts(vo_lat, order.by=index(diff_prices))
+  colnames(vo_lat) <- "volat"
+# carry forward non-zero vo_lat values
+  vo_lat[vo_lat==0] <- NA
+  vo_lat[1] <- 1
+  vo_lat <- na.locf(vo_lat)
+#  vo_lat <- na.locf(vo_lat, fromLast=TRUE)
+  
+# find suspect values
+# suspect if abs diffs greater than vo_lat, and if abs sum of diffs less than vo_lat
+  sus_pect <- (
+    (abs(diff_prices) > thresh_old*vo_lat) & 
+      (abs(diff_prices_fut) > thresh_old*vo_lat) & 
+      (abs(diff_prices+diff_prices_fut) < 2*thresh_old*vo_lat)
+  )
+  sus_pect[1] <- FALSE
+  colnames(sus_pect) <- "suspect"
+# cat("Parsing", deparse(substitute(taq_data)), "\n")
+# cat("Parsing", strsplit(deparse(substitute(taq_data)), split="[.]")[[1]][4], "on date:", format(to_day), "\tscrubbed", sum(sus_pect), "suspect values\n")
+  cat("date:", format(as.Date(index(first(price_data)))), "\tscrubbed", sum(sus_pect), "suspect jump values\n")
+  sus_pect
+}  # end jump_values
+
+
+
+### scrub and aggregate a single day of TAQ data in xts format
+# return mid price and volume
+scrub_agg <- function(taq_data, vol_window=51, thresh_old=2) {
+
   stopifnot(
       (("package:xts" %in% search()) || require("xts", quietly=TRUE))
     &&
-      (("package:caTools" %in% search()) || require("caTools", quietly=TRUE))
+      (("package:lubridate" %in% search()) || require("lubridate", quietly=TRUE))
+  )
+
+# convert time index to New_York
+  index(taq_data) <- with_tz(index(taq_data), "America/New_York")
+# subset data to NYSE trading hours
+  taq_data <- taq_data['T09:30:00/T16:00:00', ]
+# return NULL if no data
+  if (nrow(taq_data)==0)  return(NULL)
+  to_day <- as.Date(index(first(taq_data)))
+
+# remove duplicate time stamps using duplicated
+  taq_data <- taq_data[!duplicated(index(taq_data)), ]
+
+# scrub quotes with suspect bid-offer spreads
+  bid_offer <- taq_data[, 'Ask.Price'] - taq_data[, 'Bid.Price']
+#  bid_offer <- na.omit(bid_offer)
+  sus_pect <- extreme_values(bid_offer)
+# remove suspect values
+  taq_data <- taq_data[!sus_pect]
+# replace suspect values
+# taq_data[sus_pect, "Bid.Price"] <- taq_data[sus_pect, "Trade.Price"]
+# taq_data[sus_pect, "Ask.Price"] <- taq_data[sus_pect, "Trade.Price"]
+
+# scrub quotes with suspect price jumps
+# calculate mid prices
+  mid_prices <- 0.5 * (taq_data[, "Bid.Price"] + taq_data[, "Ask.Price"])
+#  mid_prices <- na.omit(mid_prices)
+  colnames(mid_prices) <- "Mid.Price"
+# replace suspect values with NA
+  mid_prices[jump_values(mid_prices)] <- NA
+  mid_prices <- na.locf(mid_prices)
+#  mid_prices <- na.locf(mid_prices, fromLast=TRUE)
+  mid_prices <- cbind(mid_prices, taq_data[index(mid_prices), "Volume"])
+  mid_prices[is.na(mid_prices[, "Volume"]), "Volume"] <- 0
+
+# aggregate to OHLC minutes data and cumulative volume
+  mid_prices <- to.period(x=mid_prices, period="minutes")
+# round up times to next minute
+  index(mid_prices) <- align.time(x=index(mid_prices), 60)
+  mid_prices
+}  # end scrub_agg
+
+
+
+### scrub and return a single day of TAQ data
+scrub_TAQ <- function(taq_data, vol_window=51, thresh_old=2) {
+
+  stopifnot(
+    (("package:xts" %in% search()) || require("xts", quietly=TRUE))
     &&
       (("package:lubridate" %in% search()) || require("lubridate", quietly=TRUE))
   )
+
 # convert time index to New_York
-  index(daily_prices) <- with_tz(index(daily_prices), "America/New_York")
-# subset data to trading hours
-  daily_prices <- daily_prices['T09:30:00/T16:00:00', ]
+  index(taq_data) <- with_tz(index(taq_data), "America/New_York")
+# subset data to NYSE trading hours
+  taq_data <- taq_data['T09:30:00/T16:00:00', ]
 # return NULL if no data
-  if (nrow(daily_prices)==0)  return(NULL)
-  daily_date <- as.Date(index(first(daily_prices)))
+  if (nrow(taq_data)==0)  return(NULL)
 
-# calculate bid-offer spread
-  bid_offer <- daily_prices[, 'Ask.Price'] - daily_prices[, 'Bid.Price']
-  bid_offer <- na.omit(bid_offer)
-# calculate daily_vol as running quantile
-  daily_vol <- runquantile(x=abs(as.vector(bid_offer)), k=agg_vol_window, probs=0.9, endrule="constant", align="center")
-  daily_vol <- xts(daily_vol, order.by=index(bid_offer))
-  colnames(daily_vol) <- "vol"
-# carry forward non-zero daily_vol values
-  daily_vol[daily_vol==0] <- NA
-  daily_vol <- na.locf(daily_vol)
+# remove duplicate time stamps using duplicated
+  taq_data <- taq_data[!duplicated(index(taq_data)), ]
 
-# find suspect values
-# suspect if bid_offer greater than daily_vol
-  daily_suspect <- (abs(bid_offer) > 1.5*suspect_threshold*daily_vol)
-# scrub (remove) suspect values
-  daily_prices <- daily_prices[!daily_suspect]
-  cat("date:", format(daily_date), "\tscrubbed", sum(daily_suspect), "suspect bid-offer values\n")
+# scrub quotes with suspect bid-offer spreads
+  bid_offer <- taq_data[, 'Ask.Price'] - taq_data[, 'Bid.Price']
+#  bid_offer <- na.omit(bid_offer)
+  sus_pect <- extreme_values(bid_offer)
+# remove suspect values
+  taq_data <- taq_data[!sus_pect]
+# replace suspect values
+# taq_data[sus_pect, "Bid.Price"] <- taq_data[sus_pect, "Trade.Price"]
+# taq_data[sus_pect, "Ask.Price"] <- taq_data[sus_pect, "Trade.Price"]
 
-# calculate mid bid-offer prices
-  prices_mid <- 0.5 * (daily_prices[, 'Bid.Price'] + daily_prices[, 'Ask.Price'])
-  prices_mid <- na.omit(prices_mid)
-  colnames(prices_mid) <- "Mid.Price"
-# calculate simple returns
-  daily_diffs <- diff(prices_mid)
-  daily_diffs[1, ] <- 0
-  colnames(daily_diffs) <- "diffs"
-  fut_diffs <- lag(daily_diffs, -1)
-  fut_diffs[nrow(fut_diffs)] <- 0
-  colnames(fut_diffs) <- "fut_diffs"
-
-# calculate daily_vol as running quantile
-  daily_vol <- runquantile(x=abs(as.vector(daily_diffs)), k=agg_vol_window, probs=0.9, endrule="constant", align="center")
-  daily_vol <- xts(daily_vol, order.by=index(daily_diffs))
-  colnames(daily_vol) <- "vol"
-# carry forward non-zero daily_vol values
-  daily_vol[daily_vol==0] <- NA
-  daily_vol <- na.locf(daily_vol)
-  
-# find suspect values
-# suspect if abs diffs greater than daily_vol, and if abs sum of diffs less than daily_vol
-  daily_suspect <- (
-    (abs(daily_diffs) > suspect_threshold*daily_vol) & 
-      (abs(fut_diffs) > suspect_threshold*daily_vol) & 
-      (abs(daily_diffs+fut_diffs) < 2*suspect_threshold*daily_vol)
-  )
-  colnames(daily_suspect) <- "suspect"
-  cat("date:", format(daily_date), "\tscrubbed", sum(daily_suspect), "suspect hairline values\n")
-# cat("Parsing", deparse(substitute(daily_prices)), "\n")
-# cat("Parsing", strsplit(deparse(substitute(daily_prices)), split="[.]")[[1]][4], "on date:", format(daily_date), "\tscrubbed", sum(daily_suspect), "suspect values\n")
+# scrub quotes with suspect price jumps
+# calculate mid prices
+  mid_prices <- 0.5 * (taq_data[, "Bid.Price"] + taq_data[, "Ask.Price"])
+#  mid_prices <- na.omit(mid_prices)
+  colnames(mid_prices) <- "Mid.Price"
 # replace suspect values with NA
-  prices_scrub <- prices_mid
-  prices_scrub[daily_suspect] <- NA
-  prices_scrub <- na.locf(prices_scrub)
-  prices_scrub <- cbind(prices_scrub, daily_prices[index(prices_scrub), "Volume"])
-  prices_scrub[is.na(prices_scrub[, "Volume"]), "Volume"] <- 0
+  mid_prices[jump_values(mid_prices)] <- NA
+  mid_prices <- na.locf(mid_prices)
+#  mid_prices <- na.locf(mid_prices, fromLast=TRUE)
+  mid_prices <- cbind(mid_prices, taq_data[index(mid_prices), "Volume"])
+  mid_prices[is.na(mid_prices[, "Volume"]), "Volume"] <- 0
 
 # aggregate to OHLC minutes data and cumulative volume
-  prices_scrub <- to.period(x=prices_scrub, period="minutes")
+  mid_prices <- to.period(x=mid_prices, period="minutes")
 # round up times to next minute
-  index(prices_scrub) <- align.time(x=index(prices_scrub), 60)
-  prices_scrub
-}  # end scrub_agg
+  index(mid_prices) <- align.time(x=index(mid_prices), 60)
+  mid_prices
+}  # end scrub_TAQ
 
-daily_scrub <- scrub_agg(daily_prices=(SPY[[6]])['T09:30:00/T16:00:00', ], sym_bol="SPY")
-chartSeries(daily_scrub, name="SPY", theme=chartTheme("white"))
 
-# SPY <- NULL
+daily_scrub <- scrub_agg(taq_data=daily_xts[[3]])
+chartSeries(daily_scrub, name=sym_bol, theme=chartTheme("white"))
+
+# daily_xts <- NULL
 # sapply(head(file_names), function(file_name) {
 #   cat("loading", file_name, "\n")
 #   data_name <- load(file_name)
-#   SPY <<- rbind(SPY, get(data_name))
+#   daily_xts <<- rbind(daily_xts, get(data_name))
 #   data_name
 # })
 
@@ -262,7 +395,7 @@ subset.SPY <- SPY['T09:30:00/T16:00:00', ]  # takes very long!!!
 subset.SPY <- SPY['T09:15:00/T16:15:00', ]  # takes very long!!!
 plot(subset.SPY['2014-05-12/2014-05-16', 'Bid.Price'])  # takes very long!!!
 # chart_Series is faster without ON gaps
-chart_Series(subset.SPY['2014-05-12/2014-05-16', 'Bid.Price'], name="SPY")
+chart_Series(subset.SPY['2014-05-12/2014-05-16', 'Bid.Price'], name=sym_bol)
 
 save(SPY, subset.SPY, file="SPY.RData")
 
@@ -274,88 +407,117 @@ load(file="SPY_daily.RData")  # small file
 ###########
 # analyze daily ts data
 
+# load one day of TAQ data
+load(file.path(data_dir, "SPY/2014.05.02.SPY.RData"))
+head(SPY)
 
-# extract one day of ts data
+# extract one day of TAQ data
 daily_prices <- subset.SPY['2010-04-14', ]
 daily_prices <- na.omit(daily_prices)  # omits too many bars?
 
 # calculate seconds mid bid-offer prices (evaluated at trade times)
-# prices_mid <- 0.5 * (daily_prices[, 'Bid.Price'] + daily_prices[, 'Ask.Price'])
-# prices_mid <- daily_prices['T13:00/T17:00', 'Trade.Price']
+# mid_prices <- 0.5 * (daily_prices[, 'Bid.Price'] + daily_prices[, 'Ask.Price'])
+# mid_prices <- daily_prices['T13:00/T17:00', 'Trade.Price']
 # calculate seconds traded prices
-# prices_mid <- daily_prices[, c('Volume', 'Trade.Price')]
-# prices_mid <- daily_prices[, 'Trade.Price']
+# mid_prices <- daily_prices[, c('Volume', 'Trade.Price')]
+# mid_prices <- daily_prices[, 'Trade.Price']
 # merge prices with volume data
-# daily_volume <- daily_prices['T13:00/T17:00', 'Volume']
-# daily_volume <- daily_prices[, 'Volume']
-# daily_volume[is.na(daily_volume)] <- 0
-# prices_mid <- cbind(prices_mid, daily_volume)
-# colnames(prices_mid) <- c('trade_price', 'volume')
+# vo_latume <- daily_prices['T13:00/T17:00', 'Volume']
+# vo_latume <- daily_prices[, 'Volume']
+# vo_latume[is.na(vo_latume)] <- 0
+# mid_prices <- cbind(mid_prices, vo_latume)
+# colnames(mid_prices) <- c('trade_price', 'volume')
 
 # get one day of data, after loading data into list:
-daily_prices <- (SPY[[6]])['T09:30:00/T16:00:00', ]
+daily_prices <- (daily_xts[[6]])['T09:30:00/T16:00:00', ]
 # calculate mid bid-offer prices
-prices_mid <- 0.5 * (daily_prices[, 'Bid.Price'] + daily_prices[, 'Ask.Price'])
-prices_mid <- na.omit(prices_mid)
-colnames(prices_mid) <- "Mid.Price"
+mid_prices <- 0.5 * (daily_prices[, 'Bid.Price'] + daily_prices[, 'Ask.Price'])
+mid_prices <- na.omit(mid_prices)
+colnames(mid_prices) <- "Mid.Price"
 
 
 ### create test data
 
-# prices_mid <- xts(cumsum(rnorm(nrow(prices_mid))), order.by=index(daily_prices))
+# create xts time series
+x_ts <- xts(x=rnorm(100), order.by=(Sys.time()-3600*(1:100)))
+# split time series into daily list
+list_xts <- split(x_ts, "days")
+# rbind the list back into a time series and compare with the original
+identical(x_ts, do_call_rbind(list_xts))
+
+# create time index of one second intervals for a single day
+in_dex <- seq(from=as.POSIXct("2015-02-09 09:30:00"), to=as.POSIXct("2015-02-09 16:00:00"), by="1 sec")
+# create xts of random prices
+x_ts <- xts(cumsum(rnorm(length(in_dex))), order.by=in_dex)
+# create vector of random bid-offer prices
+bid_offer <- abs(rnorm(length(in_dex)))/10
+# create TAQ data using cbind
+taq_data <- cbind(x_ts-bid_offer, x_ts+bid_offer)
+# add Trade.Price
+taq_data <- cbind(taq_data, x_ts+rnorm(length(in_dex))/10)
+# add Volume
+taq_data <- cbind(taq_data, sample(x=10*(2:18), size=length(in_dex), replace=TRUE))
+colnames(taq_data) <- c("Bid.Price", "Ask.Price", "Trade.Price", "Volume")
+# aggregate to one minute OHLC data
+ohlc_data <- scrub_agg(taq_data)
+chartSeries(ohlc_data, name=sym_bol, theme=chartTheme("white"))
+
+
+
+# mid_prices <- xts(cumsum(rnorm(nrow(mid_prices))), order.by=index(daily_prices))
 # sine function with jumps
-prices_mid <- xts(sin(22*(1:nrow(daily_prices))/nrow(daily_prices)), order.by=index(daily_prices)) + 2
-# prices_mid <- sin(22*(1:dim(daily_prices)[1])/dim(daily_prices)[1])
-# prices_scrub <- prices_mid
-colnames(prices_mid) <- "Mid.Price"
+mid_prices <- xts(sin(22*(1:nrow(daily_prices))/nrow(daily_prices)), order.by=index(daily_prices)) + 2
+# mid_prices <- sin(22*(1:dim(daily_prices)[1])/dim(daily_prices)[1])
+# prices_scrub <- mid_prices
+colnames(mid_prices) <- "Mid.Price"
 
 # add noise
-prices_mid[c(1000,3000,5000,7000)] <- 1.1*prices_mid[c(1000,3000,5000,7000)]
-prices_mid[c(2000,4000,6000,8000)] <- 0.8*prices_mid[c(1000,3000,5000,7000)]
-# daily_diffs <- xts(daily_diffs, order.by=index(SPY[[6]])[10001:20000])
-plot(prices_mid)
+mid_prices[c(1000,3000,5000,7000)] <- 1.1*mid_prices[c(1000,3000,5000,7000)]
+mid_prices[c(2000,4000,6000,8000)] <- 0.8*mid_prices[c(1000,3000,5000,7000)]
+# diff_prices <- xts(diff_prices, order.by=index(daily_xts[[6]])[10001:20000])
+plot(mid_prices)
 
 
 # median filter
-test.blob <- xts(runmed(x=coredata(prices_mid), 11), order.by=index(prices_mid))
-plot(prices_mid, xlab="", ylab="", type='l')
+test.blob <- xts(runmed(x=coredata(mid_prices), 11), order.by=index(mid_prices))
+plot(mid_prices, xlab="", ylab="", type='l')
 lines(test.blob, col='red', lwd=1)
 
 
 # calculate simple returns
-daily_diffs <- diff(prices_mid)
-daily_diffs[1, ] <- 0
-colnames(daily_diffs) <- "diffs"
-fut_diffs <- lag(daily_diffs, -1)
-fut_diffs[nrow(fut_diffs)] <- 0
-colnames(fut_diffs) <- "fut_diffs"
+diff_prices <- diff(mid_prices)
+diff_prices[1, ] <- 0
+colnames(diff_prices) <- "diffs"
+diff_prices_fut <- lag(diff_prices, -1)
+diff_prices_fut[nrow(diff_prices_fut)] <- 0
+colnames(diff_prices_fut) <- "diff_prices_fut"
 
 # calculate log returns
-# daily_returns <- diff(log(prices_mid))/c(1, diff(.index(prices_mid)))
-daily_returns <- diff(prices_mid)/c(1, diff(.index(prices_mid)))
+# daily_returns <- diff(log(mid_prices))/c(1, diff(.index(mid_prices)))
+daily_returns <- diff(mid_prices)/c(1, diff(.index(mid_prices)))
 daily_returns[1, ] <- 0
 
 
 ### scrub data from single jump outliers, if two consecutive returns exceed threshold
 
 # calculate the (symmetric) running average absolute deviation
-agg_vol_window <- 51
+vol_window <- 51
 # abs_returns <- abs(as.vector(daily_returns))  # vector dispatches faster code
-# daily_vol <- runMean(abs_returns, n=agg_vol_window)
-# daily_vol[1:(agg_vol_window/2), ] <- daily_vol[(agg_vol_window/2+1), ]
-# system.time(daily_vol <- filter(abs_returns, filter=rep(1/agg_vol_window,agg_vol_window), sides=2))
-# daily_mean <- runmean(x=as.vector(daily_returns), k=agg_vol_window, alg="fast", endrule="constant", align="center")
-# daily_vol <- runmean(x=abs(as.vector(daily_returns)-daily_mean), k=agg_vol_window, alg="fast", endrule="constant", align="center")
-# daily_vol <- runmean(x=abs(as.vector(daily_diffs)), k=agg_vol_window, alg="fast", endrule="constant", align="center")
-# calculate daily_vol as running quantile
-# daily_vol <- runmad(x=as.vector(daily_diffs), k=agg_vol_window, endrule="constant", align="center")
-daily_vol <- runquantile(x=abs(as.vector(daily_diffs)), k=agg_vol_window, probs=0.9, endrule="constant", align="center")
-daily_vol <- xts(daily_vol, order.by=index(daily_diffs))
-colnames(daily_vol) <- "vol"
-# carry forward non-zero daily_vol values
-daily_vol[daily_vol==0] <- NA
-daily_vol <- na.locf(daily_vol)
-plot(daily_vol, xlab="", ylab="", type='l')
+# vo_lat <- runMean(abs_returns, n=vol_window)
+# vo_lat[1:(vol_window/2), ] <- vo_lat[(vol_window/2+1), ]
+# system.time(vo_lat <- filter(abs_returns, filter=rep(1/vol_window,vol_window), sides=2))
+# daily_mean <- runmean(x=as.vector(daily_returns), k=vol_window, alg="fast", endrule="constant", align="center")
+# vo_lat <- runmean(x=abs(as.vector(daily_returns)-daily_mean), k=vol_window, alg="fast", endrule="constant", align="center")
+# vo_lat <- runmean(x=abs(as.vector(diff_prices)), k=vol_window, alg="fast", endrule="constant", align="center")
+# calculate vo_lat as running quantile
+# vo_lat <- runmad(x=as.vector(diff_prices), k=vol_window, endrule="constant", align="center")
+vo_lat <- runquantile(x=abs(as.vector(diff_prices)), k=vol_window, probs=0.9, endrule="constant", align="center")
+vo_lat <- xts(vo_lat, order.by=index(diff_prices))
+colnames(vo_lat) <- "volat"
+# carry forward non-zero vo_lat values
+vo_lat[vo_lat==0] <- NA
+vo_lat <- na.locf(vo_lat)
+plot(vo_lat, xlab="", ylab="", type='l')
 
 
 # scrub the data
@@ -364,24 +526,24 @@ plot(daily_vol, xlab="", ylab="", type='l')
 # lag_daily_returns[1,] <- 0.0
 
 # find suspect values
-suspect_threshold <- 1
+thresh_old <- 1
 # suspect if sum of abs diffs greater than abs sum of diffs - doesn't work
-# daily_suspect <- (abs(daily_diffs) + abs(fut_diffs)) > suspect_threshold*abs(daily_diffs+fut_diffs)
-# suspect if abs diffs greater than daily_vol, and if abs sum of diffs less than daily_vol
-daily_suspect <- (
-  (abs(daily_diffs) > suspect_threshold*daily_vol) & 
-    (abs(fut_diffs) > suspect_threshold*daily_vol) & 
-    (abs(daily_diffs+fut_diffs) < 2*suspect_threshold*daily_vol)
+# sus_pect <- (abs(diff_prices) + abs(diff_prices_fut)) > thresh_old*abs(diff_prices+diff_prices_fut)
+# suspect if abs diffs greater than vo_lat, and if abs sum of diffs less than vo_lat
+sus_pect <- (
+  (abs(diff_prices) > thresh_old*vo_lat) & 
+    (abs(diff_prices_fut) > thresh_old*vo_lat) & 
+    (abs(diff_prices+diff_prices_fut) < 2*thresh_old*vo_lat)
 )
-colnames(daily_suspect) <- "suspect"
-sum(daily_suspect)
-plot(daily_suspect, xlab="", ylab="", type='l')
+colnames(sus_pect) <- "suspect"
+sum(sus_pect)
+plot(sus_pect, xlab="", ylab="", type='l')
 
 
 # replace suspect values with NA
-# prices_scrub <- prices_mid
-prices_scrub <- prices_mid
-prices_scrub[daily_suspect] <- NA
+# prices_scrub <- mid_prices
+prices_scrub <- mid_prices
+prices_scrub[sus_pect] <- NA
 prices_scrub <- na.locf(prices_scrub)
 
 # plot
@@ -392,7 +554,7 @@ lines(prices_scrub, col='red', lwd=1)
 returns_scrub <- diff(prices_scrub)/c(1, diff(.index(prices_scrub)))
 returns_scrub[1,] <- 0.0
 
-# prices_mid <- xts(raw.data[,2], order.by=as.POSIXlt(raw.data[,1]))
+# mid_prices <- xts(raw.data[,2], order.by=as.POSIXlt(raw.data[,1]))
 
 # End scrub
 
@@ -400,8 +562,8 @@ returns_scrub[1,] <- 0.0
 ### plot scrub data
 
 # inspect scrubbing
-test.blob <- cbind(prices_mid, daily_diffs, fut_diffs, daily_vol, daily_suspect, prices_scrub)
-colnames(test.blob) <- c("prices_mid", "daily_diffs", "fut_diffs", "daily_vol", "daily_suspect", "prices_scrub")
+test.blob <- cbind(mid_prices, diff_prices, diff_prices_fut, vo_lat, sus_pect, prices_scrub)
+colnames(test.blob) <- c("mid_prices", "diff_prices", "diff_prices_fut", "vo_lat", "sus_pect", "prices_scrub")
 test.blob[995:1005]
 plot.zoo(test.blob[7990:8010])
 
@@ -425,9 +587,9 @@ chartSeries(prices_scrub, theme=chartTheme("white"))
 ### data aggregation using custom code
 
 # calculate minutes traded prices
-# end_points <- endpoints(prices_mid, "minutes")
+# end_points <- endpoints(mid_prices, "minutes")
 # calculate traded prices every few bars
-# prices_mid <- daily_prices[(1:round(dim(daily_prices)[1]/10)), c('Volume', 'Trade.Price')]
+# mid_prices <- daily_prices[(1:round(dim(daily_prices)[1]/10)), c('Volume', 'Trade.Price')]
 
 # calculate aggregation index
 agg_price_window <- 10  # number of periods per aggregation
@@ -440,15 +602,15 @@ num_agg <- trunc(dim(daily_prices)[1]/agg_price_window)  # number of aggregation
 agg_range <- dim(daily_prices)[1] - (agg_price_window*(num_agg+1) - 1):(agg_price_window*num_agg)
 
 # calculate aggregated traded prices
-# prices_mid <- daily_prices[end_points, c('Volume', 'Trade.Price')]
-# colnames(prices_mid) <- c('trade_price', 'volume')
-prices_mid <- daily_prices[end_points, 'Trade.Price']
-colnames(prices_mid) <- 'trade_price'
+# mid_prices <- daily_prices[end_points, c('Volume', 'Trade.Price')]
+# colnames(mid_prices) <- c('trade_price', 'volume')
+mid_prices <- daily_prices[end_points, 'Trade.Price']
+colnames(mid_prices) <- 'trade_price'
 
 # calculate aggregated returns given aggregation index start point
 agg_returns <- function(agg_start) {
-  prices_mid <- prices_scrub[(agg_start + agg_price_window*(1:num_agg)), ]
-  daily_returns <- diff(prices_mid)/c(1, diff(.index(prices_mid)))
+  mid_prices <- prices_scrub[(agg_start + agg_price_window*(1:num_agg)), ]
+  daily_returns <- diff(mid_prices)/c(1, diff(.index(mid_prices)))
   daily_returns[1, ] <- 0
   daily_agg_returns <<- rbind(daily_agg_returns, daily_returns)
   agg_start
@@ -486,11 +648,11 @@ lines(density(daily_returns), col='red', lwd=1)  # draw density
 
 
 # get hourly volumes
-end_points <- endpoints(prices_mid, "hours")
-period.apply(prices_mid[, 'volume'], INDEX=endpoints(prices_mid, "hours"), sum)
+end_points <- endpoints(mid_prices, "hours")
+period.apply(mid_prices[, 'volume'], INDEX=endpoints(mid_prices, "hours"), sum)
 
 
-pnls <- period.apply(prices_mid[, 'volume'], INDEX=endpoints(prices_mid, "minutes"), sum)
+pnls <- period.apply(mid_prices[, 'volume'], INDEX=endpoints(mid_prices, "minutes"), sum)
 
 # get index of dates
 
@@ -498,7 +660,7 @@ pnls <- period.apply(prices_mid[, 'volume'], INDEX=endpoints(prices_mid, "minute
 
 ###########
 # load and scrub multiple days of data for a single symbol
-load_data <- function(sym_bol) {
+save_OHLC <- function(sym_bol) {
 
 # create path to directory with *.RData files
   file_dir <- file.path(data_dir, sym_bol)
@@ -518,7 +680,7 @@ load_data <- function(sym_bol) {
   data <- sapply(data, scrub_agg)
 
 # recursively "rbind" the list into a single xts
-  data <- rbind_list(data)
+  data <- do_call_rbind(data)
 
   colnames(data) <- sapply(strsplit(colnames(data), split="[.]"), 
                            function(strng) paste(sym_bol, strng[-1], sep="."))
@@ -527,18 +689,7 @@ load_data <- function(sym_bol) {
 
   save(list=eval(sym_bol), file=paste0(sym_bol, ".RData"))
 
-}  # end load_data
-
-# load list of symbols
-sym_bols <- read.csv(file="etf_list_hf.csv")
-sym_bols <- sym_bols[[1]]
-
-# load data for a single symbol
-load_data("IWF")
-# load data for list of symbols
-sapply(head(sym_bols), load_data)
-
-
+}  # end save_OHLC
 
 
 ### extra legacy code
@@ -605,8 +756,8 @@ getSymbols.FI <- function (symbols_list, date_from="2010-01-01", to=Sys.Date(), 
     assign(var, list(...)[[var]], this_env)
   }
 
-# recursive "rbind" function for list arguments
-  rbind_list <- function(list_var) {
+# recursive "rbind" function for list arguments - same as do.call.rbind
+  do_call_rbind <- function(list_var) {
 # call lapply in a loop to divide list_var by half, binding neighboring elements
     while (length(list_var) > 1) {
 # index of odd list elements
@@ -621,7 +772,7 @@ getSymbols.FI <- function (symbols_list, date_from="2010-01-01", to=Sys.Date(), 
     }  # end while
 # list_var has only one element - return it
   list_var[[1]]
-  }  # end rbind_list
+  }  # end do_call_rbind
 
 # assign input argument values to hidden '.*' variables
 # the variables hasArg.* are used in pickArg()
@@ -779,7 +930,7 @@ if (hasArg.date_from <- hasArg(date_from))
                             )  # end lapply
 
                             if (verbose) cat("rbinding data ... ")
-                            data_complete <- rbind_list(data_list)
+                            data_complete <- do_call_rbind(data_list)
                             },  # end days
 
                             common={

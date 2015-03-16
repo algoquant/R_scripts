@@ -10,11 +10,6 @@ stopifnot("package:xts" %in% search() || require("xts", quietly=TRUE))
 
 
 ###########
-# functions under development
-
-
-
-###########
 # data scrubbing
 
 rm(SPY)
