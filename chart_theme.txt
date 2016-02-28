@@ -1,0 +1,85 @@
+## values returned by chart_theme()
+
+$col
+$col$bg
+[1] "#FFFFFF"
+
+$col$label.bg
+[1] "#F0F0F0"
+
+$col$grid
+[1] "#F0F0F0"
+
+$col$grid2
+[1] "#F5F5F5"
+
+$col$ticks
+[1] "#999999"
+
+$col$labels
+[1] "#333333"
+
+$col$line.col
+[1] "darkorange"
+
+$col$dn.col
+[1] "red"
+
+$col$up.col
+[1] NA
+
+$col$dn.border
+[1] "#333333"
+
+$col$up.border
+[1] "#333333"
+
+
+$shading
+[1] 1
+
+$format.labels
+[1] TRUE
+
+$coarse.time
+[1] TRUE
+
+$rylab
+[1] TRUE
+
+$lylab
+[1] TRUE
+
+$grid.ticks.lwd
+[1] 1
+
+$grid.ticks.on
+[1] "months"
+
+$bbands
+$bbands$col
+$bbands$col$fill
+[1] "whitesmoke"
+
+$bbands$col$upper
+[1] "#D5D5D5"
+
+$bbands$col$lower
+[1] "#D5D5D5"
+
+$bbands$col$ma
+[1] "#D5D5D5"
+
+
+$bbands$lty
+$bbands$lty$upper
+[1] "dashed"
+
+$bbands$lty$lower
+[1] "dashed"
+
+$bbands$lty$ma
+[1] "dotted"
+
+
+

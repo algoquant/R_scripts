@@ -22,6 +22,9 @@ funcDevelop.R
 	functions under development
 
 alphaScripts.R
+	collection of scripts for data exploration and model backtests
+
+alphaScripts_legacy
 	very big collection of legacy scripts for data munging and backtests
 
 newScripts.R

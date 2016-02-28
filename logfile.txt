@@ -2,6 +2,8 @@ This is a diary of major file changes and backups in this directory:
 C:\Develop\R\scripts
 
 Date		Event
+02/21/16	alphaScripts.R - created new file
+02/21/16	alphaScripts.R renamed to alphaScripts_legacy.R
 01/09/15	consolidated script files and created inventory.txt
 08/31/14	committed additional thematic .Rnw files, and verified synch with lecture .Rnw files
 06/14/14	released Final slides FRE6811 Spring 2004

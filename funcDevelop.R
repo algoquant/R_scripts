@@ -207,21 +207,21 @@ rownames(matrix.data) <- NULL
 
 cbind.SavGol <- function(ts.price, func.signal) {
 # Extract function name
-  func.name <- match.fun(func.signal$filter.func)
+  func_tion <- match.fun(func.signal$filter.func)
 # Calculate mean
   func.signal$filter.params[4] <- 0
-  ts.zero <- xts(do.call(func.name, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
+  ts.zero <- xts(do.call(func_tion, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
   ts.zero[1,] <- na.omit(ts.zero)[1,]
   ts.zero <- na.locf(ts.zero)
 # Calculate first derivative
   func.signal$filter.params[4] <- 1
-  ts.first <- xts(do.call(func.name, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
+  ts.first <- xts(do.call(func_tion, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
   ts.first[1,] <- na.omit(ts.first)[1,]
   ts.first <- na.locf(ts.first)
 # Calculate second derivative
   func.signal$filter.params[4] <- 2
 # Apply function and calculate signal
-  ts.second <- xts(do.call(func.name, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
+  ts.second <- xts(do.call(func_tion, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
   ts.second[1,] <- na.omit(ts.second)[1,]
   ts.second <- na.locf(ts.second)
 
@@ -265,22 +265,22 @@ chart.Series <- function(ts.data, name.plot) {
 #############
 
 # Test: passing a function as argument, and passing its arguments as "..."
-funcTestFunc <- function(func.name, ...) {
-  inputFunc <- match.fun(func.name)
+funcTestFunc <- function(func_tion, ...) {
+  inputFunc <- match.fun(func_tion)
   inputFunc(...)
 }
 
 
 funcTestFunc <- function(inputFunc, ...) {
-  inputFunc <- match.fun(func.name)
+  inputFunc <- match.fun(func_tion)
   inputFunc(...)
 }
 
 
 # Test: Passing a function as a list, with the first element equal to the function name, and the remaing to function arguments
 funcTestFunc <- function(input.list) {
-  func.name <- match.fun(input.list[1])
-  do.call(func.name, list(as.numeric(input.list[-1])))
+  func_tion <- match.fun(input.list[1])
+  do.call(func_tion, list(as.numeric(input.list[-1])))
 }
 
 
@@ -450,11 +450,11 @@ na.init <- function(ts.data) {
 
 
 # Calculate row and column of the extreme value of a matrix
-# which(..., arr.ind=TRUE) does the same
-coordinates.matrix <- function(var.matrix, func.matrix) {
-  func.name <- match.fun(func.matrix)
-  tmp <- which(var.matrix==func.name(var.matrix), arr.ind=T)
-  coordinates <- as.numeric(c(rownames(var.matrix)[tmp[1,1]], colnames(var.matrix)[tmp[1,2]]))
+# which(mat_rix==func_tion(mat_rix), arr.ind=TRUE) does the same
+coordinates.matrix <- function(mat_rix, func_tion) {
+  func_tion <- match.fun(func_tion)
+  tmp <- which(mat_rix==func_tion(mat_rix), arr.ind=T)
+  coordinates <- as.numeric(c(rownames(mat_rix)[tmp[1,1]], colnames(mat_rix)[tmp[1,2]]))
   coordinates
 }
 
