@@ -5,12 +5,16 @@
 R.Version()
 update.packages(ask=FALSE, checkBuilt=TRUE)
 
-# good package loading script inside functions
-stopifnot("package:xts" %in% search() || require("xts", quietly=TRUE))
-
 rm(list=ls())
-
 options(max.print=40)
+
+# required package loading inside a function
+stopifnot(
+  (("package:xts" %in% search()) || require("xts", quietly=TRUE))
+  &&
+    ("package:caTools" %in% search()) || require("caTools", quietly=TRUE)
+)
+
 
 
 ################################################
@@ -48,7 +52,7 @@ char1 + char2
 ################################################
 
 ###  overwrite "+" operator
-http://stackoverflow.com/questions/4730551/making-a-string-concatenation-operator-in-r
+# http://stackoverflow.com/questions/4730551/making-a-string-concatenation-operator-in-r
 "+" = function(a, b) {
   if(is.character(a) && is.character(b)) {
     paste(a, "plus", b)
@@ -101,20 +105,20 @@ peek_in(my_var, one=1, two=2, three=3)
 
 
 ### plot a few risk_ret_points in portfolio scatterplot
-risk_ret_points <- function(rets=etf_rets, 
+risk_ret_points <- function(rets=etf_rets,
         risk=c("sd", "ETL"), sym_bols=c("VTI", "IEF")) {
   risk <- match.arg(risk)  # match to arg list
   if (risk=="ETL") {
-    stopifnot("package:PerformanceAnalytics" %in% search() || 
+    stopifnot("package:PerformanceAnalytics" %in% search() ||
               require("PerformanceAnalytics", quietly=TRUE))
   }  # end if
   risk <- match.fun(risk)  # match to function
-  risk_ret <- t(sapply(rets[, sym_bols], 
+  risk_ret <- t(sapply(rets[, sym_bols],
      function(x_ts) c(ret=mean(x_ts), risk=abs(risk(x_ts)))))
-  points(x=risk_ret[, "risk"], y=risk_ret[, "ret"], 
+  points(x=risk_ret[, "risk"], y=risk_ret[, "ret"],
          col="red", lwd=3, pch=21)
-  text(x=risk_ret[, "risk"], y=risk_ret[, "ret"], 
-       labels=rownames(risk_ret), col="red", 
+  text(x=risk_ret[, "risk"], y=risk_ret[, "ret"],
+       labels=rownames(risk_ret), col="red",
        lwd=2, pos=4)
 }  # end risk_ret_points
 
@@ -173,21 +177,21 @@ df.data[,"return"] <- c(0, diff(log(df.data[, "price"])))
 ticker.names <- unique(df.data[, "ticker"])
 
 # extract matrices by ticker name - creates list of matrices
-list.data <- apply(as.matrix(ticker.names), 1, 
-                   function(ticker.name) 
+list.data <- apply(as.matrix(ticker.names), 1,
+                   function(ticker.name)
                      df.data[df.data[, "ticker"] == ticker.name, c("date", "price")]
 )  # end apply
 names(list.data) <- ticker.names
 
 # extract matrices by ticker name - creates list of smaller matrices
-list.data <- apply(as.matrix(ticker.names), 1, 
-                   function(ticker.name) 
+list.data <- apply(as.matrix(ticker.names), 1,
+                   function(ticker.name)
                      df.data[df.data[, "ticker"] == ticker.name, c("date", "price")]
 )  # end apply
 names(list.data) <- ticker.names
 
 # extract matrices by ticker name - creates list of xts
-list.data <- apply(as.matrix(ticker.names), 1, 
+list.data <- apply(as.matrix(ticker.names), 1,
                    function(ticker.name) {
                      xts.data <- df.data[df.data[, "ticker"] == ticker.name, c("date", "price")]
                      xts.data <- xts(x=xts.data[, "price"], order.by=xts.data[, "date"])
@@ -262,7 +266,7 @@ chart.Series <- function(ts.data, name.plot) {
 
 #############
 # higher-order functions
-#############
+
 
 # Test: passing a function as argument, and passing its arguments as "..."
 funcTestFunc <- function(func_tion, ...) {
@@ -314,9 +318,9 @@ f_cube <- factory_power(3)
 f_cube(2)
 
 
+
 #############
 # test functions
-#############
 
 
 ### test deparse function
@@ -357,7 +361,7 @@ funcSapplyTest <- function(input, ...) {
 #    rolls <- 17:18
   table.symbols <- read.table(input, sep=",", header=TRUE)
 
-  output <- sapply(table.symbols[,1], 
+  output <- sapply(table.symbols[,1],
                    function(symbol) {
                      symbol
 #                     ts.price <- loadCDS(symbol, ...)
@@ -385,10 +389,10 @@ sapply(in_data, temp_fun, 2, 3)
 fun_input <- function() {
   x <- readline("Enter the value of x: ")
   y <- readline("Enter the value of y: ")
-  
+
   x <- as.numeric(unlist(strsplit(x, ",")))
   y <- as.numeric(unlist(strsplit(y, ",")))
-  
+
   return(c(x, y))
 }  # end fun_input
 
@@ -504,7 +508,7 @@ MyRandom <- function(seed) {  # seed must be an integer
 # seed the pseudo-random function
 PseudoRandom <- MyRandom(88)
 # plot histogram of pseudo-random numbers
-hist(PseudoRandom(500), breaks=30, main="Poor quality pseudo-random numbers", xlim=c(0.0, 1.0), 
+hist(PseudoRandom(500), breaks=30, main="Poor quality pseudo-random numbers", xlim=c(0.0, 1.0),
      xlab="", ylab="", freq=FALSE)
 lines(density(ts.rets[, 1]), col='red', lwd=2)  # draw density
 # title(main=ch.title, line=-1)  # add title
@@ -563,9 +567,9 @@ ls(environment(get.balance))  # list objects in scope of get.balance
 detach(my.account)  # remove my.account from search path
 
 
+
 #############
 ### Exception handling
-#############
 
 MySqrt <- function(arg_var) {  # function that throws error
   if (arg_var > 0) {
@@ -586,7 +590,7 @@ tryCatch(  # without error handler
   {  # evaluate expressions
     n.val <- 101  # assign
     stop('my error')  # throw error
-  }, 
+  },
   finally=print(paste("n.val=", n.val))
 )  # end tryCatch
 
@@ -594,7 +598,7 @@ tryCatch(  # with error handler
   {  # evaluate expressions
     n.val <- 101  # assign
     stop('my error')  # throw error
-  }, 
+  },
   error=function(e.cond)  # handler captures error condition
     print(paste("error handler: ", e.cond)),
   finally=print(paste("n.val=", n.val))
@@ -629,13 +633,13 @@ for (my.index in 1:10) {  # loop
 }  # end for
 
 for (my.index in 1:10) {  # loop with tryCatch
-  tryCatch(stopifnot(my.index < 6), 
+  tryCatch(stopifnot(my.index < 6),
            error=function(e) print(paste("my.index=", my.index, "error: ", e)),
            finally=print(paste("my.index=", my.index)))
 }  # end for
 
 for (my.index in 1:10) {  # loop with tryCatch
-  tryCatch(stopifnot(my.index < 6), 
+  tryCatch(stopifnot(my.index < 6),
            error=function(e) print(paste("my.index=", my.index, "error: ", e)))
 }  # end for
 
@@ -718,23 +722,20 @@ for (arg_var in arg_vec) {
 }
 
 
+
 #############
 ### Rolling Functions
-#############
 
 ### Lag function performs a vector of lags on xts data when lag > 1
 L <- function(ts.data, n.lag=1) {
-  if(length(n.lag) > 1)
-    {
-      rval <- do.call("cbind", lapply(n.lag, lag.xts, x=ts.data))
-      colnames(rval) <- n.lag
+  if(length(n.lag) > 1) {
+    rval <- do.call("cbind", lapply(n.lag, lag.xts, x=ts.data))
+    colnames(rval) <- n.lag
     }
   else
-    {
-      rval <- lag(ts.data, n.lag)
-    }
+    rval <- lag(ts.data, n.lag)
   rval
-}
+}  # end L
 
 ###' @export
 rollingLmSignals <- function(ts.returns, end.period, look.back, lags, expand.window=FALSE) {
@@ -834,11 +835,100 @@ rollingLmSignals <- function(ts.returns, end.period, look.back, lags, expand.win
   coef <- na.locf(coef)
   betas <- -coef[, 1:ncol(ts.returns)]
   betas[,1] <- 1
-  colnames(betas) <- colnames(ts.returns) 
+  colnames(betas) <- colnames(ts.returns)
   list(signals=signals, coef=coef, betas=betas, reg.lvl=reg.lvl, reg.ect=reg.ect)
 
 }
 ### End rollingLmSignals
+
+# roll_sum() using RcppRoll::roll_sum()
+# it's actua;;y slower than using cumsum() because reclass() back to xts is slow
+library(RcppRoll)
+roll_sum <- function(x_ts, win_dow) {
+  roll_sum <- RcppRoll::roll_sum(c(rep(0,win_dow-1), coredata(x_ts)), n=win_dow, align="right")
+  roll_sum <- xts(x=roll_sum, order.by=index(x_ts))
+  colnames(roll_sum) <- colnames(x_ts)
+  roll_sum
+}  # end roll_sum
+
+
+#############
+### functions for package HighFreq
+
+### modification of function to_period() from package HighFreq
+#' Aggregates an \code{OHLC} time series to a lower periodicity, but uses
+#' a sliding window (lookback period) instead of end points.
+#'
+#' Given an \code{OHLC} time series at high periodicity (say seconds),
+#' calculates the \code{OHLC} prices at lower periodicity (say minutes).
+#'
+#' @export
+#' @param x_ts an \code{xts} time series containing one or more columns of data.
+#' @param period aggregation interval ("seconds", "minutes", "hours", "days",
+#'   "weeks", "months", "quarters", and "years").
+#' @param k number of periods to aggregate over (for example if period="minutes"
+#'   and k=2, then aggregate over two minute intervals.)
+#' @param end_points an integer vector of end points.
+#' @return \code{xts} \code{OHLC} time series of lower periodicity defined by
+#'   end_points.
+#' @details #' Performs a similar aggregation as function \code{to.period()}
+#'   from package
+#'   \href{https://cran.r-project.org/web/packages/xts/index.html}{xts}, but has
+#'   the flexibility to aggregate to a user-specified vector of end points. The
+#'   function \code{to_period_rolling()} simply calls the compiled function
+#'   \code{toPeriod()} (from package
+#'   \href{https://cran.r-project.org/web/packages/xts/index.html}{xts}), to
+#'   perform the actual aggregations.  If \code{end_points} are passed in
+#'   explicitly, then the \code{period} argument is ignored.
+#' @examples
+#' # define end points at 10-minute intervals (SPY is minutely bars)
+#' end_points <- rutils::end_points(SPY["2009"], inter_val=10)
+#' # aggregate over 10-minute end_points:
+#' to_period_rolling(x_ts=SPY["2009"], end_points=end_points)
+#' # aggregate over days:
+#' to_period_rolling(x_ts=SPY["2009"], period="days")
+#' # equivalent to:
+#' to.period(x=SPY["2009"], period="days", name=rutils::na_me(SPY))
+
+to_period_rolling <- function(x_ts, win_dow=10) {
+  roll_open <- rutils::lag_xts(Op(x_ts), k=(win_dow-1))
+  roll_hi <- TTR::runMax(Hi(x_ts), n=win_dow)
+  roll_lo <- -TTR::runMax(-Lo(x_ts), n=win_dow)
+  roll_close <- Cl(x_ts)
+  roll_volume <- rutils::roll_sum(x_ts=Vo(x_ts), win_dow=win_dow)
+  out_put <- cbind(roll_open, roll_hi, roll_lo, roll_close, roll_volume)
+  out_put[1:(win_dow-1), ] <- 1
+  colnames(out_put) <- colnames(x_ts)
+  out_put
+}  # end to_period_rolling
+
+
+
+#' Adjusts an \code{OHLC} time series to make open prices equal to the close
+#' prices from the previous period.
+#'
+#' @export
+#' @param oh_lc an \code{OHLC} time series of prices in \code{xts} format.
+#' @return \code{OHLC} time series of prices in \code{xts} format, with open
+#'   prices equal to the close prices from the previous period.
+#' @details Adds or subtracts a price adjustment to make all open prices equal
+#'   to the close prices from the previous period.  The adjustment preserves the
+#'   price differences within each bar of \code{OHLC} prices, and so preserves
+#'   open to close returns, variance estimates, etc.
+#' @examples
+#' # define end points at 10-minute intervals (SPY is minutely bars)
+#' end_points <- rutils::end_points(SPY["2009"], inter_val=10)
+#' # aggregate over 10-minute end_points:
+#' open_close(x_ts=SPY["2009"], end_points=end_points)
+#' # aggregate over days:
+#' open_close(oh_lc=SPY["2009"], period="days")
+
+open_close <- function(oh_lc) {
+  op_en <- Op(oh_lc)
+  clo_se <- lag.xts(Cl(oh_lc), k=-1)
+  which(!(op_en==clo_se))
+}  # end open_close
+
 
 
 ################################################

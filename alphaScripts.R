@@ -155,10 +155,8 @@ assign(sym_bol_rets, da_ta)
 
 ########### end temp ###########
 
-
-
 ################
-
+# managing high frequency data using package HighFreq
 
 # load a single day of seconds TAQ data
 sym_bol <- load("C:/Develop/data/hfreq/src/SPY/2012.02.16.SPY.RData")
@@ -193,123 +191,46 @@ hist(re_turns, breaks=30, main="returns", xlab="", ylab="", freq=FALSE)
 hist(re_turns, breaks=100, main="returns", xlim=c(-2.0e-4, 2.0e-4), ylim=c(0, 10000), xlab="", ylab="", freq=FALSE)
 lines(density(re_turns), col='red', lwd=1)  # draw density
 
-# calculate Hurst exponent using range for xts
-hurst_exp <- function(re_turns) {
-  cum_sum <- cumsum(re_turns)
-  (max(cum_sum) - min(cum_sum))/sd(re_turns)/sqrt(length(re_turns))
-}  # end hurst_exp
-hurst_exp <- function(da_ta) {
-  (max(da_ta) - min(da_ta))/sd(diff(da_ta)[-1])/sqrt(length(da_ta))
-}  # end hurst_exp
-# calculate Hurst exponent using range for xts ohlc
-hurst_exp <- function(da_ta) {
-  (max(Hi(da_ta)) - min(Lo(da_ta)))/(max(Hi(da_ta)) + min(Lo(da_ta)))/sum(vol_ohlc(log_ohlc=log(da_ta[, 1:4])))/sqrt(nrow(da_ta))/2
-}  # end hurst_exp
-# calculate Hurst exponent using range for non-xts
-hurst_exp <- function(da_ta) {
-  (max(da_ta) - min(da_ta))/sd(da_ta[-1]-da_ta[-length(da_ta)])/sqrt(length(da_ta))
-}  # end hurst_exp
-# calculate Hurst exponent using var ratio for non-xts
-hurst_exp <- function(da_ta, l_ag=4) {
-  len_gth <- length(da_ta)
-  var(da_ta[-(1:l_ag)]-da_ta[-((len_gth-l_ag+1):len_gth)])/var(da_ta[-1]-da_ta[-len_gth])/l_ag
-}  # end hurst_exp
-hurst_exp(coredata(SPY["2012/", 4]))
-hurst_exp(coredata(SPY["2012/", 4]), l_ag=10)
-blah <- rnorm(length(SPY["2012/", 4]))
-head(blah)
-hurst_exp(cumsum(blah))
-hurst_exp(cumsum(blah+c(0, 0.5*blah[-length(blah)])))
 
-# calculate running Hurst exponent using var ratio for xts
-hurst_run <- function(da_ta, l_ag=20, win_dow=70) {
-  len_gth <- length(da_ta)
-  diff_one <- diff.xts(x=da_ta, lag=1)
-  diff_one[1, ] <- 0
-  var_one <- run_sum(x_ts=diff_one^2, win_dow=win_dow)
-  diff_lag <- diff.xts(x=da_ta, lag=l_ag)
-  diff_lag[1:l_ag, ] <- 0
-  var_lag <- run_sum(x_ts=diff_lag^2, win_dow=win_dow)
-  var_lag/var_one/l_ag
-}  # end hurst_run
-# calculate running Hurst exponent using var ratio for xts
-hurst_run <- function(da_ta) {
-  data_agg <- to.minutes10(x=da_ta)
-  in_dex <- index(data_agg)
-  end_points <- c(0, match(in_dex, index(da_ta)))
-  vol_at <- vol_ohlc(log_ohlc=da_ta)
-  vol_at <- period.sum(vol_at, INDEX=end_points)
-  vol_at[vol_at==0] <- NA
-  vol_at <- na.omit(vol_at)
-  volat_agg <- vol_ohlc(log_ohlc=data_agg)
-  volat_agg/vol_at
-}  # end hurst_run
-blah <- hurst_run(SPY["2012/", 4])
-hurst_agg <- hurst_run(SPY["2012/"])
-colnames(blah) <- paste0(sym_bol, ".Hurst")
-class(blah)
-dim(blah)
-head(blah)
-tail(blah)
-chart_Series(x=SPY["2012-05-04"], name="SPY")
-chart_Series(x=blah["2012-05-04"], name="running Hurst")
-
-foo <- cbind(vol_run, blah)
-foo <- diff.xts(x=SPY["2012/", 4], lag=20)
-foo[1:20, ] <- 0
-foo <- cbind(foo, blah)
-tail(foo)
-plot(coredata(foo["2012-05"]))
+### calculate daily seasonality of returns
+re_turns <- diff(Cl(get("SPY")))/c(1, diff(.index(get("SPY"))))
+re_turns[1, ] <- 0
+re_turns <- na.locf(re_turns)
+sum(is.na(re_turns))
+# remove overnight return spikes at "09:31"
+in_dex <- format(index(re_turns), "%H:%M")
+re_turns <- re_turns[!in_dex=="09:31", ]
+# calculate daily seasonality of returns
+season_rets <- season_ality(x_ts=re_turns)
+chart_Series(x=season_rets, 
+             name=paste(colnames(season_rets), "daily seasonality"))
 
 
-chart_Series(x=SPY["2012/", 4], name="VTI plus VWAP")
-hurst_exp(SPY["2012/", 4])
-hurst_exp(SPY["2012-05-05/", 4])
-foo_bar <- xts(x=cumsum(rnorm(length(SPY["2012/", 4]))/100), order.by=index(SPY["2012/"]))
-hurst_exp(coredata(foo_bar), l_ag=22)
-plot(coredata(foo_bar), t="l")
-
-foo <- apply.daily(SPY["2012/", 4], 
-                   FUN=function(x_ts) c(sd=sd(diff(x_ts)[-1]), hurst=hurst_exp(coredata(x_ts), l_ag=22)))
-bar <- apply.daily(foo_bar, 
-                   FUN=function(x_ts) c(sd=sd(diff(x_ts)[-1]), hurst=hurst_exp(coredata(x_ts), l_ag=22)))
-dim(foo)
-head(foo)
-tail(foo)
-plot(coredata(foo))
-
-lm_foo <- lm(formula=paste(colnames(foo)[2:1], collapse=" ~ "), data=foo)
-summary(lm_foo)
-
-lm_bar <- lm(formula=paste(colnames(bar)[2:1], collapse=" ~ "), data=bar)
-summary(lm_bar)
-
-
-# volatility
-vol_at <- vol_ohlc(log_ohlc=log(SPY["2012/", 1:4]))
-# running vwav volatility
-vol_run <- run_moment_ohlc(ohlc=SPY["2012/"], N=1, n=20)
-in_dex <- index(vol_run)
-dim(vol_run)
-head(vol_run)
-tail(vol_run)
-plot(coredata(vol_run), t="l")
+### volatility spikes
+vol_at <- run_variance(ohlc=SPY["2012/", 1:4])
+# rolling vwav volatility
+var_rolling <- roll_moment(ohlc=SPY["2012/"], win_dow=20)
+in_dex <- index(var_rolling)
+dim(var_rolling)
+head(var_rolling)
+tail(var_rolling)
+plot(coredata(var_rolling), t="l")
 
 
 # plot histogram of volatility - similar to chi-squared distribution
 library(PerformanceAnalytics)
-chart.Histogram(vol_run, main="", xlab=colnames(vol_run), 
+chart.Histogram(var_rolling, main="", xlab=colnames(var_rolling), 
                 xlim=c(0, 5e-6), 
                 methods=c("add.density"))
 # add title
 title(main=paste(sym_bol, "vol"), line=-1)
 x_var <- seq(from=0, to=5e-6, by=1e-7)
-lines(x=x_var, y=50*nrow(vol_run)*dchisq(11*x_var/mean(vol_run), df=11), 
+lines(x=x_var, y=50*NROW(var_rolling)*dchisq(11*x_var/mean(var_rolling), df=11), 
       xlab="", ylab="", lwd=1, col="blue")
 
 # identify periods around volatility spikes
-quantile(vol_run, probs=c(0.9, 0.99))
-vol_spikes <- vol_run[vol_run>quantile(vol_run, probs=0.99), ]
+quantile(var_rolling, probs=c(0.9, 0.99))
+vol_spikes <- var_rolling[var_rolling>quantile(var_rolling, probs=0.99), ]
 class(vol_spikes)
 dim(vol_spikes)
 head(vol_spikes)
@@ -326,7 +247,7 @@ vol_spike <- vol_spikes[foo[3]:(foo[4]-1), ]
 max(vol_spike)
 vol_spike[which.max(vol_spike)]
 blah <- which(in_dex==index(vol_spike[which.max(vol_spike)]))
-plot(coredata(vol_run[(blah-10):(blah+30), ])/max(vol_spike), t="l")
+plot(coredata(var_rolling[(blah-10):(blah+30), ])/max(vol_spike), t="l")
 
 vol_peaks <- lapply(1:(length(foo)-1), function(i_ter) {
   vol_spike <- vol_spikes[foo[i_ter]:(foo[i_ter+1]-1), ]
@@ -340,7 +261,7 @@ which(in_dex==index(first(vol_peaks)))
 
 foo_bar <- function(vol_peak) {
   which_peak <- which(in_dex==index(vol_peak))
-  coredata(vol_run[(which_peak-10):(which_peak+30), ])/as.numeric(vol_peak)
+  coredata(var_rolling[(which_peak-10):(which_peak+30), ])/as.numeric(vol_peak)
 }  # end foo_bar
 foo_bar(first(vol_peaks))
 foo_bar(vol_peaks[3])
@@ -352,7 +273,7 @@ vol_profiles <- sapply(1:3, function(i_ter) foo_bar(vol_peaks[i_ter, ]))
 # calcuate volatility around peak volatility
 vol_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
-  coredata(vol_run[(which_peak-200):(which_peak+300), ])/as.numeric(vol_peaks[i_ter, ])
+  coredata(var_rolling[(which_peak-200):(which_peak+300), ])/as.numeric(vol_peaks[i_ter, ])
 })  # end sapply
 class(vol_profiles)
 dim(vol_profiles)
@@ -378,79 +299,115 @@ dim(foo_bar)
 head(foo_bar, 33)
 
 
-# calculate daily seasonality of Hurst exponent
-# hurst_profiles <- matrix(hurst_agg, nrow=40)
-hurst_profiles <- split(x=hurst_agg, 
-                        f=as.factor(format(index(hurst_agg), format="%m-%d-%Y")))
-in_dex <- format(index(hurst_profiles[[3]]), f="%H:%M:%S")
-hurst_profiles <- lapply(hurst_profiles, function(x_ts) {
-  names(x_ts) <- format(index(x_ts[1]), format="%m-%d-%Y")
-  index(x_ts) <- as.POSIXct(paste(Sys.Date(), format(index(x_ts), f="%H:%M:%S")))
-  x_ts
-})  # end lapply
-# hurst_profiles <- do.call(cbind, hurst_profiles)
-hurst_profiles <- do_call_rbind(hurst_profiles)
-class(hurst_profiles)
-dim(hurst_profiles)
-
-tail(hurst_profiles[, 1:3])
-format(index(hurst_profiles), f="%H:%M:%S")
-end_points <- match(in_dex, format(index(hurst_profiles), f="%H:%M:%S"))
-
-sum(is.na(hurst_profiles))
-# hurst_profiles[is.na(hurst_profiles)] <- 0
-blah <- unclass(hurst_profiles)
-blah[is.na(blah)] <- 0
-dim(blah)
-blah <- rowSums(blah)/ncol(blah)
-blah <- period.sum(blah, INDEX=end_points)
-
-plot(blah[-length(blah)], t="l")
-hurst_exp(blah)
-hurst_exp(blah, 22)
-
-library(HighFreq)
-
-vwap_short <- v_wap(x_ts=get(sym_bol), win_dow=70)
-vwap_long <- v_wap(x_ts=get(sym_bol), win_dow=225)
-vwap_diff <- vwap_short - vwap_long
+### calculate Hurst exponent using range for xts
+hurst_exp <- function(re_turns) {
+  cum_sum <- cumsum(re_turns)
+  (max(cum_sum) - min(cum_sum))/sd(re_turns)/sqrt(length(re_turns))
+}  # end hurst_exp
+hurst_exp <- function(da_ta) {
+  (max(da_ta) - min(da_ta))/sd(diff(da_ta)[-1])/sqrt(length(da_ta))
+}  # end hurst_exp
+# calculate Hurst exponent using range for xts ohlc
+hurst_exp <- function(da_ta) {
+  (max(Hi(da_ta)) - min(Lo(da_ta)))/(max(Hi(da_ta)) + min(Lo(da_ta)))/sum(run_variance(ohlc=da_ta[, 1:4]))/sqrt(NROW(da_ta))/2
+}  # end hurst_exp
+# calculate Hurst exponent using range for non-xts
+hurst_exp <- function(da_ta) {
+  (max(da_ta) - min(da_ta))/sd(da_ta[-1]-da_ta[-length(da_ta)])/sqrt(length(da_ta))
+}  # end hurst_exp
+# calculate Hurst exponent using variance ratios for non-xts
+hurst_exp <- function(da_ta, l_ag=4) {
+  len_gth <- length(da_ta)
+  var(da_ta[-(1:l_ag)]-da_ta[-((len_gth-l_ag+1):len_gth)])/var(da_ta[-1]-da_ta[-len_gth])/l_ag
+}  # end hurst_exp
+hurst_exp(coredata(SPY["2012/", 4]))
+hurst_exp(coredata(SPY["2012/", 4]), l_ag=10)
+blah <- rnorm(length(SPY["2012/", 4]))
+head(blah)
+hurst_exp(cumsum(blah))
+hurst_exp(cumsum(blah+c(0, 0.5*blah[-length(blah)])))
 
 
-#' Calculate the volume-weighted average volatility of an \code{OHLC} time series
-#' over a sliding window (lookback period).
+### calculate rolling Hurst exponent using range of OHLC xts
+# roll_hurst from HighFreq is better
+roll_hurst <- function(x_ts) {
+  xts_agg <- xts::to.minutes10(x_ts)
+  in_dex <- index(xts_agg)
+  var_xts <- rutils::roll_sum(run_variance(x_ts), win_dow=10)[in_dex]/9
+  var_xts10 <- run_variance(xts_agg)
+  roll_hurst <- ifelse((var_xts==0) | (var_xts10==0), 
+                       1.0, 
+                       log(var_xts10/var_xts)/log(10))
+  colnames(roll_hurst) <- paste0(rutils::na_me(x_ts), ".Hurst")
+  na.locf(roll_hurst)
+}  # end roll_hurst
+# calculate rolling Hurst exponent using var ratio for xts
+roll_hurst <- function(x_ts) {
+  data_agg <- to.minutes10(x=x_ts)
+  in_dex <- index(data_agg)
+  end_points <- c(0, match(in_dex, index(x_ts)))
+  vol_at <- run_variance(ohlc=x_ts)
+  vol_at <- period.sum(vol_at, INDEX=end_points)
+  vol_at[vol_at==0] <- NA
+  vol_at <- na.omit(vol_at)
+  volat_agg <- run_variance(ohlc=data_agg)
+  volat_agg/vol_at
+}  # end roll_hurst
+
+# calculate rolling Hurst exponent using var ratio for xts
+roll_hurst <- function(x_ts, l_ag=20, win_dow=70) {
+  len_gth <- NROW(x_ts)
+  diff_one <- diff.xts(x=x_ts, lag=1)
+  diff_one[1, ] <- 0
+  var_one <- rutils::roll_sum(x_ts=diff_one^2, win_dow=win_dow)
+  diff_lag <- diff.xts(x=x_ts, lag=l_ag)
+  diff_lag[1:l_ag, ] <- 0
+  var_lag <- rutils::roll_sum(x_ts=diff_lag^2, win_dow=win_dow)
+  var_lag/var_one/l_ag
+}  # end roll_hurst
+
+
+foo_bar <- xts(x=cumsum(rnorm(length(SPY["2012/", 4]))/100), order.by=index(SPY["2012/"]))
+hurst_exp(coredata(foo_bar), l_ag=22)
+plot(coredata(foo_bar), t="l")
+
+
+lm_foo <- lm(formula=paste(colnames(foo)[2:1], collapse=" ~ "), data=foo)
+summary(lm_foo)
+
+lm_bar <- lm(formula=paste(colnames(bar)[2:1], collapse=" ~ "), data=bar)
+summary(lm_bar)
+
+
+
+### Calculate the volume-weighted average volatility of an \code{OHLC} time series
+# over a sliding window (lookback period).
 v_wav <- function(vol_at, x_ts, win_dow) {
-  v_wav <- run_sum(x_ts=vol_at*Vo(x_ts), win_dow=win_dow)
-  vol_ume <- run_sum(x_ts=Vo(x_ts), win_dow=win_dow)
+  v_wav <- rutils::roll_sum(x_ts=vol_at*Vo(x_ts), win_dow=win_dow)
+  vol_ume <- rutils::roll_sum(x_ts=Vo(x_ts), win_dow=win_dow)
   v_wav <- v_wav/vol_ume
   v_wav[is.na(v_wav)] <- 0
   v_wav
 }  # end v_wav
 vwav_short <- v_wav(vol_at=vol_at, x_ts=SPY["2012/"], win_dow=10)
 vwav_long <- v_wav(vol_at=vol_at, x_ts=SPY["2012/"], win_dow=40)
-chart_Series(x=vwav_long["2012-05-04"], name=paste(sym_bol, "running volatility"))
+chart_Series(x=vwav_long["2012-05-04"], name=paste(sym_bol, "rolling volatility"))
 add_TA(vwav_short["2012-05-04"],on=1, col="green", lwd=2)
 add_TA(vwav_long["2012-05-04"], on=1, col="blue", lwd=2)
 
 
-# calcuate daily seasonality of Hurst exponent, Hurst by hour
+# calcuate daily seasonality of Hurst exponent by hour
 end_points <- endpoints(SPY["2012/"], on="hours")
-foo <- period.apply(x=SPY["2012/"], INDEX=end_points, FUN=hurst_exp)
-dim(foo)
-head(foo)
-names(foo) <- c("rets", "volu")
+season_hurst <- period.apply(x=SPY["2012/"], INDEX=end_points, FUN=hurst_exp)
+dim(season_hurst)
+head(season_hurst)
+names(season_hurst) <- c("rets", "volu")
 plot.zoo(foo)
 plot(as.formula(paste(names(foo), collapse=" ~ ")), data=foo)
 reg_model <- lm(paste(names(foo), collapse=" ~ "), data=foo)
 reg_model_sum <- summary(reg_model)
 reg_model_sum
 dwtest(reg_model)
-
-
-
-
-blah <- hist(coredata(vol_run), col="lightblue1", 
-             main="Distance per Gallon 1993", xlab="Highway MPG", breaks="FD")
-
 
 
 ################
@@ -507,12 +464,12 @@ bar <- bar[!blah, ]
 ### returns
 
 # lag_rets equals returns lagged by -1
-re_turns <- calc_rets(xts_data=get(sym_bol))
-lag_rets <- re_turns[, 1]
+re_turns <- run_returns(x_ts=get(sym_bol))
+lag_rets <- re_turns
 lag_rets <- c(lag_rets[-1, ], lag_rets[length(lag_rets)])
 tail(lag_rets)
 
-sk_ew <- skew_ohlc(log_ohlc=log_ohlc)
+sk_ew <- run_skew(ohlc=get(sym_bol))
 colnames(sk_ew) <- 
   paste(sym_bol, "skew", sep=".")
 lag_skew <- lag(sk_ew)
@@ -539,13 +496,13 @@ mad_volu <- mad_volu[, 1, ]
 # lag mad_volu
 mad_volu <- rbind(
   matrix(numeric(ncol(mad_volu)*(win_dow-1)/2), ncol=ncol(mad_volu)), 
-  mad_volu[-((nrow(mad_volu)-(win_dow-1)/2+1):(nrow(mad_volu))), ])
+  mad_volu[-((NROW(mad_volu)-(win_dow-1)/2+1):(NROW(mad_volu))), ])
 colnames(mad_volu) <- names(quan_tiles)
 mad_volu <- xts(mad_volu, order.by=index(get(sym_bol)))
-# plot(mad_volu[(nrow(mad_volu)-100*win_dow):nrow(mad_volu[,]), 4], t="l", xlab="", ylab="", main="mad_volu")
-chart_Series(mad_volu[(nrow(mad_volu)-100*win_dow):nrow(mad_volu[,]), 4], name=paste(sym_bol, "mad_volu"))
+# plot(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], t="l", xlab="", ylab="", main="mad_volu")
+chart_Series(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], name=paste(sym_bol, "mad_volu"))
 # plot volume spikes above 85% quantile
-date_s <- (nrow(mad_volu)-4*win_dow):nrow(mad_volu[,])
+date_s <- (NROW(mad_volu)-4*win_dow):NROW(mad_volu[,])
 chart_Series(mad_volu[date_s, 3], name=paste(sym_bol, "mad_volu"))
 chart_Series(Vo(get(sym_bol)[date_s]) - mad_volu[date_s, 4], name=paste(sym_bol, "volume spikes"))
 chart_Series(Cl(get(sym_bol)[date_s]), name=paste(sym_bol, "prices"))
@@ -562,26 +519,26 @@ plot(pos_skew)
 spike_skew <- coredata(Vo(get(sym_bol)) - mad_volu[, 4] > 0, sign(sk_ew), 0)
 colnames(spike_skew) <- paste(sym_bol, "spike_skew", sep=".")
 
-run_var <- runSum(vari_ance, n=win_dow)
-run_var[1:(win_dow-1)] <- 0
-colnames(run_var) <- colnames(vari_ance)
-head(run_var)
+var_rolling <- runSum(vari_ance, n=win_dow)
+var_rolling[1:(win_dow-1)] <- 0
+colnames(var_rolling) <- colnames(vari_ance)
+head(var_rolling)
 
-chart_Series(run_var[date_s], 
+chart_Series(var_rolling[date_s], 
              name=paste(sym_bol, "volatility"))
 
-run_skew <- runSum(sk_ew, n=win_dow)
-run_skew[1:(win_dow-1)] <- 0
-colnames(run_skew) <- colnames(sk_ew)
-head(run_skew)
+roll_skew <- runSum(sk_ew, n=win_dow)
+roll_skew[1:(win_dow-1)] <- 0
+colnames(roll_skew) <- colnames(sk_ew)
+head(roll_skew)
 
-chart_Series(run_skew[date_s], 
+chart_Series(roll_skew[date_s], 
              name=paste(sym_bol, "skew"))
 
 win_short <- 70
 win_long <- 225
-vwap_short <- v_wap(x_ts=get(sym_bol), win_dow=win_short)
-vwap_long <- v_wap(x_ts=get(sym_bol), win_dow=win_long)
+vwap_short <- roll_vwap(oh_lc=get(sym_bol), win_dow=win_short)
+vwap_long <- roll_vwap(oh_lc=get(sym_bol), win_dow=win_long)
 head(vwap_short)
 head(vwap_long)
 vwap_diff <- vwap_short - vwap_long
@@ -592,9 +549,9 @@ vwap_diff <- na.locf(vwap_diff)
 ### data: lagged returns plus explanatory variables
 
 # for lm reg
-# bar <- cbind(lag_rets, coredata(re_turns[, 1]), pos_skew, neg_skew)
+# bar <- cbind(lag_rets, coredata(re_turns), pos_skew, neg_skew)
 # bar <- cbind(lag_rets, coredata(vwap_diff), pos_skew, neg_skew)
-bar <- cbind(re_turns[, 1], lag_skew)
+bar <- cbind(re_turns, lag_skew)
 bar <- cbind(lag_rets, sign(coredata(vwap_diff)), pos_skew, neg_skew)
 # bar <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
 # for logistic reg
@@ -709,10 +666,8 @@ cor.test(formula=as.formula(paste("~", paste(colnames(bar), collapse=" + "))), d
 date_s <- "2013-06-01/"
 bar <- cbind(
   coredata(re_turns[date_s, 1]), 
-  c(0, coredata(run_skew[date_s])[-nrow(run_skew[date_s])]))
+  c(0, coredata(roll_skew[date_s])[-NROW(roll_skew[date_s])]))
 
-
-# run simple strategy
 
 # multiply matrix columns
 foo <- t(t(coredata(bar[, -1]))*coef(l_m)[-1])
@@ -720,10 +675,13 @@ dim(foo)
 tail(foo)
 apply(foo, MARGIN=2, sum)
 
-# thresh_old <- 2*mad(run_skew)  # signal threshold trading level
-# position_s <- NA*numeric(nrow(sk_ew))
+
+### run simple strategy
+
+# thresh_old <- 2*mad(roll_skew)  # signal threshold trading level
+# position_s <- NA*numeric(NROW(sk_ew))
 position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
-position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, -coredata(re_turns[, 1]))
+position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, -coredata(re_turns))
 position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
 position_s <- pos_skew + neg_skew + sign(coredata(vwap_diff))
 position_s <- -sign(sk_ew) + sign(coredata(vwap_diff))
@@ -734,23 +692,23 @@ head(position_s)
 plot(position_s[(length(position_s)-100*win_dow):length(position_s)], t="l", xlab="", ylab="", main="position_s")
 plot(position_s, t="l", ylim=c(0, 0.001))
 
-position_s <- ifelse(run_skew>thresh_old, -1, position_s)
-position_s <- ifelse(run_skew<(-thresh_old), 1, position_s)
-position_s <- ifelse((run_skew*lag(run_skew))<0, 0, position_s)
+position_s <- ifelse(roll_skew>thresh_old, -1, position_s)
+position_s <- ifelse(roll_skew<(-thresh_old), 1, position_s)
+position_s <- ifelse((roll_skew*lag(roll_skew))<0, 0, position_s)
 # lag the position_s
 lag_positions <- c(0, position_s[-length(position_s)])
 lag_positions <- na.locf(lag_positions)
-lag_positions <- merge(run_skew, lag_positions)
+lag_positions <- merge(roll_skew, lag_positions)
 colnames(lag_positions)[2] <- 
   paste0(sym_bol, ".Position")
 # cumulative PnL
-cumu_pnl <- cumsum(lag_positions*re_turns[, 1])
+cumu_pnl <- cumsum(lag_positions*re_turns)
 last(cumu_pnl)
-# cumu_pnl <- cumsum(lag_positions[, 2]*re_turns[, 1])
+# cumu_pnl <- cumsum(lag_positions[, 2]*re_turns)
 plot.zoo(cumu_pnl)
 chart_Series(cumu_pnl, name=paste(sym_bol, "pnl"))
 
-foo <- run_sum(abs(sign(sk_ew)-sign(lag_skew)), win_dow=1000)
+foo <- rutils::roll_sum(abs(sign(sk_ew)-sign(lag_skew)), win_dow=1000)
 chart_Series(
   foo[endpoints(foo, on="days"), ], 
   name=paste(sym_bol, "contrarian skew strategy frequency of trades"))
@@ -762,16 +720,16 @@ pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - co_sts
 
 ### optimize vwap
 
-run_vwap <- function(win_short=10, win_long=100, price_s, re_turns) {
-  vwap_short <- coredata(v_wap(x_ts=price_s, win_dow=win_short))
-  vwap_long <- coredata(v_wap(x_ts=price_s, win_dow=win_long))
+roll_vwap <- function(win_short=10, win_long=100, price_s, re_turns) {
+  vwap_short <- coredata(roll_vwap(oh_lc=price_s, win_dow=win_short))
+  vwap_long <- coredata(roll_vwap(oh_lc=price_s, win_dow=win_long))
 # lag the position_s
   position_s <- sign(vwap_short - vwap_long)
   position_s <- c(0, position_s[-length(position_s)])
   sum(position_s*re_turns)
-}  # end run_vwap
+}  # end roll_vwap
 
-run_vwap(price_s=get(sym_bol), re_turns=re_turns[, 1])
+roll_vwap(price_s=get(sym_bol), re_turns=re_turns)
 
 
 short_windows <- seq(from=30, to=100, by=10)
@@ -782,9 +740,9 @@ names(long_windows) <- paste0("lo", long_windows)
 mat_rix <- sapply(short_windows,
                   function(win_short, ...)
                     sapply(long_windows,
-                           run_vwap,
+                           roll_vwap,
                            win_short=win_short, ...),
-                  price_s=get(sym_bol), re_turns=re_turns[, 1])
+                  price_s=get(sym_bol), re_turns=re_turns)
 
 # load rgl
 library(rgl)
@@ -813,12 +771,12 @@ tail(bar)
 chart_Series(x=bar["2015-01-01 01:00:00/2015-01-01 05:00:00"], 
              name="OHLC candlechart")
 
-# running volatility
-vol_at <- run_moment_ohlc(ohlc=bar, n=1000, vo_lu=FALSE)
+# rolling volatility
+vol_at <- roll_moment(ohlc=bar, win_dow=1000, weight_ed=FALSE)
 head(vol_at)
 tail(vol_at)
-# running skew
-sk_ew <- run_moment_ohlc(ohlc=bar, mom_fun="skew_ohlc", n=1000, vo_lu=FALSE)
+# rolling skew
+sk_ew <- roll_moment(ohlc=bar, mo_ment="run_skew", win_dow=1000, weight_ed=FALSE)
 sk_ew <- sk_ew/(vol_at)^(1.5)
 sk_ew[1, ] <- 0
 sk_ew <- na.locf(sk_ew)
@@ -832,9 +790,9 @@ mat_rix <- matrix(1:6, ncol=2)
 
 foo <- etf_rets[, sym_bols]
 head(foo)
-nrow(etf_rets)
+NROW(etf_rets)
 
-foo <- xts(matrix(rnorm(3*nrow(etf_rets)), ncol=3), order.by=index(etf_rets))
+foo <- xts(matrix(rnorm(3*NROW(etf_rets)), ncol=3), order.by=index(etf_rets))
 
 colnames(foo) <- colnames(etf_rets[, sym_bols])
 head(foo)
@@ -1037,7 +995,7 @@ cbind(x, sprintf("%a", x), sprintf("%a", y))
 ###
 
 
-trade_prices <- NA*numeric(length=nrow(env_data$VTI))
+trade_prices <- NA*numeric(length=NROW(env_data$VTI))
 trade_prices[1] <- Op(env_data$VTI[1, ])
 trade_prices[trade_dates] <- Op(env_data$VTI[trade_dates, ])
 trade_prices <- na.locf(trade_prices)
@@ -1049,7 +1007,7 @@ head(pnl_unreal)
 tail(pnl_unreal)
 plot.zoo(pnl_unreal)
 
-pnl_real <- numeric(length=nrow(env_data$VTI))
+pnl_real <- numeric(length=NROW(env_data$VTI))
 lag_trade_dates <- c(1, trade_dates[-length(trade_dates)])
 # or
 lag_trade_dates <- c(1, trade_dates)[seq_along(trade_dates)]
@@ -1080,52 +1038,6 @@ pnl_real[trade_dates] <- pos_ition[lag_trade_dates]*
 pnl_real <- cumsum(pnl_real)
 
 pn_l <- xts(pnl_real + pnl_unreal, order.by=index((env_data$VTI)))
-
-
-###
-
-############## hw
-# 1. (35pts) Create a function called lag_it() that applies a lag to vectors 
-# and "zoo" time series objects,
-# lag_it() should accept two arguments:
-# the first argument called "se_ries" can be a vector or "zoo" time series object,
-# if "se_ries" is a vector, then lag_it() should return a lagged vector, 
-# of the same length as the input,
-# if "se_ries" is a "zoo", then lag_it() should return a lagged "zoo", 
-# with the same number of rows as the input,
-# the second argument called "lag" is an integer specifying the number of lags,
-# if "lag" is positive, then lag_it() should replace the present value with 
-# "lag" number of values from the past, 
-# if "lag" is negative, then lag_it() should replace the present value with 
-# "lag" number of values from the future, 
-# for a vector, past values have a smaller index, and future values have a larger index,
-# lag_it() should add NA values in place of values that are missing, 
-# lag_it() should return NULL if "se_ries" is neither a vector nor a 
-# "zoo" time series,
-# for example, lag_it() should produce the following output:
-#  lag_it(c(1:5), lag=2)
-#  [1] NA NA  1  2  3
-#  lag_it(c(1:5), lag=-2)
-#  [1]  3  4  5 NA NA
-# 
-# some observations about the default method lag():
-# the default method lag() can accept a vector and returns 
-# a "ts" time series object,
-# 
-# some observations about lag.zoo():
-# The method lag.zoo() returns a lagged version of a "zoo" time series, 
-# by shifting its time index by "k" observations,
-# If "k" is positive, then lag.zoo() shifts values from the future to the present, 
-# and if "k" is negative then it shifts them from the past, 
-# This is the opposite of what is usually considered as a positive "lag",
-# A positive lag should replace the present value with values from the past 
-# (negative lags should replace with values from the future), 
-# lag.zoo() omits any NA values the lag may have produced, 
-# returning a shorter time series than the original,
-# 
-# hint: you can use functions is.vector(), is.zoo(), cbind(), merge(), 
-# lag.zoo(), c(), and rep(), 
-
 
 
 ###
@@ -1176,12 +1088,3 @@ chart_Series(demo.xts, TA="add_TA(rma,on=1)")
 ###
 
 
-# add vertical line:
-http://stackoverflow.com/questions/15384458/add-vertical-lines-to-quantmodchart-series
-l <- xts(!as.logical(s[,1]),index(s))
-l[100] <- TRUE
-chart_Series(s, TA="add_TA(l,col='grey', on=1)")
-
-
-ch_ob$Env$actions[[4]]
-attributes(ch_ob$Env$actions[[3]])

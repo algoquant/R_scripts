@@ -6,29 +6,23 @@ directory contains R script files for developing and testing trading models
 #########
 # scripts
 
-scripts.R
-	misc scripts for testing
+alphaScripts.R
+	collection of scripts for data exploration and model backtests
+
+alphaScripts_legacy
+	very big collection of legacy scripts for data munging and backtests using the legacy alphaLib library
+
+func_develop.R
+	functions under development
+
+newScripts.R
+	simple backtests of momentum and VAR models
 
 scripts_hist.R
 Rhistory 07-12-14.txt
 	command history files
 	HFREQ data scrubbing scripts using FinancialInstrument, blotter, quantstrat, and Defaults
 	other misc scripts - delete them after extracting any valuable code
-
-lecturing.R
-	scripts for lectures
-
-funcDevelop.R
-	functions under development
-
-alphaScripts.R
-	collection of scripts for data exploration and model backtests
-
-alphaScripts_legacy
-	very big collection of legacy scripts for data munging and backtests
-
-newScripts.R
-	simple backtests of momentum and VAR models
 
 
 #########

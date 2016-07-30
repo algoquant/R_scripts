@@ -110,64 +110,6 @@ tail(blahh)
 sum(abs(blahh))
 
 
-# plotting sk_ew 
-# extract and modify plot object to reduce y-axis range
-
-
-# Plot xts object using custom y-axis range
-# ylim must be a numerical vector with two elements
-#' @export
-chart_xts <- function(x_ts, na_me=NULL, ylim=NULL, in_dex=NULL) {
-  stopifnot(inherits(x_ts, "xts"))
-  if (is.null(na_me))
-    na_me <- deparse(substitute(x_ts))
-  ch_ob <- chart_Series(x=x_ts, name=na_me, plot=FALSE)
-# extract and modify ylim using accessor and setter functions
-  if (!is.null(ylim)) {
-    y_lim <- ch_ob$get_ylim()
-    y_lim[[2]] <- structure(ylim, fixed=TRUE)
-    ch_ob$set_ylim(y_lim)
-    }  # end if
-# render the plot and return the chob invisibly
-  if (!is.null(in_dex)) {
-    add_TA(in_dex>0, on=-1, col="lightgreen", border=NA)
-    add_TA(in_dex<=0, on=-1, col="lightgrey", border=NA)
-  }
-  plot(ch_ob)
-  invisible(ch_ob)
-}  # end chart_xts
-
-
-# Plot xts object in multiple panels using chart_Series, 
-# and add vertical lines
-#' @export
-chart_xts_panels <- function(x_ts, na_me=NULL, in_dex=NULL) {
-  stopifnot(inherits(x_ts, "xts"))
-  n_cols <- ncol(x_ts)
-  par(mfrow=c(n_cols, 1))
-  sapply(x_ts, function(col_umn)
-    chart_xts(col_umn, in_dex=in_dex, 
-                   na_me=paste(colnames(col_umn), "/", Sys.time()))
-    )  # end sapply
-  invisible(.chob)
-}  # end chart_xts_panels
-
-chart_xts_panels(x_ts, in_dex=blah)
-
-x11()
-par(mfrow=c(n_cols, 1))
-plot(chart_xts(x_ts[, 1], in_dex=blah, na_me=paste(colnames(x_ts[, 1]), "/", Sys.time())))
-chart_Series(x_ts[, 1], in_dex=blah, na_me=paste(colnames(x_ts[, 1]), "/", Sys.time()))
-for(i in 1:n_cols)
-  chart_xts(x_ts[, i], in_dex=blah, na_me=paste(colnames(x_ts[, i]), "/", Sys.time()))
-for(i in 1:n_cols)
-  chart_Series(x_ts[, i], name=paste(colnames(x_ts[, i]), "/", Sys.time()))
-for(i in 1:n_cols)
-  plot(chart_Series(x_ts[, i], name=paste(colnames(x_ts[, i]), "/", Sys.time())))
-invisible(add_TA(blah>0, on=-1, col="lightgreen", border=NA))
-add_TA(blah<=0, on=-1, col="lightgrey", border=NA)
-plot(.chob)
-
 plotSeries <- function(da_ta, name.plot, in_dex=NULL) {
   stopifnot(inherits(da_ta, "xts"))
   theme <- chart_theme()
