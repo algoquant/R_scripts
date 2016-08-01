@@ -56,7 +56,8 @@ agg_regate <- function(da_ta) {
 agg_regate(price_s)
 
 
-### perform aggregations using period.apply() apply_rolling() and apply_xts()
+### perform aggregations using period.apply(), apply_rolling() and apply_xts()
+# apply_rolling() is legacy function from utilLib.R
 
 # extract closing prices for a single day of data
 price_s <- Cl(SPY["2012-02-13"])
@@ -106,7 +107,7 @@ legend("bottomright", legend=colnames(agg_regations),
 
 ### calculate stddev, skewness, and quantiles of returns data
 
-re_turns <- diff(Cl(SPY))/c(1, diff(.index(SPY)))
+re_turns <- 86400*diff(Cl(SPY))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
 sum(is.na(re_turns))
 re_turns <- na.locf(re_turns)
@@ -154,6 +155,7 @@ sym_bol_rets <- paste(sym_bol, "rets", sep=".")
 assign(sym_bol_rets, da_ta)
 
 ########### end temp ###########
+
 
 ################
 # managing high frequency data using package HighFreq
@@ -328,106 +330,23 @@ hurst_exp(cumsum(blah))
 hurst_exp(cumsum(blah+c(0, 0.5*blah[-length(blah)])))
 
 
-### calculate rolling Hurst exponent using range of OHLC xts
-# roll_hurst from HighFreq is better
-roll_hurst <- function(x_ts) {
-  xts_agg <- xts::to.minutes10(x_ts)
-  in_dex <- index(xts_agg)
-  var_xts <- rutils::roll_sum(run_variance(x_ts), win_dow=10)[in_dex]/9
-  var_xts10 <- run_variance(xts_agg)
-  roll_hurst <- ifelse((var_xts==0) | (var_xts10==0), 
-                       1.0, 
-                       log(var_xts10/var_xts)/log(10))
-  colnames(roll_hurst) <- paste0(rutils::na_me(x_ts), ".Hurst")
-  na.locf(roll_hurst)
-}  # end roll_hurst
-# calculate rolling Hurst exponent using var ratio for xts
-roll_hurst <- function(x_ts) {
-  data_agg <- to.minutes10(x=x_ts)
-  in_dex <- index(data_agg)
-  end_points <- c(0, match(in_dex, index(x_ts)))
-  vol_at <- run_variance(ohlc=x_ts)
-  vol_at <- period.sum(vol_at, INDEX=end_points)
-  vol_at[vol_at==0] <- NA
-  vol_at <- na.omit(vol_at)
-  volat_agg <- run_variance(ohlc=data_agg)
-  volat_agg/vol_at
-}  # end roll_hurst
+### yearly aggregations of volume, skew, and volat
 
-# calculate rolling Hurst exponent using var ratio for xts
-roll_hurst <- function(x_ts, l_ag=20, win_dow=70) {
-  len_gth <- NROW(x_ts)
-  diff_one <- diff.xts(x=x_ts, lag=1)
-  diff_one[1, ] <- 0
-  var_one <- rutils::roll_sum(x_ts=diff_one^2, win_dow=win_dow)
-  diff_lag <- diff.xts(x=x_ts, lag=l_ag)
-  diff_lag[1:l_ag, ] <- 0
-  var_lag <- rutils::roll_sum(x_ts=diff_lag^2, win_dow=win_dow)
-  var_lag/var_one/l_ag
-}  # end roll_hurst
-
-
-foo_bar <- xts(x=cumsum(rnorm(length(SPY["2012/", 4]))/100), order.by=index(SPY["2012/"]))
-hurst_exp(coredata(foo_bar), l_ag=22)
-plot(coredata(foo_bar), t="l")
-
-
-lm_foo <- lm(formula=paste(colnames(foo)[2:1], collapse=" ~ "), data=foo)
-summary(lm_foo)
-
-lm_bar <- lm(formula=paste(colnames(bar)[2:1], collapse=" ~ "), data=bar)
-summary(lm_bar)
-
-
-
-### Calculate the volume-weighted average volatility of an \code{OHLC} time series
-# over a sliding window (lookback period).
-v_wav <- function(vol_at, x_ts, win_dow) {
-  v_wav <- rutils::roll_sum(x_ts=vol_at*Vo(x_ts), win_dow=win_dow)
-  vol_ume <- rutils::roll_sum(x_ts=Vo(x_ts), win_dow=win_dow)
-  v_wav <- v_wav/vol_ume
-  v_wav[is.na(v_wav)] <- 0
-  v_wav
-}  # end v_wav
-vwav_short <- v_wav(vol_at=vol_at, x_ts=SPY["2012/"], win_dow=10)
-vwav_long <- v_wav(vol_at=vol_at, x_ts=SPY["2012/"], win_dow=40)
-chart_Series(x=vwav_long["2012-05-04"], name=paste(sym_bol, "rolling volatility"))
-add_TA(vwav_short["2012-05-04"],on=1, col="green", lwd=2)
-add_TA(vwav_long["2012-05-04"], on=1, col="blue", lwd=2)
-
-
-# calcuate daily seasonality of Hurst exponent by hour
-end_points <- endpoints(SPY["2012/"], on="hours")
-season_hurst <- period.apply(x=SPY["2012/"], INDEX=end_points, FUN=hurst_exp)
-dim(season_hurst)
-head(season_hurst)
-names(season_hurst) <- c("rets", "volu")
-plot.zoo(foo)
-plot(as.formula(paste(names(foo), collapse=" ~ ")), data=foo)
-reg_model <- lm(paste(names(foo), collapse=" ~ "), data=foo)
-reg_model_sum <- summary(reg_model)
-reg_model_sum
-dwtest(reg_model)
-
-
-################
-
-library(ForeCA)
-ret <- ts(diff(log(EuStockMarkets)) * 100) 
-mod <- foreca(ret, spectrum.control=list(method="wosa"))
-mod
-summary(mod)
-plot(mod)
-
-################
-
-# daily data
+# extract vector of ye_ars
 ye_ars <- format(
   index(sk_ew[endpoints(sk_ew, on="years"), ]), 
   format="%Y")
+# sum up volumes for each year
+volumes_yearly <- sapply(ye_ars, function(ye_ar) sum(Vo(SPY)[ye_ar]))
+# first plot without "x" axis
+plot(volumes_yearly, t="l", xaxt="n", xlab=NA, ylab=NA)
+# add "x" axis with monthly ticks
+axis(side=1, at=seq_along(volumes_yearly),
+     labels=names(volumes_yearly))
+# sum up skew and volat for each year
 sapply(ye_ars, function(ye_ar) sum(vol_at[ye_ar]))
 sapply(ye_ars, function(ye_ar) sum(sk_ew[ye_ar]))
-
+foo <- sapply(ye_ars, function(ye_ar) sum(Vo(SPY)[ye_ar]))
 foo <- format(index(daily_skew[which.max(daily_skew)]), "%Y-%m-%d")
 
 foo <- which.max(daily_skew)
@@ -477,18 +396,18 @@ lag_skew <- lag(sk_ew)
 
 win_dow <- 2*60*6.5 + 101
 
-# calc mad_var
-mad_var <- runmad(coredata(vari_ance), k=win_dow)
-# lag mad_var
-mad_var <- c(rep(0, (win_dow-1)/2), mad_var[-((length(mad_var)-(win_dow-1)/2+1):(length(mad_var)))])
-length(mad_var)
-head(mad_var)
-tail(mad_var)
-# calc mad_skew
-mad_skew <- runmad(coredata(sk_ew), k=win_dow)
-# lag mad_skew
-mad_skew <- c(rep(0, (win_dow-1)/2), mad_skew[-((length(mad_skew)-(win_dow-1)/2+1):(length(mad_skew)))])
-plot(mad_skew[(length(mad_skew)-100*win_dow):length(mad_skew)], t="l", xlab="", ylab="", main="mad_skew")
+# calc var_mad
+var_mad <- runmad(coredata(vari_ance), k=win_dow)
+# lag var_mad
+var_mad <- c(rep(0, (win_dow-1)/2), var_mad[-((length(var_mad)-(win_dow-1)/2+1):(length(var_mad)))])
+length(var_mad)
+head(var_mad)
+tail(var_mad)
+# calc skew_mad
+skew_mad <- runmad(coredata(sk_ew), k=win_dow)
+# lag skew_mad
+skew_mad <- c(rep(0, (win_dow-1)/2), skew_mad[-((length(skew_mad)-(win_dow-1)/2+1):(length(skew_mad)))])
+plot(skew_mad[(length(skew_mad)-100*win_dow):length(skew_mad)], t="l", xlab="", ylab="", main="skew_mad")
 # calc mad_volu
 quan_tiles <- c("0.5"=0.5, "0.75"=0.75, "0.85"=0.85, "0.95"=0.95)
 mad_volu <- runquantile(coredata(Vo(get(sym_bol))), probs=quan_tiles, k=win_dow)
@@ -509,9 +428,9 @@ chart_Series(Cl(get(sym_bol)[date_s]), name=paste(sym_bol, "prices"))
 
 
 # signal threshold trading level
-pos_skew <- coredata(ifelse(sk_ew > 5*mad_skew, 1, 0))
+pos_skew <- coredata(ifelse(sk_ew > 5*skew_mad, 1, 0))
 colnames(pos_skew) <- paste(sym_bol, "p_skew", sep=".")
-neg_skew <- coredata(ifelse(sk_ew < -5*mad_skew, -1, 0))
+neg_skew <- coredata(ifelse(sk_ew < -5*skew_mad, -1, 0))
 colnames(neg_skew) <- paste(sym_bol, "n_skew", sep=".")
 c(pos_skew=sum(pos_skew)/length(pos_skew), neg_skew=-sum(neg_skew)/length(neg_skew))
 plot(pos_skew)
@@ -586,9 +505,9 @@ chart_Series(cumu_pnl, name=paste(sym_bol, "optim_rets"))
 
 # loop over thresholds and return regression t-values
 foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(thresh_old) {
-  pos_skew <- coredata(ifelse(sk_ew > thresh_old*mad_skew, 1, 0))
+  pos_skew <- coredata(ifelse(sk_ew > thresh_old*skew_mad, 1, 0))
   colnames(pos_skew) <- paste(sym_bol, "p_skew", sep=".")
-  neg_skew <- coredata(ifelse(sk_ew < -thresh_old*mad_skew, -1, 0))
+  neg_skew <- coredata(ifelse(sk_ew < -thresh_old*skew_mad, -1, 0))
   colnames(neg_skew) <- paste(sym_bol, "n_skew", sep=".")
   bar <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
   l_m <- lm(for_mula, data=as.data.frame(bar))
@@ -824,236 +743,50 @@ bar <- do.call(rbind, bar)
 plot(cumsum(bar), t="l")
 
 
-###
-
-class(list_capm)
-list_capm[[1]]
-class(list_capm[[1]])
-dim(list_capm)
-
-
-etf_series_ad <- do.call(merge, eapply(env_data, Ad))
-
-# "etf_series_ad" should be an xts series containing adjusted prices,
-# with colnames in the format "name.Adjusted",
-# rename the colnames and drop ".Adjusted" from the colnames,
-# use functions sapply() and strsplit(),
-colnames(etf_series_ad) <- sapply(colnames(etf_series_ad), 
-                                  function(col_name) 
-                                    strsplit(col_name, split="[.]")[[1]])[1, ]
-
-
-# scrub (remove) rows with NA values from "etf_series_ad",
-# use function complete.cases(),
-etf_series_ad <- etf_series_ad[complete.cases(etf_series_ad)]
-
-
-# calculate an xts series containing returns of "etf_series_ad", and call it "etf_rets",
-# use functions lapply(), dailyReturn(), do.call(), and merge(),
-etf_rets <- lapply(etf_series_ad, 
-                   function(x_ts) {
-                     daily_return <- dailyReturn(x_ts)
-                     colnames(daily_return) <- names(x_ts)
-                     daily_return
-                   })  # end lapply
-
-# flatten list of xts series into a single xts series,
-etf_rets <- do.call(merge, etf_rets)
-
-# rearrange columns according to ETF symbols for asset allocation
-sym_bols <- c("VTI", "VEU", "IEF", "VNQ", 
-              "DBC", "XLY", "XLP", "XLE", "XLF", "XLV", 
-              "XLI", "XLB", "XLK", "XLU", "IWB", "IWD", 
-              "IWF", "IWM", "IWN", "IWO", "IWP", "IWR", 
-              "IWS", "IWV", "IUSV", "IUSG")
-etf_rets <- etf_rets[, sym_bols]
-
-
-# Extract the numeric year from each element of the date index of "etf_rets"
-# calculate a numeric vector of years from the date index of "etf_rets", 
-# and call it "ye_ars",
-# you can use either functions format() and as.numeric(), 
-# or function year() from package lubridate,
-ye_ars <- as.numeric(format(index(etf_rets), "%Y"))
-ye_ars <- year(index(etf_rets))
-
-
-# calculate a matrix containing the annualized alpha for each ETF in each year, 
-# and call it "ann_alphas"
-# the matrix "ann_alphas" should have rows corresponding to ETF names, 
-# and columns corresponding to years,
-# assign row and column names from colnames of "etf_rets",
-# use functions sapply(), unique(), and either CAPM.alpha() 
-# or table.CAPM() from package PerformanceAnalytics,
-# the function unique() calculates a vector of unique elements of an object,
-# and can be used to extract unique years from "ye_ars",
-# annualize the alphas by multiplying them by the average number 
-# of business days in each year (250),
-
-# first method, using CAPM.alpha(),
-ann_alphas <- 250*sapply(unique(ye_ars), function(ye_ar) {
-  in_dex <- (ye_ars==ye_ar)
-  CAPM.alpha(Ra=etf_rets[in_dex, -1], 
-             Rb=etf_rets[in_dex, "VTI"])
-})
-
-
-# second method, using table.CAPM(),
-ann_alphas <- sapply(unique(ye_ars), function(ye_ar) {
-  in_dex <- (ye_ars==ye_ar)
-  etf_perf_stats <- table.CAPM(Ra=etf_rets[in_dex, -1], 
-                               Rb=etf_rets[in_dex, "VTI"], 
-                               scale=250)
-  as.numeric(etf_perf_stats["Annualized Alpha", ])
-})
-
-
-# assign row and column names,
-rownames(ann_alphas) <- colnames(etf_rets)[-1]
-colnames(ann_alphas) <- unique(ye_ars)
-
-
-###
-
-list_names <- as.list(paste0("list", 1:4))
-names(list_names) <- list_names
-
-list_vec <- lapply(
-  list_names, 
-  function(name) structure(rnorm(10), names=paste0("el", 1:10))
-  )  # end lapply
-
-list_vec[[2]]
-
-mat_rix <- do.call(cbind, list_vec)
-
-
-###
-
-
-# count NAs values
-sapply(airquality, function(col_umn) sum(is.na(col_umn)))
-
-# randomly replace values with NAs
-student_scores[, -(1:2)] <- sapply(student_scores[, -(1:2)], function(col_umn) {
-  is_na <- sample(1:20, size=sample(1:4, size=1))
-  col_umn[is_na] <- NA
-  col_umn
-})  # end sapply
-
-
-
-###
-
-# sprintf scripts
+### sprintf() example scripts
 # A wrapper for the C function sprintf, that returns a character vector containing a formatted combination of text and variable values.
 # sprintf {base}	R Documentation
 # Use C-style String Formatting Commands
 
 sprintf(fmt="%f", foo[1])
 
-## use a literal % :
-
+# use a literal % :
 sprintf("%.0f%% said yes (out of a sample of size %.0f)", 66.666, 3)
 
-## various formats of pi :
-## re-use one argument three times, show difference between %x and %X
+# various formats of pi :
+# re-use one argument three times, show difference between %x and %X
 xx <- sprintf("%1$d %1$x %1$X", 0:15)
 xx <- matrix(xx, dimnames=list(rep("", 16), "%d%x%X"))
 noquote(format(xx, justify="right"))
 
-## More sophisticated:
+# More sophisticated:
 
 sprintf("min 10-char string '%10s'",
         c("a", "ABC", "and an even longer one"))
 
-## Platform-dependent bad example from qdapTools 1.0.0:
-## may pad with spaces or zeroes.
+# Platform-dependent bad example from qdapTools 1.0.0:
+# may pad with spaces or zeroes.
 sprintf("%09s", month.name)
 
 n <- 1:18
 sprintf(paste0("e with %2d digits = %.", n, "g"), n, exp(1))
 
-## Using arguments out of order
+# Using arguments out of order
 sprintf("second %2$1.0f, first %1$5.2f, third %3$1.0f", pi, 2, 3)
 
-## Using asterisk for width or precision
+# Using asterisk for width or precision
 sprintf("precision %.*f, width '%*.3f'", 3, pi, 8, pi)
 
-## Asterisk and argument re-use, 'e' example reiterated:
+# Asterisk and argument re-use, 'e' example reiterated:
 sprintf("e with %1$2d digits = %2$.*1$g", n, exp(1))
 
-## re-cycle arguments
+# re-cycle arguments
 sprintf("%s %d", "test", 1:3)
 
-## binary output showing rounding/representation errors
+# binary output showing rounding/representation errors
 x <- seq(0, 1.0, 0.1); y <- c(0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1)
 cbind(x, sprintf("%a", x), sprintf("%a", y))
 
-
-
-###
-
-
-trade_prices <- NA*numeric(length=NROW(env_data$VTI))
-trade_prices[1] <- Op(env_data$VTI[1, ])
-trade_prices[trade_dates] <- Op(env_data$VTI[trade_dates, ])
-trade_prices <- na.locf(trade_prices)
-head(trade_prices)
-tail(trade_prices)
-
-pnl_unreal <- pos_ition*(Ad(env_data$VTI) - trade_prices)
-head(pnl_unreal)
-tail(pnl_unreal)
-plot.zoo(pnl_unreal)
-
-pnl_real <- numeric(length=NROW(env_data$VTI))
-lag_trade_dates <- c(1, trade_dates[-length(trade_dates)])
-# or
-lag_trade_dates <- c(1, trade_dates)[seq_along(trade_dates)]
-pnl_real[trade_dates] <- pos_ition[lag_trade_dates]*
-  (trade_prices[trade_dates] - trade_prices[lag_trade_dates])
-pnl_real <- cumsum(pnl_real)
-# pnl_real <- na.locf(pnl_real)
-plot.zoo(pnl_real)
-pn_l <- xts(pnl_real + pnl_unreal, order.by=index((env_data$VTI)))
-plot.zoo(pn_l)
-
-
-
-###
-
-lag_trade_dates <- c(1, trade_dates[-n_periods])
-
-trade_prices <- NA*numeric(length=n_periods)
-trade_prices[1] <- Op(env_data$VTI[1, ])
-trade_prices[trade_dates] <- open_prices[trade_dates]
-trade_prices <- na.locf(trade_prices)
-
-pnl_unreal <- pos_ition*(price_s - trade_prices)
-
-pnl_real <- numeric(length=n_periods)
-pnl_real[trade_dates] <- pos_ition[lag_trade_dates]*
-  (trade_prices[trade_dates] - trade_prices[lag_trade_dates])
-pnl_real <- cumsum(pnl_real)
-
-pn_l <- xts(pnl_real + pnl_unreal, order.by=index((env_data$VTI)))
-
-
-###
-
-end_points <- endpoints(etf_rets[, "VTI"], on="months")
-foo <- merge(etf_rets[, "VTI"], env_data$VTI[, "VTI.Volume"])
-foo <- foo[complete.cases(foo), ]
-names(foo) <- c("rets", "volu")
-foo <- merge(period.apply(x=foo[, 1], INDEX=end_points, FUN=sd), period.sum(foo[, 2], INDEX=end_points))
-names(foo) <- c("rets", "volu")
-plot.zoo(foo)
-plot(as.formula(paste(names(foo), collapse=" ~ ")), data=foo)
-reg_model <- lm(paste(names(foo), collapse=" ~ "), data=foo)
-reg_model_sum <- summary(reg_model)
-reg_model_sum
-dwtest(reg_model)
 
 
 ###
@@ -1075,10 +808,193 @@ dis_persion <- function(da_ta,
 # Median absolute deviation (MAD)
 
 
+### rolling regressions using package roll
 
-###
+library(HighFreq)
+library(roll)
 
-# rollSFM (rolling single-factor model) function to TTR. 
+# example of rolling beta regressions
+# specify regression formula
+reg_formula <- XLP ~ VTI
+# perform rolling beta regressions every month
+beta_s <- rollapply(env_etf$re_turns, width=252, 
+                    FUN=function(design_matrix) 
+                      coef(lm(reg_formula, data=design_matrix))[2],
+                    by=22, by.column=FALSE, align="right")
+beta_s <- na.omit(beta_s)
+# plot beta_s in x11() window
+x11()
+chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
+
+# perform daily rolling beta regressions in parallel
+beta_s <- roll::roll_lm(x=env_etf$re_turns[, "VTI"], 
+                  y=env_etf$re_turns[, "XLP"],
+                  width=252)$coefficients
+chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
+
+# compare speed of rollapply() versus roll_lm()
+library(microbenchmark)
+da_ta <- env_etf$re_turns["2012", c("VTI", "XLP")]
+summary(microbenchmark(
+  rollapply=rollapply(da_ta, width=22, 
+                      FUN=function(design_matrix) 
+                        coef(lm(reg_formula, data=design_matrix))[2],
+                      by.column=FALSE, align="right"), 
+  roll_lm=roll::roll_lm(x=da_ta[, "VTI"], 
+                  y=da_ta[, "XLP"],
+                  width=22)$coefficients, 
+  times=10))[, c(1, 4, 5)]  # end microbenchmark summary
+
+
+### load SPY_design design matrix 
+
+# load design matrix called SPY_design containing columns of aggregations
+load("C:/Develop/data/SPY_design.RData")
+head(SPY_design)
+
+# create advanced returns
+returns_running <- SPY_design[, "returns"]
+returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+tail(cbind(returns_advanced, returns_running))
+
+
+### SPY_design correlation and PCA analysis
+
+# apply rolling centering and scaling of design matrix
+SPY_design <- roll::roll_scale(data=SPY_design, width=6.5*60, min_obs=1)
+# remove NAs
+core_data <- coredata(SPY_design)
+core_data[is.na(core_data)] <- 0
+SPY_design <- xts(x=core_data, order.by=index(SPY_design))
+sum(is.na(SPY_design))
+
+# calculate correlation matrix
+corr_matrix <- cor(SPY_design)
+colnames(corr_matrix) <- colnames(SPY_design)
+rownames(corr_matrix) <- colnames(SPY_design)
+# Reorder the correlation matrix based on clusters
+# Calculate permutation vector
+library(corrplot)
+corr_order <- corrMatOrder(corr_matrix, 
+                           order="hclust", 
+                           hclust.method="complete")
+# Apply permutation vector
+corr_matrix_ordered <- 
+  corr_matrix[corr_order, corr_order]
+# Plot the correlation matrix
+col3 <- colorRampPalette(c("red", "white", "blue"))
+corrplot(corr_matrix_ordered, 
+         tl.col="black", tl.cex=0.8, 
+         method="square", col=col3(8), 
+         cl.offset=0.75, cl.cex=0.7, 
+         cl.align.text="l", cl.ratio=0.25)
+# Draw rectangles on the correlation matrix plot
+corrRect.hclust(corr_matrix_ordered, 
+                k=NCOL(corr_matrix_ordered), 
+                method="complete", col="red")
+
+# draw dendrogram of correlation matrix
+# convert correlation matrix into distance object
+data_dist <- as.dist(1-corr_matrix_ordered)
+# Perform hierarchical clustering analysis
+data_cluster <- hclust(data_dist)
+plot(data_cluster, ann=FALSE, xlab="", ylab="")
+title("Dissimilarity = 1-Correlation", line=-0.5)
+
+
+### rolling regressions over SPY_design using package roll
+
+# perform rolling forecasting regressions in parallel
+rolling_betas <- roll_lm(x=SPY_design["2011/2012", ], 
+                  y=returns_advanced["2011/2012", ],
+                  width=6.5*60, min_obs=1)
+rolling_betas$coefficients[1, ] <- 0
+sum(is.na(rolling_betas$coefficients))
+head(rolling_betas$coefficients)
+tail(rolling_betas$coefficients["2012-11-12"])
+tail(rolling_betas$r.squared["2012-11-12"])
+chart_Series(x=rolling_betas$r.squared["2012-11-12"], name="R-squared for rolling betas")
+
+# calculate daily seasonality of R2
+# remove first day containing warmup
+in_dex <- "2011-01-03" == format(index(rolling_betas$r.squared), "%Y-%m-%d")
+r2_seasonal <- season_ality(rolling_betas$r.squared[!in_dex])
+colnames(r2_seasonal) <- "R-squared seasonality"
+chart_Series(x=r2_seasonal, name="R-squared seasonality")
+
+# plot coefficients with custom line colors
+plot_theme <- chart_theme()
+plot_theme$col$line.col <- rainbow(NCOL(rolling_betas$coefficients))
+chart_Series(x=rolling_betas$coefficients["2012-11-12"], 
+             theme=plot_theme, 
+             name="coefficients for rolling betas")
+legend("bottom", legend=colnames(rolling_betas$coefficients["2012-11-12"]), 
+       bg="white", lty=c(1, 1), lwd=c(2, 2), 
+       col=plot_theme$col$line.col, bty="n")
+
+
+### rolling principal component regressions (PCR) over SPY_design using package roll
+
+# perform rolling forecasting PCR regressions in parallel
+# use first 4 principal components
+rolling_betas <- roll_pcr(x=SPY_design["2011/2012", ], 
+                         y=returns_advanced["2011/2012", ],
+                         width=1*60, comps=1:1, min_obs=1)
+rolling_betas$coefficients[1, ] <- 0
+sum(is.na(rolling_betas$coefficients))
+head(rolling_betas$coefficients)
+tail(rolling_betas$coefficients["2012-11-12"])
+tail(rolling_betas$r.squared["2012-11-12"])
+chart_Series(x=rolling_betas$r.squared["2012-11-12"], name="R-squared for rolling betas")
+
+# calculate daily seasonality of R2
+# remove first day containing warmup
+in_dex <- "2011-01-03" == format(index(rolling_betas$r.squared), "%Y-%m-%d")
+r2_seasonal <- season_ality(rolling_betas$r.squared[!in_dex])
+colnames(r2_seasonal) <- "R-squared seasonality"
+chart_Series(x=r2_seasonal, name="R-squared seasonality")
+
+# plot coefficients with custom line colors
+plot_theme <- chart_theme()
+plot_theme$col$line.col <- rainbow(NCOL(rolling_betas$coefficients))
+chart_Series(x=rolling_betas$coefficients["2012-11-12"], 
+             theme=plot_theme, 
+             name="coefficients for rolling betas")
+legend("bottom", legend=colnames(rolling_betas$coefficients["2012-11-12"]), 
+       bg="white", lty=c(1, 1), lwd=c(2, 2), 
+       col=plot_theme$col$line.col, bty="n")
+
+
+### calculate forecasts of returns
+
+library(matrixStats)
+
+# forecast the returns from today's factors times the lagged betas
+betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
+returns_forecast <- rowSums(betas_lagged[, -1]*SPY_design[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
+tail(returns_forecast)
+
+forecast_lm <- lm(returns_advanced[index(returns_forecast)] ~ returns_forecast)
+summary(forecast_lm)
+x11()
+# scatterplot
+plot(coredata(returns_advanced[index(returns_forecast)]), coredata(returns_forecast))
+
+# cumulative returns_backtest: invest proportional to returns_forecast
+returns_backtest <- cumsum(returns_forecast * returns_advanced[index(returns_forecast)])
+chart_Series(x=-returns_backtest, name="cumulative returns")
+chart_Series(x=-returns_backtest["2011-08-07/2011-08-12"], name="cumulative returns")
+chart_Series(x=SPY["2011-08-08/2011-08-11", 1], name="cumulative returns")
+
+bar <- returns_advanced[index(returns_forecast)] * returns_forecast
+foo <- which.max(-bar)
+chart_Series(x=bar[(foo-10):(foo+10), ], name="cumulative returns")
+
+chart_Series(x=cumsum(returns_running[(foo-1000):(foo+1000), ]), name="cumulative returns")
+
+
+
+### rollSFM (rolling single-factor model) function to TTR
 # rolling regression over time index
 
 reg <- rollSFM(demo.xts, .index(demo.xts), 24)
@@ -1087,4 +1003,12 @@ chart_Series(demo.xts, TA="add_TA(rma,on=1)")
 
 ###
 
+
+###  Forecastable Component Analysis
+library(ForeCA)
+ret <- ts(diff(log(EuStockMarkets)) * 100) 
+mod <- foreca(ret, spectrum.control=list(method="wosa"))
+mod
+summary(mod)
+plot(mod)
 
