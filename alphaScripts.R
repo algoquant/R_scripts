@@ -855,6 +855,7 @@ head(SPY_design)
 # create advanced returns
 returns_running <- SPY_design[, "returns"]
 returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+colnames(returns_advanced) <- "returns_advanced"
 tail(cbind(returns_advanced, returns_running))
 
 
@@ -879,8 +880,7 @@ corr_order <- corrMatOrder(corr_matrix,
                            order="hclust", 
                            hclust.method="complete")
 # Apply permutation vector
-corr_matrix_ordered <- 
-  corr_matrix[corr_order, corr_order]
+corr_matrix_ordered <- corr_matrix[corr_order, corr_order]
 # Plot the correlation matrix
 col3 <- colorRampPalette(c("red", "white", "blue"))
 corrplot(corr_matrix_ordered, 
@@ -936,7 +936,7 @@ legend("bottom", legend=colnames(rolling_betas$coefficients["2012-11-12"]),
 ### rolling principal component regressions (PCR) over SPY_design using package roll
 
 # perform rolling forecasting PCR regressions in parallel
-# use first 4 principal components
+# use only the first principal component argument "comps"
 rolling_betas <- roll_pcr(x=SPY_design["2011/2012", ], 
                          y=returns_advanced["2011/2012", ],
                          width=1*60, comps=1:1, min_obs=1)
@@ -984,7 +984,7 @@ plot(coredata(returns_advanced[index(returns_forecast)]), coredata(returns_forec
 returns_backtest <- cumsum(returns_forecast * returns_advanced[index(returns_forecast)])
 chart_Series(x=-returns_backtest, name="cumulative returns")
 chart_Series(x=-returns_backtest["2011-08-07/2011-08-12"], name="cumulative returns")
-chart_Series(x=SPY["2011-08-08/2011-08-11", 1], name="cumulative returns")
+chart_Series(x=SPY["2011-08-07/2011-08-12", 1], name="cumulative returns")
 
 bar <- returns_advanced[index(returns_forecast)] * returns_forecast
 foo <- which.max(-bar)
@@ -994,14 +994,100 @@ chart_Series(x=cumsum(returns_running[(foo-1000):(foo+1000), ]), name="cumulativ
 
 
 
-### rollSFM (rolling single-factor model) function to TTR
-# rolling regression over time index
+### test for data snooping in PCR using random data
 
+# create time index of one second intervals
+in_dex <- seq(from=as.POSIXct("2016-01-01 00:00:00"),
+              to=as.POSIXct("2016-01-30 00:00:00"), by="1 sec")
+
+# perform one random PCR simulation using function run_random_pcr()
+run_random_pcr(in_dex)
+
+# perform 100 random PCR simulations
+pnl_s <- sapply(1:100, function(x, in_dex) run_random_pcr(in_dex), in_dex=in_dex)
+hist(pnl_s, breaks="FD", xlim=c(-5e4, 5e4), main="distribution of Pnl's")
+
+# perform a random PCR and return the Pnl
+run_random_pcr <- function(in_dex) {
+  x_ts <- xts(exp(cumsum(rnorm(length(in_dex), sd=0.001))), order.by=in_dex)
+  oh_lc <- xts::to.period(x=x_ts, period="minutes", name="random")
+  oh_lc <- cbind(oh_lc, sample(x=10*(2:18), size=NROW(oh_lc), replace=TRUE))
+  colnames(oh_lc)[ 5] <- "random.volume"
+  returns_running <- run_returns(x_ts=oh_lc)
+  returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+  returns_rolling <- roll_vwap(oh_lc=oh_lc, x_ts=returns_running, win_dow=win_dow)
+  var_running <- run_variance(oh_lc=oh_lc)
+  skew_running <- run_skew(oh_lc=oh_lc)
+  hurst_rolling <- roll_hurst(oh_lc=oh_lc, win_dow=win_dow)
+  design_matrix <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
+  design_matrix <- roll::roll_scale(data=design_matrix, width=60, min_obs=1)
+  core_data <- coredata(design_matrix)
+  core_data[is.na(core_data)] <- 0
+  design_matrix <- xts(x=core_data, order.by=index(design_matrix))
+  rolling_betas <- roll_pcr(x=design_matrix, y=returns_advanced, width=1*60, comps=1:1, min_obs=1)
+  rolling_betas$coefficients[1, ] <- 0
+  betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
+  returns_forecast <- rowSums(betas_lagged[, -1]*design_matrix[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
+  sum(returns_forecast * returns_advanced[index(returns_forecast)])
+}  # end run_random_pcr
+
+
+# create xts of random prices
+x_ts <- xts(exp(cumsum(rnorm(length(in_dex), sd=0.001))), order.by=in_dex)
+colnames(x_ts) <- "random"
+# chart_Series(x=x_ts["2016-01-10 09/2016-01-10 10"], name="random prices")
+# aggregate to minutes OHLC data
+oh_lc <- xts::to.period(x=x_ts, period="minutes", name="random")
+# chart_Series(x=oh_lc["2016-01-10"], name="random OHLC prices")
+# add volume
+oh_lc <- cbind(oh_lc, sample(x=10*(2:18), size=NROW(oh_lc), replace=TRUE))
+colnames(oh_lc)[ 5] <- "random.volume"
+# tail(oh_lc)
+
+# create SPY_design
+SPY <- oh_lc
+returns_running <- run_returns(x_ts=SPY)
+returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+colnames(returns_advanced) <- "returns_advanced"
+returns_rolling <- roll_vwap(oh_lc=SPY, x_ts=returns_running, win_dow=win_dow)
+colnames(returns_running) <- "returns"
+colnames(returns_rolling) <- "returns.WA5"
+var_running <- run_variance(oh_lc=SPY)
+colnames(var_running) <- "variance"
+skew_running <- run_skew(oh_lc=SPY)
+colnames(skew_running) <- "skew"
+hurst_rolling <- roll_hurst(oh_lc=SPY, win_dow=win_dow)
+colnames(hurst_rolling) <- "hurst"
+SPY_design <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
+colnames(SPY_design) <- c(colnames(SPY_design)[1:5], "rets_var", "rets_skew")
+
+# scale SPY_design
+SPY_design <- roll::roll_scale(data=SPY_design, width=60, min_obs=1)
+core_data <- coredata(SPY_design)
+core_data[is.na(core_data)] <- 0
+SPY_design <- xts(x=core_data, order.by=index(SPY_design))
+
+# perform PCR
+rolling_betas <- roll_pcr(x=SPY_design, y=returns_advanced, width=1*60, comps=1:1, min_obs=1)
+rolling_betas$coefficients[1, ] <- 0
+betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
+returns_forecast <- rowSums(betas_lagged[, -1]*SPY_design[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
+
+# forecast_lm <- lm(returns_advanced[index(returns_forecast)] ~ returns_forecast)
+# summary(forecast_lm)
+
+returns_backtest <- cumsum(returns_forecast * returns_advanced[index(returns_forecast)])
+chart_Series(x=-returns_backtest, name="cumulative returns")
+
+
+
+### rollSFM (rolling single-factor model) function to TTR
+
+# rolling regression over time index
 reg <- rollSFM(demo.xts, .index(demo.xts), 24)
 rma <- reg$alpha + reg$beta*.index(demo.xts)
 chart_Series(demo.xts, TA="add_TA(rma,on=1)")
 
-###
 
 
 ###  Forecastable Component Analysis
