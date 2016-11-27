@@ -22,7 +22,7 @@ library(TTR)
 ###########
 # perform aggregations by applying a function over a vector of endpoints
 
-### create random xts time series
+### split random xts time series into daily list and rbind it back into the original xts
 x_ts <- xts(x=rnorm(100), order.by=(Sys.time()-3600*(1:100)))
 # split time series into daily list
 list_xts <- split(x_ts, "days")
@@ -32,7 +32,7 @@ identical(x_ts, do_call_rbind(list_xts))
 ### load minutely price data
 sym_bol <- load("C:/Develop/data/SPY.RData")
 
-# plot average hourly volumes
+# plot average hourly trading volumes
 price_s <- Vo(SPY["2012-02-01/2012-02-25"])
 vol_ume <- period.apply(
   x=price_s, 
@@ -57,7 +57,7 @@ agg_regate(price_s)
 
 
 ### perform aggregations using period.apply(), apply_rolling() and apply_xts()
-# apply_rolling() is legacy function from utilLib.R
+# apply_rolling() and apply_xts() are legacy functions from utilLib.R
 
 # extract closing prices for a single day of data
 price_s <- Cl(SPY["2012-02-13"])
@@ -175,18 +175,16 @@ colnames(mid_prices) <- "Mid.Price"
 # calculate log returns
 re_turns <- diff(log(mid_prices))/c(1, diff(.index(mid_prices)))
 re_turns[1, ] <- 0
-chart_Series(cumsum(re_turns), name=sym_bol)
+chart_Series(exp(cumsum(re_turns)), name=sym_bol)
 
 # load minutely OHLC data
 sym_bol <- load("C:/Develop/data/SPY.RData")
 # or
-sym_bol <- load(
-  file.path(output_dir, 
-            paste0(sym_bol, ".RData")))
+sym_bol <- load(file.path(output_dir, paste0(sym_bol, ".RData")))
 # calculate log returns
-re_turns <- diff(log(Cl(get(sym_bol))))/c(1, diff(.index(get(sym_bol))))
+re_turns <- diff(log(Cl(SPY)))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
-chart_Series(cumsum(re_turns), name=sym_bol)
+chart_Series(exp(cumsum(re_turns)), name=sym_bol)
 
 # plot histograms of returns
 hist(re_turns, breaks=30, main="returns", xlab="", ylab="", freq=FALSE)
@@ -194,18 +192,19 @@ hist(re_turns, breaks=100, main="returns", xlim=c(-2.0e-4, 2.0e-4), ylim=c(0, 10
 lines(density(re_turns), col='red', lwd=1)  # draw density
 
 
-### calculate daily seasonality of returns
-re_turns <- diff(Cl(get("SPY")))/c(1, diff(.index(get("SPY"))))
+### calculate intraday seasonality of returns
+re_turns <- diff(log(Cl(SPY)))/c(1, diff(.index(SPY)))
+re_turns <- diff(Cl(SPY))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
 re_turns <- na.locf(re_turns)
 sum(is.na(re_turns))
 # remove overnight return spikes at "09:31"
 in_dex <- format(index(re_turns), "%H:%M")
 re_turns <- re_turns[!in_dex=="09:31", ]
-# calculate daily seasonality of returns
+# calculate intraday seasonality of returns
 season_rets <- season_ality(x_ts=re_turns)
 chart_Series(x=season_rets, 
-             name=paste(colnames(season_rets), "daily seasonality"))
+             name=paste(colnames(season_rets), "intraday seasonality"))
 
 
 ### volatility spikes
@@ -238,8 +237,8 @@ dim(vol_spikes)
 head(vol_spikes)
 
 foo <- c(1, as.numeric(diff(index(vol_spikes))))
-foo <- c(1, which(foo>1), length(vol_spikes))
-length(foo)
+foo <- c(1, which(foo>1), NROW(vol_spikes))
+NROW(foo)
 head(foo)
 tail(foo)
 plot(coredata(vol_spikes[(foo[3]-10):(foo[4]-1), ]), t="l")
@@ -251,26 +250,27 @@ vol_spike[which.max(vol_spike)]
 blah <- which(in_dex==index(vol_spike[which.max(vol_spike)]))
 plot(coredata(var_rolling[(blah-10):(blah+30), ])/max(vol_spike), t="l")
 
-vol_peaks <- lapply(1:(length(foo)-1), function(i_ter) {
+# aggregate over periods around volatility spikes
+vol_peaks <- lapply(1:(NROW(foo)-1), function(i_ter) {
   vol_spike <- vol_spikes[foo[i_ter]:(foo[i_ter+1]-1), ]
   vol_spike[which.max(vol_spike)]
 })  # end lapply
 vol_peaks <- do.call(rbind, vol_peaks)
 class(vol_peaks)
-length(vol_peaks)
+NROW(vol_peaks)
 head(vol_peaks)
 which(in_dex==index(first(vol_peaks)))
 
-foo_bar <- function(vol_peak) {
+get_vol_peak_data <- function(vol_peak) {
   which_peak <- which(in_dex==index(vol_peak))
   coredata(var_rolling[(which_peak-10):(which_peak+30), ])/as.numeric(vol_peak)
-}  # end foo_bar
-foo_bar(first(vol_peaks))
-foo_bar(vol_peaks[3])
-foo_bar(last(vol_peaks))
-debug(foo_bar)
+}  # end get_vol_peak_data
+get_vol_peak_data(first(vol_peaks))
+get_vol_peak_data(vol_peaks[3])
+get_vol_peak_data(last(vol_peaks))
+debug(get_vol_peak_data)
 
-vol_profiles <- sapply(1:3, function(i_ter) foo_bar(vol_peaks[i_ter, ]))
+vol_profiles <- sapply(1:3, function(i_ter) get_vol_peak_data(vol_peaks[i_ter, ]))
 
 # calcuate volatility around peak volatility
 vol_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
@@ -304,10 +304,10 @@ head(foo_bar, 33)
 ### calculate Hurst exponent using range for xts
 hurst_exp <- function(re_turns) {
   cum_sum <- cumsum(re_turns)
-  (max(cum_sum) - min(cum_sum))/sd(re_turns)/sqrt(length(re_turns))
+  (max(cum_sum) - min(cum_sum))/sd(re_turns)/sqrt(NROW(re_turns))
 }  # end hurst_exp
 hurst_exp <- function(da_ta) {
-  (max(da_ta) - min(da_ta))/sd(diff(da_ta)[-1])/sqrt(length(da_ta))
+  (max(da_ta) - min(da_ta))/sd(diff(da_ta)[-1])/sqrt(NROW(da_ta))
 }  # end hurst_exp
 # calculate Hurst exponent using range for xts ohlc
 hurst_exp <- function(da_ta) {
@@ -315,19 +315,19 @@ hurst_exp <- function(da_ta) {
 }  # end hurst_exp
 # calculate Hurst exponent using range for non-xts
 hurst_exp <- function(da_ta) {
-  (max(da_ta) - min(da_ta))/sd(da_ta[-1]-da_ta[-length(da_ta)])/sqrt(length(da_ta))
+  log((max(da_ta) - min(da_ta))/sd(da_ta[-1]-da_ta[-NROW(da_ta)]))/log(NROW(da_ta))
 }  # end hurst_exp
 # calculate Hurst exponent using variance ratios for non-xts
 hurst_exp <- function(da_ta, l_ag=4) {
-  len_gth <- length(da_ta)
+  len_gth <- NROW(da_ta)
   var(da_ta[-(1:l_ag)]-da_ta[-((len_gth-l_ag+1):len_gth)])/var(da_ta[-1]-da_ta[-len_gth])/l_ag
 }  # end hurst_exp
 hurst_exp(coredata(SPY["2012/", 4]))
 hurst_exp(coredata(SPY["2012/", 4]), l_ag=10)
-blah <- rnorm(length(SPY["2012/", 4]))
+blah <- rnorm(NROW(SPY["2012/", 4]))
 head(blah)
 hurst_exp(cumsum(blah))
-hurst_exp(cumsum(blah+c(0, 0.5*blah[-length(blah)])))
+hurst_exp(cumsum(blah+c(0, 0.5*blah[-NROW(blah)])))
 
 
 ### yearly aggregations of volume, skew, and volat
@@ -353,11 +353,11 @@ foo <- which.max(daily_skew)
 foo <- which.min(daily_skew)
 foo <- format(index(daily_skew[(foo-1):(foo+1), ]), "%Y-%m-%d")
 
-chart_Series(get(sym_bol)[foo], name=paste(sym_bol, "skew"))
+chart_Series(SPY[foo], name=paste(sym_bol, "skew"))
 
 
 # daily returns
-daily_rets <- Cl(get(sym_bol)[index(daily_skew), ])
+daily_rets <- Cl(SPY[index(daily_skew), ])
 daily_rets <- diff(log(daily_rets))
 daily_rets[1, ] <- daily_rets[2, ]
 colnames(daily_rets) <- paste(sym_bol, "rets", sep=".")
@@ -368,14 +368,14 @@ date_s <- "2008-09/2009-05"
 # daily_rets and sk_ew
 bar <- cbind(coredata(daily_rets), coredata(daily_skew))
 # daily_rets and lagged sk_ew
-bar <- cbind(coredata(daily_rets), c(0, coredata(daily_skew)[-length(daily_skew)]))
+bar <- cbind(coredata(daily_rets), c(0, coredata(daily_skew)[-NROW(daily_skew)]))
 
 head(bar)
 dim(bar)
 apply(bar, 2, mad)
 ma_d <- mad(bar[, 2])
 blah <- (abs(bar[, 2]-mean(bar[, 2])) > 5*ma_d)
-length(blah)
+NROW(blah)
 sum(blah)
 bar <- bar[!blah, ]
 
@@ -383,12 +383,12 @@ bar <- bar[!blah, ]
 ### returns
 
 # lag_rets equals returns lagged by -1
-re_turns <- run_returns(x_ts=get(sym_bol))
+re_turns <- run_returns(x_ts=SPY)
 lag_rets <- re_turns
-lag_rets <- c(lag_rets[-1, ], lag_rets[length(lag_rets)])
+lag_rets <- c(lag_rets[-1, ], lag_rets[NROW(lag_rets)])
 tail(lag_rets)
 
-sk_ew <- run_skew(ohlc=get(sym_bol))
+sk_ew <- run_skew(ohlc=SPY)
 colnames(sk_ew) <- 
   paste(sym_bol, "skew", sep=".")
 lag_skew <- lag(sk_ew)
@@ -396,35 +396,36 @@ lag_skew <- lag(sk_ew)
 
 win_dow <- 2*60*6.5 + 101
 
+### variance and skew estimators using MAD
 # calc var_mad
 var_mad <- runmad(coredata(vari_ance), k=win_dow)
 # lag var_mad
-var_mad <- c(rep(0, (win_dow-1)/2), var_mad[-((length(var_mad)-(win_dow-1)/2+1):(length(var_mad)))])
-length(var_mad)
+var_mad <- c(rep(0, (win_dow-1)/2), var_mad[-((NROW(var_mad)-(win_dow-1)/2+1):(NROW(var_mad)))])
+NROW(var_mad)
 head(var_mad)
 tail(var_mad)
 # calc skew_mad
 skew_mad <- runmad(coredata(sk_ew), k=win_dow)
 # lag skew_mad
-skew_mad <- c(rep(0, (win_dow-1)/2), skew_mad[-((length(skew_mad)-(win_dow-1)/2+1):(length(skew_mad)))])
-plot(skew_mad[(length(skew_mad)-100*win_dow):length(skew_mad)], t="l", xlab="", ylab="", main="skew_mad")
+skew_mad <- c(rep(0, (win_dow-1)/2), skew_mad[-((NROW(skew_mad)-(win_dow-1)/2+1):(NROW(skew_mad)))])
+plot(skew_mad[(NROW(skew_mad)-100*win_dow):NROW(skew_mad)], t="l", xlab="", ylab="", main="skew_mad")
 # calc mad_volu
 quan_tiles <- c("0.5"=0.5, "0.75"=0.75, "0.85"=0.85, "0.95"=0.95)
-mad_volu <- runquantile(coredata(Vo(get(sym_bol))), probs=quan_tiles, k=win_dow)
+mad_volu <- runquantile(coredata(Vo(SPY)), probs=quan_tiles, k=win_dow)
 mad_volu <- mad_volu[, 1, ]
 # lag mad_volu
 mad_volu <- rbind(
   matrix(numeric(ncol(mad_volu)*(win_dow-1)/2), ncol=ncol(mad_volu)), 
   mad_volu[-((NROW(mad_volu)-(win_dow-1)/2+1):(NROW(mad_volu))), ])
 colnames(mad_volu) <- names(quan_tiles)
-mad_volu <- xts(mad_volu, order.by=index(get(sym_bol)))
+mad_volu <- xts(mad_volu, order.by=index(SPY))
 # plot(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], t="l", xlab="", ylab="", main="mad_volu")
 chart_Series(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], name=paste(sym_bol, "mad_volu"))
 # plot volume spikes above 85% quantile
 date_s <- (NROW(mad_volu)-4*win_dow):NROW(mad_volu[,])
 chart_Series(mad_volu[date_s, 3], name=paste(sym_bol, "mad_volu"))
-chart_Series(Vo(get(sym_bol)[date_s]) - mad_volu[date_s, 4], name=paste(sym_bol, "volume spikes"))
-chart_Series(Cl(get(sym_bol)[date_s]), name=paste(sym_bol, "prices"))
+chart_Series(Vo(SPY[date_s]) - mad_volu[date_s, 4], name=paste(sym_bol, "volume spikes"))
+chart_Series(Cl(SPY[date_s]), name=paste(sym_bol, "prices"))
 
 
 # signal threshold trading level
@@ -432,10 +433,10 @@ pos_skew <- coredata(ifelse(sk_ew > 5*skew_mad, 1, 0))
 colnames(pos_skew) <- paste(sym_bol, "p_skew", sep=".")
 neg_skew <- coredata(ifelse(sk_ew < -5*skew_mad, -1, 0))
 colnames(neg_skew) <- paste(sym_bol, "n_skew", sep=".")
-c(pos_skew=sum(pos_skew)/length(pos_skew), neg_skew=-sum(neg_skew)/length(neg_skew))
+c(pos_skew=sum(pos_skew)/NROW(pos_skew), neg_skew=-sum(neg_skew)/NROW(neg_skew))
 plot(pos_skew)
 
-spike_skew <- coredata(Vo(get(sym_bol)) - mad_volu[, 4] > 0, sign(sk_ew), 0)
+spike_skew <- coredata(Vo(SPY) - mad_volu[, 4] > 0, sign(sk_ew), 0)
 colnames(spike_skew) <- paste(sym_bol, "spike_skew", sep=".")
 
 var_rolling <- runSum(vari_ance, n=win_dow)
@@ -456,8 +457,8 @@ chart_Series(roll_skew[date_s],
 
 win_short <- 70
 win_long <- 225
-vwap_short <- roll_vwap(oh_lc=get(sym_bol), win_dow=win_short)
-vwap_long <- roll_vwap(oh_lc=get(sym_bol), win_dow=win_long)
+vwap_short <- roll_vwap(oh_lc=SPY, win_dow=win_short)
+vwap_long <- roll_vwap(oh_lc=SPY, win_dow=win_long)
 head(vwap_short)
 head(vwap_long)
 vwap_diff <- vwap_short - vwap_long
@@ -468,35 +469,35 @@ vwap_diff <- na.locf(vwap_diff)
 ### data: lagged returns plus explanatory variables
 
 # for lm reg
-# bar <- cbind(lag_rets, coredata(re_turns), pos_skew, neg_skew)
-# bar <- cbind(lag_rets, coredata(vwap_diff), pos_skew, neg_skew)
-bar <- cbind(re_turns, lag_skew)
-bar <- cbind(lag_rets, sign(coredata(vwap_diff)), pos_skew, neg_skew)
-# bar <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
+# reg_data <- cbind(lag_rets, coredata(re_turns), pos_skew, neg_skew)
+# reg_data <- cbind(lag_rets, coredata(vwap_diff), pos_skew, neg_skew)
+reg_data <- cbind(re_turns, lag_skew)
+reg_data <- cbind(lag_rets, sign(coredata(vwap_diff)), pos_skew, neg_skew)
+# reg_data <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
 # for logistic reg
-bar <- cbind((sign(coredata(lag_rets))+1)/2, sign(coredata(vwap_diff)), pos_skew, neg_skew)
+reg_data <- cbind((sign(coredata(lag_rets))+1)/2, sign(coredata(vwap_diff)), pos_skew, neg_skew)
 # for lda qda
-bar <- cbind(sign(lag_rets), coredata(vwap_diff), pos_skew, neg_skew)
-# colnames(bar) <- c("SPY.lagrets", "SPY.rets", "SPY.poskew", "SPY.negskew")
-class(bar)
-tail(bar)
+reg_data <- cbind(sign(lag_rets), coredata(vwap_diff), pos_skew, neg_skew)
+# colnames(reg_data) <- c("SPY.lagrets", "SPY.rets", "SPY.poskew", "SPY.negskew")
+class(reg_data)
+tail(reg_data)
 
 
 ### lm
 
 # lm formula with zero intercept
-for_mula <- as.formula(paste(colnames(bar)[1], paste(paste(colnames(bar)[-1], collapse=" + "), "- 1"), sep="~"))
-for_mula <- as.formula(paste(colnames(bar)[1], paste(colnames(bar)[2], "- 1"), sep="~"))
+for_mula <- as.formula(paste(colnames(reg_data)[1], paste(paste(colnames(reg_data)[-1], collapse=" + "), "- 1"), sep="~"))
+for_mula <- as.formula(paste(colnames(reg_data)[1], paste(colnames(reg_data)[2], "- 1"), sep="~"))
 
-l_m <- lm(for_mula, data=as.data.frame(bar))
+l_m <- lm(for_mula, data=as.data.frame(reg_data))
 # perform regressions over different calendar periods
-l_m <- lm(for_mula, data=as.data.frame(bar["2011-01-01/"]))
-l_m <- lm(for_mula, data=as.data.frame(bar["/2011-01-01"]))
+l_m <- lm(for_mula, data=as.data.frame(reg_data["2011-01-01/"]))
+l_m <- lm(for_mula, data=as.data.frame(reg_data["/2011-01-01"]))
 lm_summ <- summary(l_m)
-l_m <- lm(for_mula, data=as.data.frame(bar["2013-02-04/2013-03-05"]))
+l_m <- lm(for_mula, data=as.data.frame(reg_data["2013-02-04/2013-03-05"]))
 lm_summ <- summary(l_m)
-lm_predict <- predict(l_m, newdata=as.data.frame(bar["2013-03-06"]))
-foo <- data.frame(sign(lm_predict), coredata(bar["2013-03-06", 1]))
+lm_predict <- predict(l_m, newdata=as.data.frame(reg_data["2013-03-06"]))
+foo <- data.frame(sign(lm_predict), coredata(reg_data["2013-03-06", 1]))
 colnames(foo) <- c("lm_pred", "realized")
 table(foo)
 cumu_pnl <- cumsum(sign(lm_predict)*re_turns["2013-03-06", 1])
@@ -509,8 +510,8 @@ foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(thresh_old
   colnames(pos_skew) <- paste(sym_bol, "p_skew", sep=".")
   neg_skew <- coredata(ifelse(sk_ew < -thresh_old*skew_mad, -1, 0))
   colnames(neg_skew) <- paste(sym_bol, "n_skew", sep=".")
-  bar <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
-  l_m <- lm(for_mula, data=as.data.frame(bar))
+  reg_data <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
+  l_m <- lm(for_mula, data=as.data.frame(reg_data))
   lm_summ <- summary(l_m)
   lm_summ$coefficients[, "t value"]
 }, USE.NAMES=TRUE)  # end sapply
@@ -519,16 +520,16 @@ foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(thresh_old
 # loop over periods
 date_s <- "2013-06-01/"
 date_s <- "2008-06-01/2009-06-01"
-end_points <- endpoints(get(sym_bol)[date_s], on="days")
-end_points <- format(index((get(sym_bol)[date_s])[end_points[-1], ]), "%Y-%m-%d")
+end_points <- endpoints(SPY[date_s], on="days")
+end_points <- format(index((SPY[date_s])[end_points[-1], ]), "%Y-%m-%d")
 win_dow <- 10
 
 position_s <- 
-  lapply(win_dow:length(end_points),
+  lapply(win_dow:NROW(end_points),
          function(end_point) {
            date_s <- paste0(end_points[end_point-win_dow+1], "/", end_points[end_point-1])
-           l_m <- lm(for_mula, data=as.data.frame(bar[date_s]))
-           da_ta <- bar[end_points[end_point]]
+           l_m <- lm(for_mula, data=as.data.frame(reg_data[date_s]))
+           da_ta <- reg_data[end_points[end_point]]
            xts(x=predict(l_m, newdata=as.data.frame(da_ta)), order.by=index(da_ta))
          }  # end anon function
   )  # end lapply
@@ -544,52 +545,52 @@ chart_Series(cumu_pnl, name=paste(sym_bol, "optim_rets"))
 library(MASS)
 library(ISLR)
 library(glmnet)
-g_lm <- glm(for_mula, data=as.data.frame(bar), family=binomial)
+g_lm <- glm(for_mula, data=as.data.frame(reg_data), family=binomial)
 summary(g_lm)
 
 
 ### lda
-l_da <- lda(for_mula, data=as.data.frame(bar))
+l_da <- lda(for_mula, data=as.data.frame(reg_data))
 summary(l_da)
-l_da <- lda(for_mula, data=as.data.frame(bar["2013-02-04/2013-03-05"]))
-lda_predict <- predict(l_da, newdata=as.data.frame(bar["2013-03-06"]))
-foo <- data.frame(lda_predict$class, coredata(bar["2013-03-06", 1]))
+l_da <- lda(for_mula, data=as.data.frame(reg_data["2013-02-04/2013-03-05"]))
+lda_predict <- predict(l_da, newdata=as.data.frame(reg_data["2013-03-06"]))
+foo <- data.frame(lda_predict$class, coredata(reg_data["2013-03-06", 1]))
 colnames(foo) <- c("lda_pred", "realized")
 table(foo)
 
 
 ### qda
-q_da <- qda(for_mula, data=as.data.frame(bar))
+q_da <- qda(for_mula, data=as.data.frame(reg_data))
 summary(q_da)
 date_s <- "2013-02-04/2013-02-06"
-q_da <- qda(for_mula, data=as.data.frame(bar["2013-02-04/2013-03-05"]))
+q_da <- qda(for_mula, data=as.data.frame(reg_data["2013-02-04/2013-03-05"]))
 date_s <- "2013-02-07"
-qda_predict <- predict(q_da, newdata=as.data.frame(bar["2013-03-06"]))
+qda_predict <- predict(q_da, newdata=as.data.frame(reg_data["2013-03-06"]))
 str(qda_predict)
 head(qda_predict$class)
 tail(qda_predict$class)
-length(qda_predict$class)
+NROW(qda_predict$class)
 sum(qda_predict$class!=1)
-sum(bar["2013-02-07", 1]!=1)
-foo <- data.frame(qda_predict$class, coredata(bar["2013-03-06", 1]))
+sum(reg_data["2013-02-07", 1]!=1)
+foo <- data.frame(qda_predict$class, coredata(reg_data["2013-03-06", 1]))
 colnames(foo) <- c("qda_pred", "realized")
 table(foo)
 
 # scatterplot of sk_ew and daily_rets
-plot(for_mula, data=bar, xlab="skew", ylab="rets")
+plot(for_mula, data=reg_data, xlab="skew", ylab="rets")
 abline(l_m, col="blue")
 
-cor.test(formula=as.formula(paste("~", paste(colnames(bar), collapse=" + "))), data=as.data.frame(bar))
+cor.test(formula=as.formula(paste("~", paste(colnames(reg_data), collapse=" + "))), data=as.data.frame(reg_data))
 
 
 date_s <- "2013-06-01/"
-bar <- cbind(
+reg_data <- cbind(
   coredata(re_turns[date_s, 1]), 
   c(0, coredata(roll_skew[date_s])[-NROW(roll_skew[date_s])]))
 
 
 # multiply matrix columns
-foo <- t(t(coredata(bar[, -1]))*coef(l_m)[-1])
+foo <- t(t(coredata(reg_data[, -1]))*coef(l_m)[-1])
 dim(foo)
 tail(foo)
 apply(foo, MARGIN=2, sum)
@@ -604,18 +605,18 @@ position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, -coredata(re_turns))
 position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
 position_s <- pos_skew + neg_skew + sign(coredata(vwap_diff))
 position_s <- -sign(sk_ew) + sign(coredata(vwap_diff))
-position_s <- coredata(bar[, -1]) %*% coef(l_m)
+position_s <- coredata(reg_data[, -1]) %*% coef(l_m)
 sum(is.na(position_s))
-length(position_s)
+NROW(position_s)
 head(position_s)
-plot(position_s[(length(position_s)-100*win_dow):length(position_s)], t="l", xlab="", ylab="", main="position_s")
+plot(position_s[(NROW(position_s)-100*win_dow):NROW(position_s)], t="l", xlab="", ylab="", main="position_s")
 plot(position_s, t="l", ylim=c(0, 0.001))
 
 position_s <- ifelse(roll_skew>thresh_old, -1, position_s)
 position_s <- ifelse(roll_skew<(-thresh_old), 1, position_s)
 position_s <- ifelse((roll_skew*lag(roll_skew))<0, 0, position_s)
 # lag the position_s
-lag_positions <- c(0, position_s[-length(position_s)])
+lag_positions <- c(0, position_s[-NROW(position_s)])
 lag_positions <- na.locf(lag_positions)
 lag_positions <- merge(roll_skew, lag_positions)
 colnames(lag_positions)[2] <- 
@@ -644,11 +645,11 @@ roll_vwap <- function(win_short=10, win_long=100, price_s, re_turns) {
   vwap_long <- coredata(roll_vwap(oh_lc=price_s, win_dow=win_long))
 # lag the position_s
   position_s <- sign(vwap_short - vwap_long)
-  position_s <- c(0, position_s[-length(position_s)])
+  position_s <- c(0, position_s[-NROW(position_s)])
   sum(position_s*re_turns)
 }  # end roll_vwap
 
-roll_vwap(price_s=get(sym_bol), re_turns=re_turns)
+roll_vwap(price_s=SPY, re_turns=re_turns)
 
 
 short_windows <- seq(from=30, to=100, by=10)
@@ -661,7 +662,7 @@ mat_rix <- sapply(short_windows,
                     sapply(long_windows,
                            roll_vwap,
                            win_short=win_short, ...),
-                  price_s=get(sym_bol), re_turns=re_turns)
+                  price_s=SPY, re_turns=re_turns)
 
 # load rgl
 library(rgl)
@@ -677,25 +678,25 @@ in_dex <- seq(from=as.POSIXct("2015-01-01 00:00:00"),
               to=as.POSIXct("2015-01-03 00:00:00"), by="sec")
 head(in_dex)
 tail(in_dex)
-length(in_dex)
+NROW(in_dex)
 
 # simulate lognormal prices
-foo <- xts(exp(cumsum(rnorm(length(in_dex)))/100), order.by=in_dex)
+foo <- xts(exp(cumsum(rnorm(NROW(in_dex)))/100), order.by=in_dex)
 dim(foo)
 
 # aggregate minutes OHLC bars
-bar <- to.period(x=foo, period="minutes", name="synth")
-tail(bar)
+oh_lc <- to.period(x=foo, period="minutes", name="synth")
+tail(oh_lc)
 # OHLC candlechart
-chart_Series(x=bar["2015-01-01 01:00:00/2015-01-01 05:00:00"], 
+chart_Series(x=oh_lc["2015-01-01 01:00:00/2015-01-01 05:00:00"], 
              name="OHLC candlechart")
 
 # rolling volatility
-vol_at <- roll_moment(ohlc=bar, win_dow=1000, weight_ed=FALSE)
+vol_at <- roll_moment(ohlc=oh_lc, win_dow=1000, weight_ed=FALSE)
 head(vol_at)
 tail(vol_at)
 # rolling skew
-sk_ew <- roll_moment(ohlc=bar, mo_ment="run_skew", win_dow=1000, weight_ed=FALSE)
+sk_ew <- roll_moment(ohlc=oh_lc, mo_ment="run_skew", win_dow=1000, weight_ed=FALSE)
 sk_ew <- sk_ew/(vol_at)^(1.5)
 sk_ew[1, ] <- 0
 sk_ew <- na.locf(sk_ew)
@@ -716,7 +717,7 @@ foo <- xts(matrix(rnorm(3*NROW(etf_rets)), ncol=3), order.by=index(etf_rets))
 colnames(foo) <- colnames(etf_rets[, sym_bols])
 head(foo)
 
-ann_weights <- sapply(2:length(end_points), 
+ann_weights <- sapply(2:NROW(end_points), 
                       function(in_dex) {
                         optim_portf(
                           portf_rets=foo, 
@@ -731,7 +732,7 @@ colnames(ann_weights) <- format(index(foo[end_points[-1]]), "%Y")
 ann_weights <- t(ann_weights)
 
 
-bar <- lapply(3:length(end_points),
+bar <- lapply(3:NROW(end_points),
               function(in_dex) {
                 foo[end_points[in_dex-1]:end_points[in_dex], ] %*% 
                   c(1, ann_weights[in_dex-2, ])
@@ -853,7 +854,7 @@ load("C:/Develop/data/SPY_design.RData")
 head(SPY_design)
 
 # create advanced returns
-returns_running <- SPY_design[, "returns"]
+returns_running <- run_returns(x_ts=SPY)
 returns_advanced <- rutils::lag_xts(returns_running, k=-1)
 colnames(returns_advanced) <- "returns_advanced"
 tail(cbind(returns_advanced, returns_running))
@@ -861,7 +862,8 @@ tail(cbind(returns_advanced, returns_running))
 
 ### SPY_design correlation and PCA analysis
 
-# apply rolling centering and scaling of design matrix
+# apply rolling centering and scaling to design matrix
+library(roll)
 SPY_design <- roll::roll_scale(data=SPY_design, width=6.5*60, min_obs=1)
 # remove NAs
 core_data <- coredata(SPY_design)
@@ -905,7 +907,7 @@ title("Dissimilarity = 1-Correlation", line=-0.5)
 ### rolling regressions over SPY_design using package roll
 
 # perform rolling forecasting regressions in parallel
-rolling_betas <- roll_lm(x=SPY_design["2011/2012", ], 
+rolling_betas <- roll::roll_lm(x=SPY_design["2011/2012", ], 
                   y=returns_advanced["2011/2012", ],
                   width=6.5*60, min_obs=1)
 rolling_betas$coefficients[1, ] <- 0
@@ -915,7 +917,7 @@ tail(rolling_betas$coefficients["2012-11-12"])
 tail(rolling_betas$r.squared["2012-11-12"])
 chart_Series(x=rolling_betas$r.squared["2012-11-12"], name="R-squared for rolling betas")
 
-# calculate daily seasonality of R2
+# calculate intraday seasonality of R2
 # remove first day containing warmup
 in_dex <- "2011-01-03" == format(index(rolling_betas$r.squared), "%Y-%m-%d")
 r2_seasonal <- season_ality(rolling_betas$r.squared[!in_dex])
@@ -937,7 +939,7 @@ legend("bottom", legend=colnames(rolling_betas$coefficients["2012-11-12"]),
 
 # perform rolling forecasting PCR regressions in parallel
 # use only the first principal component argument "comps"
-rolling_betas <- roll_pcr(x=SPY_design["2011/2012", ], 
+rolling_betas <- roll::roll_pcr(x=SPY_design["2011/2012", ], 
                          y=returns_advanced["2011/2012", ],
                          width=1*60, comps=1:1, min_obs=1)
 rolling_betas$coefficients[1, ] <- 0
@@ -947,7 +949,7 @@ tail(rolling_betas$coefficients["2012-11-12"])
 tail(rolling_betas$r.squared["2012-11-12"])
 chart_Series(x=rolling_betas$r.squared["2012-11-12"], name="R-squared for rolling betas")
 
-# calculate daily seasonality of R2
+# calculate intraday seasonality of R2
 # remove first day containing warmup
 in_dex <- "2011-01-03" == format(index(rolling_betas$r.squared), "%Y-%m-%d")
 r2_seasonal <- season_ality(rolling_betas$r.squared[!in_dex])
@@ -1009,7 +1011,7 @@ hist(pnl_s, breaks="FD", xlim=c(-5e4, 5e4), main="distribution of Pnl's")
 
 # perform a random PCR and return the Pnl
 run_random_pcr <- function(in_dex) {
-  x_ts <- xts(exp(cumsum(rnorm(length(in_dex), sd=0.001))), order.by=in_dex)
+  x_ts <- xts(exp(cumsum(rnorm(NROW(in_dex), sd=0.001))), order.by=in_dex)
   oh_lc <- xts::to.period(x=x_ts, period="minutes", name="random")
   oh_lc <- cbind(oh_lc, sample(x=10*(2:18), size=NROW(oh_lc), replace=TRUE))
   colnames(oh_lc)[ 5] <- "random.volume"
@@ -1024,7 +1026,7 @@ run_random_pcr <- function(in_dex) {
   core_data <- coredata(design_matrix)
   core_data[is.na(core_data)] <- 0
   design_matrix <- xts(x=core_data, order.by=index(design_matrix))
-  rolling_betas <- roll_pcr(x=design_matrix, y=returns_advanced, width=1*60, comps=1:1, min_obs=1)
+  rolling_betas <- roll::roll_pcr(x=design_matrix, y=returns_advanced, width=1*60, comps=1:1, min_obs=1)
   rolling_betas$coefficients[1, ] <- 0
   betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
   returns_forecast <- rowSums(betas_lagged[, -1]*design_matrix[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
@@ -1033,7 +1035,7 @@ run_random_pcr <- function(in_dex) {
 
 
 # create xts of random prices
-x_ts <- xts(exp(cumsum(rnorm(length(in_dex), sd=0.001))), order.by=in_dex)
+x_ts <- xts(exp(cumsum(rnorm(NROW(in_dex), sd=0.001))), order.by=in_dex)
 colnames(x_ts) <- "random"
 # chart_Series(x=x_ts["2016-01-10 09/2016-01-10 10"], name="random prices")
 # aggregate to minutes OHLC data

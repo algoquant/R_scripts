@@ -1,0 +1,74 @@
+
+### WRDS data download tasks
+
+download CCM data from WRDS
+
+install.packages(c("RJDBC", "", "", "", "", ""))
+
+# there are two WRDS packages, both using DBI
+https://github.com/wthielen/wrds
+devtools::install_github("wthielen/wrds")
+
+# get fundamental data for stocks: but build fails "no such table: dow30CRSP"
+https://github.com/jaiganeshp/WRDS
+devtools::install_github("jaiganeshp/WRDS")
+
+
+C:\\Program Files\\Java\\jre1.8.0_101\\
+
+Sys.getenv("Home")
+
+ssh algoport@wrds-cloud.wharton.upenn.edu
+
+ssh jp3900@wrds-cloud.wharton.upenn.edu
+
+PROC PWENCODE in='LosowyDurak14'; run;
+
+SAS encoded password
+{SAS002}3FFAE84348C8D99611B9FE382091DEE021CB597D03364794
+
+
+wrdsconnect <- function(user=user, pass=pass){
+    dri_ver <- RJDBC::JDBC("com.sas.net.sharenet.ShareNetDriver", "C:/Develop/data/WRDS_Drivers/sas.intrnet.javatools.jar", identifier.quote="`")
+    rJava::.jaddClassPath(c("C:/Develop/data/WRDS_Drivers/sas.core.jar", "C:/Develop/data/WRDS_Drivers/sas.intrnet.javatools.jar"))
+    wrds_connection <- DBI::dbConnect(dri_ver, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+    return(wrds_connection)
+}
+wrds <- wrdsconnect(user="jp3900", pass="{SAS002}3FFAE84348C8D99611B9FE382091DEE021CB597D03364794")
+
+.jaddClassPath(c("C:/Develop/data/WRDS_Drivers/sas.core.jar", "C:/Develop/data/WRDS_Drivers/sas.intrnet.javatools.jar"))
+
+wrds_connection <- dbConnect(dri_ver, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", "jp3900", "{SAS002}3FFAE84348C8D99611B9FE382091DEE021CB597D03364794")
+
+r DBI dbConnect CryptoException
+
+###
+
+
+dri_ver <- RJDBC::JDBC("com.sas.net.sharenet.ShareNetDriver", "C:/Develop/data/WRDS_Drivers/sas.intrnet.javatools.jar", identifier.quote="`")
+
+rJava::.jaddClassPath(c("C:/Develop/data/WRDS_Drivers/sas.core.jar", "C:/Develop/data/WRDS_Drivers/sas.intrnet.javatools.jar"))
+
+wrds_connection <- DBI::dbConnect(dri_ver, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", "jp3900", "{SAS002}3FFAE84348C8D99611B9FE382091DEE021CB597D03364794")
+
+wrds_connection <- wrdsconnect(user="jp3900", pass="{SAS002}3FFAE84348C8D99611B9FE382091DEE021CB597D03364794")
+re_sult <- DBI::dbSendQuery(wrds_connection, "select date,dji from DJONES.DJDAILY")
+da_ta <- DBI::fetch(re_sult, n = 10)
+
+r package rJava No CurrentVersion entry in Software/JavaSoft registry
+
+r package rJava unable to load shared object
+
+add to path
+C:\Program Files\Java\jre1.8.0_101\bin\server
+
+system("java -version")
+Sys.getenv("JAVA_HOME")
+
+Sys.setenv(JAVA_HOME="C:\\Program Files\\Java\\jre1.8.0_101\\")
+
+options("java.home")
+options(java.home="C:\\Program Files\\Java\\jre1.8.0_101\\")
+
+###
+
