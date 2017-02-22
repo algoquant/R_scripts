@@ -1,6 +1,10 @@
 ##########################################
-### Information Functions  ###############
+### Contains functions under development
 ##########################################
+
+
+###############
+### Information Functions
 
 R.Version()
 update.packages(ask=FALSE, checkBuilt=TRUE)
@@ -17,9 +21,59 @@ stopifnot(
 
 
 
-################################################
-### operator overloading  #######
-################################################
+###############
+### Plotting
+
+# add this to package rutils
+chart_strategy <- function(x_ts, shad_ing=NULL, ...) {
+  # plot prices and VWAP
+  n_col <- NCOL(x_ts)
+  col_ors <- c("orange", "blue")
+  # plot with custom line colors
+  plot_theme <- chart_theme()
+  plot_theme$col$line.col <- col_ors[1:n_col]
+  ch_ob <- chart_Series(x=x_ts, theme=plot_theme, plot=FALSE, ...)
+  # if (n_col>1) {
+  #   for (col_umn in 2:n_col)
+  #     add_TA(x_ts[, col_umn], on=1, lwd=2, 
+  #            col=sample(c('blue', 'yellow', 'red'), 1))
+  # }  # end if
+  if (!is.null(shad_ing)) {
+    add_TA(shad_ing > 0, on=-1,
+           col="lightgreen", border="lightgreen")
+    add_TA(shad_ing < 0, on=-1,
+           col="lightgrey", border="lightgrey")
+  }  # end if
+  plot(ch_ob)
+  legend("top", legend=colnames(x_ts),
+         inset=0.1, bg="white", lty=rep(1, n_col), lwd=rep(2, n_col),
+         col=col_ors[1:n_col], bty="n")
+  invisible(ch_ob)  # return invisibly
+}  # end chart_strategy
+
+# chart_strategy <- function(price_s, shad_ing) {
+#   # plot prices and VWAP
+#   ch_ob <- chart_Series(x=price_s[, 1], name=colnames(price_s[, 1]), col='orange', plot=FALSE)
+#   if (NCOL(price_s)>1)
+#     add_TA(price_s[, 2], on=1, lwd=2, col='blue')
+#   add_TA(shad_ing > 0, on=-1,
+#          col="lightgreen", border="lightgreen")
+#   add_TA(shad_ing < 0, on=-1,
+#          col="lightgrey", border="lightgrey")
+#   plot(ch_ob)
+#   invisible(ch_ob)  # return invisibly
+# }  # end chart_strategy
+
+foo <- cbind(price_s-as.numeric(price_s[1, ]), pn_l)
+# foo <- foo - as.numeric(foo[1, ])
+x11()
+chart_strategy(foo, shad_ing=pos_ition, name="VTI plus VWAP strategy")
+
+
+
+
+###############
+### Operator overloading
 
 # overloading "+" operator
 # first define variables with explicit "character" class
@@ -47,9 +101,8 @@ char1 + char2
 
 
 
-################################################
-### operator overwriting  #######
-################################################
+###############
+### Operator overwriting
 
 ###  overwrite "+" operator
 # http://stackoverflow.com/questions/4730551/making-a-string-concatenation-operator-in-r
@@ -63,10 +116,8 @@ char1 + char2
 
 
 
-################################################
-### Functions under development  #######
-################################################
-
+###############
+### Functions under development
 
 ### check if variable exists in globalenv
 is_exist <- function(stringy) {
@@ -129,10 +180,8 @@ match_arg <- function(risk=c("sd", "ETL")) {
 
 
 
-################################################
-### Miscelaneous Data Loading Functions  #######
-################################################
-
+###############
+### Data loading functions
 
 ### Load CDS price and bid-offer ticks for a single symbol
 file.data <- "S:/Data/R_Data/Time_Series.RData"
@@ -515,9 +564,9 @@ lines(density(ts.rets[, 1]), col='red', lwd=2)  # draw density
 
 
 
-#############################################
-# bank account example (from Venables) demonstrates mutable states
-#############################################
+###############
+### Bank account example (from Venables) demonstrates mutable states
+
 # the formal argument 'balance' exists in the OpenAccount evaluation environment
 # this allows 'balance' to be persistent between function calls
 # the super-assignment operator '<<-' adjusts the balance
@@ -931,9 +980,8 @@ open_close <- function(oh_lc) {
 
 
 
-################################################
-### HF data aggregation and moment estimation  #
-################################################
+###############
+### HF data aggregation and moment estimation
 
 # compute beta coefficients from robust regressions
 my.lmr.beta <- function (object, classic=FALSE) {

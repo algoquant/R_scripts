@@ -1,5 +1,5 @@
 
-### WRDS data download tasks
+### Wharton Research Data Services WRDS data download tasks
 
 download CCM data from WRDS
 
@@ -8,6 +8,17 @@ install.packages(c("RJDBC", "", "", "", "", ""))
 # there are two WRDS packages, both using DBI
 https://github.com/wthielen/wrds
 devtools::install_github("wthielen/wrds")
+
+# Wharton Research Data Services (WRDS) incl CRSP, COMPUSTAT, NYSE Trade and Quote
+http://wrds-web.wharton.upenn.edu/wrds/
+https://wrds-web.wharton.upenn.edu/wrds/about/WRDS%20FAQs.cfm
+# WRDS tutorials
+https://wrds-web.wharton.upenn.edu/wrds/E-Learning/
+http://libguides.library.kent.edu/c.php?g=277981&p=1853494
+# Using R with WRDS
+https://wrds-web.wharton.upenn.edu/wrds/support/Accessing%20and%20Manipulating%20the%20Data/_007R%20Programming/_001Using%20R%20with%20WRDS.cfm
+https://wrds-web.wharton.upenn.edu/wrds/support/Accessing%20and%20Manipulating%20the%20Data/_010Encoding%20your%20WRDS%20Password.cfm
+
 
 # get fundamental data for stocks: but build fails "no such table: dow30CRSP"
 https://github.com/jaiganeshp/WRDS
