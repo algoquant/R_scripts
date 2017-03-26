@@ -7,11 +7,11 @@ simu_ewma <- function(oh_lc, lamb_da=0.05, win_dow=51) {
   # calculate EWMA prices
   weight_s <- exp(-lamb_da*1:win_dow)
   weight_s <- weight_s/sum(weight_s)
-  cl_ose <- Cl(oh_lc)
+  cl_ose <- quantmod::Cl(oh_lc)
   ew_ma <- filter(as.numeric(cl_ose), filter=weight_s, sides=1)
   ew_ma[1:(win_dow-1)] <- ew_ma[win_dow]
   # determine dates right after EWMA has crossed prices
-  in_dic <- xts(sign(as.numeric(cl_ose) - ew_ma), order.by=index(oh_lc))
+  in_dic <- xts::xts(sign(as.numeric(cl_ose) - ew_ma), order.by=index(oh_lc))
   trade_dates <- (rutils::diff_xts(in_dic) != 0)
   trade_dates <- which(trade_dates) + 1
   trade_dates <- trade_dates[trade_dates<NROW(oh_lc)]
@@ -19,8 +19,8 @@ simu_ewma <- function(oh_lc, lamb_da=0.05, win_dow=51) {
   po_sitions <- rep(NA_integer_, NROW(cl_ose))
   po_sitions[1] <- 0
   po_sitions[trade_dates] <- rutils::lag_xts(in_dic)[trade_dates]
-  po_sitions <- xts(na.locf(po_sitions), order.by=index(oh_lc))
-  op_en <- Op(oh_lc)
+  po_sitions <- xts::xts(na.locf(po_sitions), order.by=index(oh_lc))
+  op_en <- quantmod::Op(oh_lc)
   prices_lag <- rutils::lag_xts(cl_ose)
   position_lagged <- rutils::lag_xts(po_sitions)
   # calculate daily profits and losses
@@ -83,8 +83,7 @@ simu_ewma2 <- function(oh_lc, lambda_1=0.25, lambda_2=0.05, win_dow=51) {
 agg_regate <- function(oh_lc, lamb_das, ...) {
   sapply(lamb_das, function(lamb_da) {
     # simulate EWMA strategy and calculate Sharpe ratio
-    re_turns <- 
-      simu_ewma(oh_lc=oh_lc, lamb_da=lamb_da, ...)[, "re_turns"]
+    re_turns <- simu_ewma(oh_lc=oh_lc, lamb_da=lamb_da, ...)[, "re_turns"]
     sqrt(260)*sum(re_turns)/sd(re_turns)/NROW(re_turns)
   })  # end sapply
 }  # end agg_regate

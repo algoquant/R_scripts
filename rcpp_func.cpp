@@ -1,19 +1,19 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-// This is a simple example of exporting a C++ function to R. You can
-// source this function into an R session using the Rcpp::sourceCpp 
-// function (or via the Source button on the editor toolbar). Learn
-// more about Rcpp at:
+// This is a simple example of exporting a C++ function to R. 
+// You can source this function into an R session using the 
+// function Rcpp::sourceCpp() 
+// (or via the Source button on the editor toolbar).
+// Learn more about Rcpp at:
 //
 //   http://www.rcpp.org/
 //   http://adv-r.had.co.nz/Rcpp.html
 //   http://gallery.rcpp.org/
-//
 
-// Define timesTwo()
+// Define times_two()
 // [[Rcpp::export]]
-NumericVector timesTwo(NumericVector x) {
+NumericVector times_two(NumericVector x) {
   return x * 2;
 }
 
@@ -32,9 +32,9 @@ std::vector<double> logabs2(std::vector<double> x) {
 // run after the compilation.
 //
 
-// test timesTwo() in R
+// test times_two() in R
 /*** R
-timesTwo(42)
+times_two(42)
 */
 
 
