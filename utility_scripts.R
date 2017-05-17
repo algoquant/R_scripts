@@ -3,14 +3,17 @@
 ########################
 
 ###############
-### Get file names of all *.Rnw files in the cwd, except those that contain "FRE"
-file_names <- Sys.glob("*.Rnw")[-grep("FRE", Sys.glob("*.Rnw"))]
+### Get all file names with *.Rnw in the lecture_slides directory
+file_names <- Sys.glob("C:/Develop/R/lecture_slides/*.Rnw")
+# Get all *.Rnw files in the lecture_slides directory, except those that contain "FRE"
+file_names <- file_names[-grep("FRE", file_names)]
 
 
 
 ###############
 ### Render *.Rnw files into *.pdf files.
 # loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
+setwd("C:/Develop/R/lecture_slides")
 sapply(file_names, knitr::knit2pdf)
 
 

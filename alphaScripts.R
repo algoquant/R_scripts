@@ -207,10 +207,14 @@ chart_Series(x=season_rets,
              name=paste(colnames(season_rets), "intraday seasonality"))
 
 
-### volatility spikes
-vol_at <- run_variance(ohlc=SPY["2012/", 1:4])
+### spikes over running scaled variance
+oh_lc <- HighFreq::SPY["2009"]
+in_dex <- index(oh_lc)
+var_running <- 6.5*60^3*HighFreq::run_variance(oh_lc=oh_lc[, 1:4])
 # rolling vwav volatility
-var_rolling <- roll_moment(ohlc=SPY["2012/"], win_dow=20)
+var_rolling <- roll_vwap(oh_lc=oh_lc, x_ts=var_running, win_dow=21)
+# colnames(var_rolling) <- colnames(var_running)
+
 in_dex <- index(var_rolling)
 dim(var_rolling)
 head(var_rolling)
@@ -218,82 +222,102 @@ tail(var_rolling)
 plot(coredata(var_rolling), t="l")
 
 
-# plot histogram of volatility - similar to chi-squared distribution
+# plot histogram of volatility - similar to Chi-squared distribution
 library(PerformanceAnalytics)
-chart.Histogram(var_rolling, main="", xlab=colnames(var_rolling), 
-                xlim=c(0, 5e-6), 
-                methods=c("add.density"))
+PerformanceAnalytics::chart.Histogram(var_running, 
+  main="Distribution of running variance", 
+  xlab=colnames(var_running), xlim=range(var_running)/2, 
+  methods=c("add.density"))
 # add title
-title(main=paste(sym_bol, "vol"), line=-1)
-x_var <- seq(from=0, to=5e-6, by=1e-7)
+# title(main=paste(sym_bol, "vol"), line=-1)
+# add Chi-squared fit
+x_var <- seq(from=0, to=range(var_rolling)[2]/5, length.out=100)
 lines(x=x_var, y=50*NROW(var_rolling)*dchisq(11*x_var/mean(var_rolling), df=11), 
       xlab="", ylab="", lwd=1, col="blue")
 
 # identify periods around volatility spikes
-quantile(var_rolling, probs=c(0.9, 0.99))
-vol_spikes <- var_rolling[var_rolling>quantile(var_rolling, probs=0.99), ]
-class(vol_spikes)
-dim(vol_spikes)
-head(vol_spikes)
+var_running <- roll::roll_scale(data=var_running, width=30, min_obs=1)
+var_running[1, ] <- 0
+var_running <- var_running[in_dex, ]
+# var_running <- SPY_design[in_dex, "variance"]
+hist(var_running, breaks=200, main="var_running", xlab="", ylab="", freq=FALSE)
+quantile(var_running, probs=c(0.9, 0.99))
+vol_spikes <- var_running[var_running>quantile(var_running, probs=0.99), ]
+ma_tch <- match(index(vol_spikes), in_dex)
+# class(vol_spikes)
+# dim(vol_spikes)
+# head(vol_spikes)
+# index(tail(vol_spikes, 22))
+# foo <- unique(format(index(vol_spikes), format="%Y-%m-%d"))
+chart_Series(SPY[in_dex, 4], name=paste("SPY", "vol spikes"))
+abline(v=ma_tch, col="red", lwd=1)
+# chart_Series(SPY[foo[36]], name=paste("SPY", "vol spike"))
+# chart_Series(SPY["2009-11-04"], name=paste("SPY", "vol spike"))
 
-foo <- c(1, as.numeric(diff(index(vol_spikes))))
-foo <- c(1, which(foo>1), NROW(vol_spikes))
-NROW(foo)
-head(foo)
-tail(foo)
-plot(coredata(vol_spikes[(foo[3]-10):(foo[4]-1), ]), t="l")
-plot(coredata(vol_spikes[(foo[3]-10):(foo[3]+40), ]), t="l")
-which.max(vol_spikes[foo[3]:(foo[4]-1), ])
-vol_spike <- vol_spikes[foo[3]:(foo[4]-1), ]
-max(vol_spike)
-vol_spike[which.max(vol_spike)]
-blah <- which(in_dex==index(vol_spike[which.max(vol_spike)]))
-plot(coredata(var_rolling[(blah-10):(blah+30), ])/max(vol_spike), t="l")
+# foo <- c(1, as.numeric(diff(.index(vol_spikes))))
+# foo <- c(1, which(foo>60), NROW(vol_spikes))
+# NROW(foo)
+# head(foo)
+# tail(foo)
+# plot(coredata(vol_spikes[(foo[3]-10):(foo[3]+40), ]), t="l")
+# which.max(vol_spikes[foo[3]:(foo[4]-1), ])
+# vol_spike <- vol_spikes[foo[3]:(foo[4]-1), ]
+# max(vol_spike)
+# vol_spike[which.max(vol_spike)]
+# blah <- which(in_dex==index(vol_spike[which.max(vol_spike)]))
+# plot(coredata(var_rolling[(blah-10):(blah+30), ])/max(vol_spike), t="l")
 
+# legacy scripts - which I don't understand
 # aggregate over periods around volatility spikes
-vol_peaks <- lapply(1:(NROW(foo)-1), function(i_ter) {
-  vol_spike <- vol_spikes[foo[i_ter]:(foo[i_ter+1]-1), ]
-  vol_spike[which.max(vol_spike)]
-})  # end lapply
-vol_peaks <- do.call(rbind, vol_peaks)
-class(vol_peaks)
-NROW(vol_peaks)
-head(vol_peaks)
-which(in_dex==index(first(vol_peaks)))
+# vol_peaks <- lapply(1:(NROW(foo)-1), function(i_ter) {
+#   vol_spike <- vol_spikes[foo[i_ter]:(foo[i_ter+1]-1), ]
+#   vol_spike[which.max(vol_spike)]
+# })  # end lapply
+# vol_peaks <- rutils::do_call(rbind, vol_peaks)
+# class(vol_peaks)
+# NROW(vol_peaks)
+# head(vol_peaks)
+# which(in_dex==index(first(vol_peaks)))
 
-get_vol_peak_data <- function(vol_peak) {
-  which_peak <- which(in_dex==index(vol_peak))
-  coredata(var_rolling[(which_peak-10):(which_peak+30), ])/as.numeric(vol_peak)
-}  # end get_vol_peak_data
-get_vol_peak_data(first(vol_peaks))
-get_vol_peak_data(vol_peaks[3])
-get_vol_peak_data(last(vol_peaks))
-debug(get_vol_peak_data)
+# legacy scripts - which I don't understand
+# get_vol_peak_data <- function(vol_peak) {
+#   which_peak <- which(in_dex==index(vol_peak))
+#   coredata(var_rolling[(which_peak-10):(which_peak+30), ])/as.numeric(vol_peak)
+# }  # end get_vol_peak_data
+# get_vol_peak_data(first(vol_peaks))
+# get_vol_peak_data(vol_peaks[3])
+# get_vol_peak_data(last(vol_peaks))
+# debug(get_vol_peak_data)
+# vol_profiles <- sapply(1:3, function(i_ter) get_vol_peak_data(vol_peaks[i_ter, ]))
 
-vol_profiles <- sapply(1:3, function(i_ter) get_vol_peak_data(vol_peaks[i_ter, ]))
-
-# calcuate volatility around peak volatility
-vol_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
-  which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
-  coredata(var_rolling[(which_peak-200):(which_peak+300), ])/as.numeric(vol_peaks[i_ter, ])
+# calcuate volatility profiles around volatility peaks
+# old version
+# vol_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
+#   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
+#   coredata(var_rolling[(which_peak-200):(which_peak+300), ])/as.numeric(vol_peaks[i_ter, ])
+# })  # end sapply
+vol_profiles <- sapply(ma_tch[-((NROW(ma_tch)-40):NROW(ma_tch))], function(pea_k) {
+  coredata(var_running[(pea_k-2):(pea_k+10), ])#/as.numeric(var_running[pea_k, ])
 })  # end sapply
-class(vol_profiles)
-dim(vol_profiles)
-blah <- rowMeans(vol_profiles)
-plot(blah, t="l")
+# class(vol_profiles)
+# dim(vol_profiles)
+vol_profiles <- rowMeans(vol_profiles)
+plot(vol_profiles, t="l")
 
-# calcuate returns around peak volatility
-price_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
-  which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
-  core_data <- coredata(SPY["2012/", 4][(which_peak-200):(which_peak+300)])
-  core_data/max(core_data)
+# calcuate price profiles around peak volatility
+# old version
+# price_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
+#   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
+#   core_data <- coredata(SPY["2009", 4][(which_peak-200):(which_peak+300)])
+#   core_data/max(core_data)
+# })  # end sapply
+
+price_profiles <- sapply(ma_tch[-((NROW(ma_tch)-250):NROW(ma_tch))], function(pea_k) {
+  coredata(oh_lc[(pea_k-2):(pea_k+200), 4])/as.numeric(oh_lc[pea_k, 4])
 })  # end sapply
-class(price_profiles)
-dim(price_profiles)
-blah <- rowMeans(price_profiles)
-plot(blah, t="l")
-hurst_exp(blah)
-hurst_exp(blah, 22)
+price_profiles <- rowMeans(price_profiles)
+plot(price_profiles, t="l")
+
 
 foo_bar <- apply(X=price_profiles, MARGIN=2, hurst_exp)
 class(foo_bar)
@@ -311,7 +335,7 @@ hurst_exp <- function(da_ta) {
 }  # end hurst_exp
 # calculate Hurst exponent using range for xts ohlc
 hurst_exp <- function(da_ta) {
-  (max(Hi(da_ta)) - min(Lo(da_ta)))/(max(Hi(da_ta)) + min(Lo(da_ta)))/sum(run_variance(ohlc=da_ta[, 1:4]))/sqrt(NROW(da_ta))/2
+  (max(Hi(da_ta)) - min(Lo(da_ta)))/(max(Hi(da_ta)) + min(Lo(da_ta)))/sum(6.5*60^3*HighFreq::run_variance(oh_lc=da_ta[, 1:4]))/sqrt(NROW(da_ta))/2
 }  # end hurst_exp
 # calculate Hurst exponent using range for non-xts
 hurst_exp <- function(da_ta) {
@@ -322,9 +346,9 @@ hurst_exp <- function(da_ta, l_ag=4) {
   len_gth <- NROW(da_ta)
   var(da_ta[-(1:l_ag)]-da_ta[-((len_gth-l_ag+1):len_gth)])/var(da_ta[-1]-da_ta[-len_gth])/l_ag
 }  # end hurst_exp
-hurst_exp(coredata(SPY["2012/", 4]))
-hurst_exp(coredata(SPY["2012/", 4]), l_ag=10)
-blah <- rnorm(NROW(SPY["2012/", 4]))
+hurst_exp(coredata(SPY["2009", 4]))
+hurst_exp(coredata(SPY["2009", 4]), l_ag=10)
+blah <- rnorm(NROW(SPY["2009", 4]))
 head(blah)
 hurst_exp(cumsum(blah))
 hurst_exp(cumsum(blah+c(0, 0.5*blah[-NROW(blah)])))
@@ -344,7 +368,7 @@ plot(volumes_yearly, t="l", xaxt="n", xlab=NA, ylab=NA)
 axis(side=1, at=seq_along(volumes_yearly),
      labels=names(volumes_yearly))
 # sum up skew and volat for each year
-sapply(ye_ars, function(ye_ar) sum(vol_at[ye_ar]))
+sapply(ye_ars, function(ye_ar) sum(var_running[ye_ar]))
 sapply(ye_ars, function(ye_ar) sum(sk_ew[ye_ar]))
 foo <- sapply(ye_ars, function(ye_ar) sum(Vo(SPY)[ye_ar]))
 foo <- format(index(daily_skew[which.max(daily_skew)]), "%Y-%m-%d")
@@ -383,14 +407,13 @@ bar <- bar[!blah, ]
 ### returns
 
 # lag_rets equals returns lagged by -1
-re_turns <- run_returns(x_ts=SPY)
+re_turns <- 6.5*60^2*HighFreq::run_returns(x_ts=SPY)
 lag_rets <- re_turns
 lag_rets <- c(lag_rets[-1, ], lag_rets[NROW(lag_rets)])
 tail(lag_rets)
 
-sk_ew <- run_skew(ohlc=SPY)
-colnames(sk_ew) <- 
-  paste(sym_bol, "skew", sep=".")
+sk_ew <- 6.5*60^4*HighFreq::run_skew(oh_lc=SPY)
+colnames(sk_ew) <- paste(sym_bol, "skew", sep=".")
 lag_skew <- lag(sk_ew)
 
 
@@ -533,7 +556,7 @@ position_s <-
            xts(x=predict(l_m, newdata=as.data.frame(da_ta)), order.by=index(da_ta))
          }  # end anon function
   )  # end lapply
-position_s <- do.call(rbind, position_s)
+position_s <- rutils::do_call(rbind, position_s)
 chart_Series(position_s, name=paste(sym_bol, "optim_rets"))
 
 cumu_pnl <- cumsum(sign(position_s)*re_turns[index(position_s), 1])
@@ -692,15 +715,15 @@ chart_Series(x=oh_lc["2015-01-01 01:00:00/2015-01-01 05:00:00"],
              name="OHLC candlechart")
 
 # rolling volatility
-vol_at <- roll_moment(ohlc=oh_lc, win_dow=1000, weight_ed=FALSE)
-head(vol_at)
-tail(vol_at)
+var_running <- roll_vwap(oh_lc=oh_lc, x_ts=6.5*60^3*HighFreq::run_variance(oh_lc=oh_lc), win_dow=1000)
+head(var_running)
+tail(var_running)
 # rolling skew
-sk_ew <- roll_moment(ohlc=oh_lc, mo_ment="run_skew", win_dow=1000, weight_ed=FALSE)
-sk_ew <- sk_ew/(vol_at)^(1.5)
+sk_ew <- roll_vwap(oh_lc=oh_lc, x_ts=6.5*60^4*HighFreq::run_skew(oh_lc=oh_lc), win_dow=1000)
+sk_ew <- sk_ew/(var_running)^(1.5)
 sk_ew[1, ] <- 0
 sk_ew <- na.locf(sk_ew)
-chart_Series(x=vol_at, name="volatility")
+chart_Series(x=var_running, name="volatility")
 chart_Series(x=sk_ew, name="skew")
 
 
@@ -739,7 +762,7 @@ bar <- lapply(3:NROW(end_points),
               }  # end anon function
 )  # end lapply
 
-bar <- do.call(rbind, bar)
+bar <- rutils::do_call(rbind, bar)
 
 plot(cumsum(bar), t="l")
 
@@ -846,257 +869,4 @@ summary(microbenchmark(
                   width=22)$coefficients, 
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
-
-### load SPY_design design matrix 
-
-# load design matrix called SPY_design containing columns of aggregations
-load("C:/Develop/data/SPY_design.RData")
-head(SPY_design)
-
-# create advanced returns
-returns_running <- run_returns(x_ts=SPY)
-returns_advanced <- rutils::lag_xts(returns_running, k=-1)
-colnames(returns_advanced) <- "returns_advanced"
-tail(cbind(returns_advanced, returns_running))
-
-
-### SPY_design correlation and PCA analysis
-
-# apply rolling centering and scaling to design matrix
-library(roll)
-SPY_design <- roll::roll_scale(data=SPY_design, width=6.5*60, min_obs=1)
-# remove NAs
-core_data <- coredata(SPY_design)
-core_data[is.na(core_data)] <- 0
-SPY_design <- xts(x=core_data, order.by=index(SPY_design))
-sum(is.na(SPY_design))
-
-# calculate correlation matrix
-corr_matrix <- cor(SPY_design)
-colnames(corr_matrix) <- colnames(SPY_design)
-rownames(corr_matrix) <- colnames(SPY_design)
-# Reorder the correlation matrix based on clusters
-# Calculate permutation vector
-library(corrplot)
-corr_order <- corrMatOrder(corr_matrix, 
-                           order="hclust", 
-                           hclust.method="complete")
-# Apply permutation vector
-corr_matrix_ordered <- corr_matrix[corr_order, corr_order]
-# Plot the correlation matrix
-col3 <- colorRampPalette(c("red", "white", "blue"))
-corrplot(corr_matrix_ordered, 
-         tl.col="black", tl.cex=0.8, 
-         method="square", col=col3(8), 
-         cl.offset=0.75, cl.cex=0.7, 
-         cl.align.text="l", cl.ratio=0.25)
-# Draw rectangles on the correlation matrix plot
-corrRect.hclust(corr_matrix_ordered, 
-                k=NCOL(corr_matrix_ordered), 
-                method="complete", col="red")
-
-# draw dendrogram of correlation matrix
-# convert correlation matrix into distance object
-data_dist <- as.dist(1-corr_matrix_ordered)
-# Perform hierarchical clustering analysis
-data_cluster <- hclust(data_dist)
-plot(data_cluster, ann=FALSE, xlab="", ylab="")
-title("Dissimilarity = 1-Correlation", line=-0.5)
-
-
-### rolling regressions over SPY_design using package roll
-
-# perform rolling forecasting regressions in parallel
-rolling_betas <- roll::roll_lm(x=SPY_design["2011/2012", ], 
-                  y=returns_advanced["2011/2012", ],
-                  width=6.5*60, min_obs=1)
-rolling_betas$coefficients[1, ] <- 0
-sum(is.na(rolling_betas$coefficients))
-head(rolling_betas$coefficients)
-tail(rolling_betas$coefficients["2012-11-12"])
-tail(rolling_betas$r.squared["2012-11-12"])
-chart_Series(x=rolling_betas$r.squared["2012-11-12"], name="R-squared for rolling betas")
-
-# calculate intraday seasonality of R2
-# remove first day containing warmup
-in_dex <- "2011-01-03" == format(index(rolling_betas$r.squared), "%Y-%m-%d")
-r2_seasonal <- season_ality(rolling_betas$r.squared[!in_dex])
-colnames(r2_seasonal) <- "R-squared seasonality"
-chart_Series(x=r2_seasonal, name="R-squared seasonality")
-
-# plot coefficients with custom line colors
-plot_theme <- chart_theme()
-plot_theme$col$line.col <- rainbow(NCOL(rolling_betas$coefficients))
-chart_Series(x=rolling_betas$coefficients["2012-11-12"], 
-             theme=plot_theme, 
-             name="coefficients for rolling betas")
-legend("bottom", legend=colnames(rolling_betas$coefficients["2012-11-12"]), 
-       bg="white", lty=c(1, 1), lwd=c(2, 2), 
-       col=plot_theme$col$line.col, bty="n")
-
-
-### rolling principal component regressions (PCR) over SPY_design using package roll
-
-# perform rolling forecasting PCR regressions in parallel
-# use only the first principal component argument "comps"
-rolling_betas <- roll::roll_pcr(x=SPY_design["2011/2012", ], 
-                         y=returns_advanced["2011/2012", ],
-                         width=1*60, comps=1:1, min_obs=1)
-rolling_betas$coefficients[1, ] <- 0
-sum(is.na(rolling_betas$coefficients))
-head(rolling_betas$coefficients)
-tail(rolling_betas$coefficients["2012-11-12"])
-tail(rolling_betas$r.squared["2012-11-12"])
-chart_Series(x=rolling_betas$r.squared["2012-11-12"], name="R-squared for rolling betas")
-
-# calculate intraday seasonality of R2
-# remove first day containing warmup
-in_dex <- "2011-01-03" == format(index(rolling_betas$r.squared), "%Y-%m-%d")
-r2_seasonal <- season_ality(rolling_betas$r.squared[!in_dex])
-colnames(r2_seasonal) <- "R-squared seasonality"
-chart_Series(x=r2_seasonal, name="R-squared seasonality")
-
-# plot coefficients with custom line colors
-plot_theme <- chart_theme()
-plot_theme$col$line.col <- rainbow(NCOL(rolling_betas$coefficients))
-chart_Series(x=rolling_betas$coefficients["2012-11-12"], 
-             theme=plot_theme, 
-             name="coefficients for rolling betas")
-legend("bottom", legend=colnames(rolling_betas$coefficients["2012-11-12"]), 
-       bg="white", lty=c(1, 1), lwd=c(2, 2), 
-       col=plot_theme$col$line.col, bty="n")
-
-
-### calculate forecasts of returns
-
-library(matrixStats)
-
-# forecast the returns from today's factors times the lagged betas
-betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
-returns_forecast <- rowSums(betas_lagged[, -1]*SPY_design[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
-tail(returns_forecast)
-
-forecast_lm <- lm(returns_advanced[index(returns_forecast)] ~ returns_forecast)
-summary(forecast_lm)
-x11()
-# scatterplot
-plot(coredata(returns_advanced[index(returns_forecast)]), coredata(returns_forecast))
-
-# cumulative returns_backtest: invest proportional to returns_forecast
-returns_backtest <- cumsum(returns_forecast * returns_advanced[index(returns_forecast)])
-chart_Series(x=-returns_backtest, name="cumulative returns")
-chart_Series(x=-returns_backtest["2011-08-07/2011-08-12"], name="cumulative returns")
-chart_Series(x=SPY["2011-08-07/2011-08-12", 1], name="cumulative returns")
-
-bar <- returns_advanced[index(returns_forecast)] * returns_forecast
-foo <- which.max(-bar)
-chart_Series(x=bar[(foo-10):(foo+10), ], name="cumulative returns")
-
-chart_Series(x=cumsum(returns_running[(foo-1000):(foo+1000), ]), name="cumulative returns")
-
-
-
-### test for data snooping in PCR using random data
-
-# create time index of one second intervals
-in_dex <- seq(from=as.POSIXct("2016-01-01 00:00:00"),
-              to=as.POSIXct("2016-01-30 00:00:00"), by="1 sec")
-
-# perform one random PCR simulation using function run_random_pcr()
-run_random_pcr(in_dex)
-
-# perform 100 random PCR simulations
-pnl_s <- sapply(1:100, function(x, in_dex) run_random_pcr(in_dex), in_dex=in_dex)
-hist(pnl_s, breaks="FD", xlim=c(-5e4, 5e4), main="distribution of Pnl's")
-
-# perform a random PCR and return the Pnl
-run_random_pcr <- function(in_dex) {
-  x_ts <- xts(exp(cumsum(rnorm(NROW(in_dex), sd=0.001))), order.by=in_dex)
-  oh_lc <- xts::to.period(x=x_ts, period="minutes", name="random")
-  oh_lc <- cbind(oh_lc, sample(x=10*(2:18), size=NROW(oh_lc), replace=TRUE))
-  colnames(oh_lc)[ 5] <- "random.volume"
-  returns_running <- run_returns(x_ts=oh_lc)
-  returns_advanced <- rutils::lag_xts(returns_running, k=-1)
-  returns_rolling <- roll_vwap(oh_lc=oh_lc, x_ts=returns_running, win_dow=win_dow)
-  var_running <- run_variance(oh_lc=oh_lc)
-  skew_running <- run_skew(oh_lc=oh_lc)
-  hurst_rolling <- roll_hurst(oh_lc=oh_lc, win_dow=win_dow)
-  design_matrix <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
-  design_matrix <- roll::roll_scale(data=design_matrix, width=60, min_obs=1)
-  core_data <- coredata(design_matrix)
-  core_data[is.na(core_data)] <- 0
-  design_matrix <- xts(x=core_data, order.by=index(design_matrix))
-  rolling_betas <- roll::roll_pcr(x=design_matrix, y=returns_advanced, width=1*60, comps=1:1, min_obs=1)
-  rolling_betas$coefficients[1, ] <- 0
-  betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
-  returns_forecast <- rowSums(betas_lagged[, -1]*design_matrix[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
-  sum(returns_forecast * returns_advanced[index(returns_forecast)])
-}  # end run_random_pcr
-
-
-# create xts of random prices
-x_ts <- xts(exp(cumsum(rnorm(NROW(in_dex), sd=0.001))), order.by=in_dex)
-colnames(x_ts) <- "random"
-# chart_Series(x=x_ts["2016-01-10 09/2016-01-10 10"], name="random prices")
-# aggregate to minutes OHLC data
-oh_lc <- xts::to.period(x=x_ts, period="minutes", name="random")
-# chart_Series(x=oh_lc["2016-01-10"], name="random OHLC prices")
-# add volume
-oh_lc <- cbind(oh_lc, sample(x=10*(2:18), size=NROW(oh_lc), replace=TRUE))
-colnames(oh_lc)[ 5] <- "random.volume"
-# tail(oh_lc)
-
-# create SPY_design
-SPY <- oh_lc
-returns_running <- run_returns(x_ts=SPY)
-returns_advanced <- rutils::lag_xts(returns_running, k=-1)
-colnames(returns_advanced) <- "returns_advanced"
-returns_rolling <- roll_vwap(oh_lc=SPY, x_ts=returns_running, win_dow=win_dow)
-colnames(returns_running) <- "returns"
-colnames(returns_rolling) <- "returns.WA5"
-var_running <- run_variance(oh_lc=SPY)
-colnames(var_running) <- "variance"
-skew_running <- run_skew(oh_lc=SPY)
-colnames(skew_running) <- "skew"
-hurst_rolling <- roll_hurst(oh_lc=SPY, win_dow=win_dow)
-colnames(hurst_rolling) <- "hurst"
-SPY_design <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
-colnames(SPY_design) <- c(colnames(SPY_design)[1:5], "rets_var", "rets_skew")
-
-# scale SPY_design
-SPY_design <- roll::roll_scale(data=SPY_design, width=60, min_obs=1)
-core_data <- coredata(SPY_design)
-core_data[is.na(core_data)] <- 0
-SPY_design <- xts(x=core_data, order.by=index(SPY_design))
-
-# perform PCR
-rolling_betas <- roll_pcr(x=SPY_design, y=returns_advanced, width=1*60, comps=1:1, min_obs=1)
-rolling_betas$coefficients[1, ] <- 0
-betas_lagged <- rutils::lag_xts(rolling_betas$coefficients)
-returns_forecast <- rowSums(betas_lagged[, -1]*SPY_design[index(rolling_betas$coefficients)]) + betas_lagged[, 1]
-
-# forecast_lm <- lm(returns_advanced[index(returns_forecast)] ~ returns_forecast)
-# summary(forecast_lm)
-
-returns_backtest <- cumsum(returns_forecast * returns_advanced[index(returns_forecast)])
-chart_Series(x=-returns_backtest, name="cumulative returns")
-
-
-
-### rollSFM (rolling single-factor model) function to TTR
-
-# rolling regression over time index
-reg <- rollSFM(demo.xts, .index(demo.xts), 24)
-rma <- reg$alpha + reg$beta*.index(demo.xts)
-chart_Series(demo.xts, TA="add_TA(rma,on=1)")
-
-
-
-###  Forecastable Component Analysis
-library(ForeCA)
-ret <- ts(diff(log(EuStockMarkets)) * 100) 
-mod <- foreca(ret, spectrum.control=list(method="wosa"))
-mod
-summary(mod)
-plot(mod)
 
