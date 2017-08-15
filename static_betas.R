@@ -92,7 +92,7 @@ options(max.print=40)
 oh_lc <- HighFreq::SPY["/2008-03"]
 oh_lc <- HighFreq::SPY["/2008"]
 oh_lc <- HighFreq::SPY["2009-03"]
-oh_lc <- HighFreq::SPY["2009-03-12"]
+oh_lc <- HighFreq::SPY["2010-05-06"]
 # define calibration range
 ran_ge <- match(index(oh_lc), index(SPY_design))
 in_dex <- index(oh_lc)
@@ -525,7 +525,7 @@ bu_y <- xts(SPY_design %*% beta_s[1:NCOL(SPY_design)], order.by=index(SPY_design
 se_ll <- xts(SPY_design %*% beta_s[(NCOL(SPY_design)+1):(2*NCOL(SPY_design))], order.by=index(SPY_design))
 # position_s[se_ll > 1] <- -1.0
 
-ran_ge <- "2009-03-10/2009-03-12"
+ran_ge <- "2010-05-05/2010-05-07"
 ran_ge <- match(index(SPY_design[ran_ge]), index(SPY_design))
 back_test <- cbind(exp(cumsum(returns_running[ran_ge]))-1, 
                    exp(cumsum(position_s[ran_ge]*returns_running[ran_ge]))-1)
@@ -625,7 +625,7 @@ legend("topleft", legend=colnames(back_test),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
        col=plot_theme$col$line.col, bty="n")
 
-dates <- "2011-08-20/2011-08-24"
+dates <- "2010-05-05/2010-05-07"
 foo <- back_test[dates]
 # foo <- sapply(foo, function(x) {x - as.numeric(x[1])})
 foo[, 1] <- foo[, 1] - as.numeric(foo[1, 1])

@@ -14,6 +14,7 @@ options(max.print=80)
 # suppress spurious timezone warning messages
 options(xts_check_TZ=FALSE)
 
+library(HighFreq)
 library(TTR)
 
 
@@ -33,8 +34,8 @@ identical(x_ts, do_call_rbind(list_xts))
 sym_bol <- load("C:/Develop/data/SPY.RData")
 
 # plot average hourly trading volumes
-price_s <- Vo(SPY["2012-02-01/2012-02-25"])
-vol_ume <- period.apply(
+price_s <- Vo(SPY["2010-05-05/2010-05-07"])
+var_running <- period.apply(
   x=price_s, 
   INDEX=endpoints(price_s, "hours"), 
   sum)
@@ -60,7 +61,7 @@ agg_regate(price_s)
 # apply_rolling() and apply_xts() are legacy functions from utilLib.R
 
 # extract closing prices for a single day of data
-price_s <- Cl(SPY["2012-02-13"])
+price_s <- Cl(SPY["2010-05-06"])
 
 end_points <- endpoints(price_s, "hours")
 agg_regations <- period.apply(x=price_s, 
@@ -192,6 +193,82 @@ hist(re_turns, breaks=100, main="returns", xlim=c(-2.0e-4, 2.0e-4), ylim=c(0, 10
 lines(density(re_turns), col='red', lwd=1)  # draw density
 
 
+### calculate daily Open and Close prices from daily OHLC data
+# quantmod::getSymbols("SPY", adjust=TRUE)
+op_en <- SPY[, 1]
+tail(op_en)
+cl_ose <- SPY[, 4]
+tail(cl_ose)
+
+
+### calculate daily price profiles after overnight gaps
+
+# calculate daily Open and Close prices from high frequency data
+end_days <- endpoints(HighFreq::SPY, "days")[-1]
+start_days <- rutils::lag_it(end_days)+1
+cl_ose <- HighFreq::SPY[end_days, 4]
+index(cl_ose) <- lubridate::floor_date(index(cl_ose), "day")
+# index(cl_ose) <- as.POSIXct(trunc(index(cl_ose), "day"))
+# index(cl_ose) <- as.POSIXct(format(index(cl_ose), format="%Y-%m-%d"))
+tail(cl_ose)
+op_en <- HighFreq::SPY[start_days, 4]
+index(op_en) <- lubridate::floor_date(index(op_en), "day")
+tail(op_en)
+# calculate daily overnight and intraday returns
+close_rets <- (cl_ose - rutils::lag_xts(op_en)) / rutils::lag_xts(op_en)
+open_rets <- (op_en - rutils::lag_xts(op_en)) / rutils::lag_xts(op_en)
+over_night <- (op_en - rutils::lag_xts(cl_ose)) / rutils::lag_xts(cl_ose)
+intra_day <- (cl_ose - op_en) / op_en
+plot.zoo(x=over_night, y=intra_day, main="intra_day versus over_night")
+plot.zoo(x=over_night[over_night<(-0.02)], y=intra_day[over_night<(-0.02)], main="intra_day versus over_night")
+mo_del <- lm(intra_day[over_night<(-0.02)] ~ over_night[over_night<(-0.02)])
+summary(mo_del)
+plot.zoo(exp(cumsum(intra_day)), t="l", main="intra_day", ylab="")
+plot.zoo(exp(cumsum(over_night)), t="l", main="over_night", ylab="")
+plot.zoo(exp(cumsum(over_night-intra_day)), t="l")
+hist(over_night, breaks=30, main="over_night", xlab="", ylab="", xlim=c(-0.02, 0.02), freq=TRUE)
+
+# calculate daily intraday volatilities
+var_daily <- (6.5*60*60^2)*period.apply(x=HighFreq::SPY, INDEX=end_days, HighFreq::calc_variance)
+index(var_daily) <- lubridate::floor_date(index(var_daily), "day")
+chart_Series(var_daily["2013/"], name="daily intraday volatilities")
+
+# calculate ratio of overnight return divided by yesterday's intraday volatily
+over_night <- over_night/rutils::lag_xts(var_daily)
+
+# calculate a list of daily endpoints
+end_points <- lapply(seq_along(end_days), function(da_y) {
+  start_days[da_y]:end_days[da_y]
+})  # end lapply
+names(end_points) <- index(cl_ose)
+# calculate daily price profiles
+price_profiles <- lapply(end_points, function(end_point) {
+  da_ta <- as.numeric(HighFreq::SPY[end_point, 4])
+  da_ta / da_ta[1]
+})  # end lapply
+# price_profiles <- lapply(seq_along(end_days), function(da_y) {
+#   da_ta <- as.numeric(HighFreq::SPY[start_days[da_y]:end_days[da_y], 4])
+#   da_ta / da_ta[1]
+# })  # end lapply
+plot(price_profiles[["2010-05-05/2010-05-07"]], t="l", ylab="")
+
+# run simple contrarian strategies
+foo <- -as.numeric(over_night<(-0.01))* intra_day
+foo <- -as.numeric(rutils::lag_xts(over_night)<(-0.01))* open_rets
+foo <- -sign(rutils::lag_xts(over_night))* open_rets
+foo <- -sign(rutils::lag_xts(over_night))* close_rets
+foo <- exp(cumsum(foo))
+plot.zoo(foo, t="l", main="simple contrarian strategy", ylab="")
+
+
+# price_profiles <- rowMeans(price_profiles)
+# plot(price_profiles, t="l")
+
+
+# calculate daily price profiles after overnight gaps
+
+
+
 ### calculate intraday seasonality of returns
 re_turns <- diff(log(Cl(SPY)))/c(1, diff(.index(SPY)))
 re_turns <- diff(Cl(SPY))/c(1, diff(.index(SPY)))
@@ -202,7 +279,7 @@ sum(is.na(re_turns))
 in_dex <- format(index(re_turns), "%H:%M")
 re_turns <- re_turns[!in_dex=="09:31", ]
 # calculate intraday seasonality of returns
-season_rets <- season_ality(x_ts=re_turns)
+season_rets <- HighFreq::season_ality(x_ts=re_turns)
 chart_Series(x=season_rets, 
              name=paste(colnames(season_rets), "intraday seasonality"))
 
@@ -252,7 +329,7 @@ ma_tch <- match(index(vol_spikes), in_dex)
 chart_Series(SPY[in_dex, 4], name=paste("SPY", "vol spikes"))
 abline(v=ma_tch, col="red", lwd=1)
 # chart_Series(SPY[foo[36]], name=paste("SPY", "vol spike"))
-# chart_Series(SPY["2009-11-04"], name=paste("SPY", "vol spike"))
+# chart_Series(SPY["2010-05-05/2010-05-07"], name=paste("SPY", "vol spike"))
 
 # foo <- c(1, as.numeric(diff(.index(vol_spikes))))
 # foo <- c(1, which(foo>60), NROW(vol_spikes))
@@ -289,8 +366,9 @@ abline(v=ma_tch, col="red", lwd=1)
 # get_vol_peak_data(last(vol_peaks))
 # debug(get_vol_peak_data)
 # vol_profiles <- sapply(1:3, function(i_ter) get_vol_peak_data(vol_peaks[i_ter, ]))
+# end legacy scripts
 
-# calcuate volatility profiles around volatility peaks
+# calculate volatility profiles around volatility peaks
 # old version
 # vol_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
 #   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
@@ -304,7 +382,7 @@ vol_profiles <- sapply(ma_tch[-((NROW(ma_tch)-40):NROW(ma_tch))], function(pea_k
 vol_profiles <- rowMeans(vol_profiles)
 plot(vol_profiles, t="l")
 
-# calcuate price profiles around peak volatility
+# calculate price profiles around peak volatility
 # old version
 # price_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
 #   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
@@ -388,7 +466,7 @@ colnames(daily_rets) <- paste(sym_bol, "rets", sep=".")
 head(daily_rets)
 tail(daily_rets)
 
-date_s <- "2008-09/2009-05"
+date_s <- "2010-05-05/2010-05-07"
 # daily_rets and sk_ew
 bar <- cbind(coredata(daily_rets), coredata(daily_skew))
 # daily_rets and lagged sk_ew
@@ -407,10 +485,11 @@ bar <- bar[!blah, ]
 ### returns
 
 # lag_rets equals returns lagged by -1
-re_turns <- 6.5*60^2*HighFreq::run_returns(x_ts=SPY)
-lag_rets <- re_turns
-lag_rets <- c(lag_rets[-1, ], lag_rets[NROW(lag_rets)])
+re_turns <- 6.5*60^2*HighFreq::run_returns(x_ts=HighFreq::SPY, sca_le=FALSE)
+lag_rets <- rutils::lag_xts(returns_running)
+# lag_rets <- c(lag_rets[-1, ], lag_rets[NROW(lag_rets)])
 tail(lag_rets)
+returns_advanced <- rutils::lag_xts(returns_running, k=-1)
 
 sk_ew <- 6.5*60^4*HighFreq::run_skew(oh_lc=SPY)
 colnames(sk_ew) <- paste(sym_bol, "skew", sep=".")
@@ -517,13 +596,13 @@ l_m <- lm(for_mula, data=as.data.frame(reg_data))
 l_m <- lm(for_mula, data=as.data.frame(reg_data["2011-01-01/"]))
 l_m <- lm(for_mula, data=as.data.frame(reg_data["/2011-01-01"]))
 lm_summ <- summary(l_m)
-l_m <- lm(for_mula, data=as.data.frame(reg_data["2013-02-04/2013-03-05"]))
+l_m <- lm(for_mula, data=as.data.frame(reg_data["2010-05-05/2010-05-07"]))
 lm_summ <- summary(l_m)
-lm_predict <- predict(l_m, newdata=as.data.frame(reg_data["2013-03-06"]))
-foo <- data.frame(sign(lm_predict), coredata(reg_data["2013-03-06", 1]))
+lm_predict <- predict(l_m, newdata=as.data.frame(reg_data["2010-05-06"]))
+foo <- data.frame(sign(lm_predict), coredata(reg_data["2010-05-06", 1]))
 colnames(foo) <- c("lm_pred", "realized")
 table(foo)
-cumu_pnl <- cumsum(sign(lm_predict)*re_turns["2013-03-06", 1])
+cumu_pnl <- cumsum(sign(lm_predict)*re_turns["2010-05-06", 1])
 last(cumu_pnl)
 chart_Series(cumu_pnl, name=paste(sym_bol, "optim_rets"))
 
@@ -575,9 +654,9 @@ summary(g_lm)
 ### lda
 l_da <- lda(for_mula, data=as.data.frame(reg_data))
 summary(l_da)
-l_da <- lda(for_mula, data=as.data.frame(reg_data["2013-02-04/2013-03-05"]))
-lda_predict <- predict(l_da, newdata=as.data.frame(reg_data["2013-03-06"]))
-foo <- data.frame(lda_predict$class, coredata(reg_data["2013-03-06", 1]))
+l_da <- lda(for_mula, data=as.data.frame(reg_data["2010-05-05/2010-05-07"]))
+lda_predict <- predict(l_da, newdata=as.data.frame(reg_data["2010-05-06"]))
+foo <- data.frame(lda_predict$class, coredata(reg_data["2010-05-06", 1]))
 colnames(foo) <- c("lda_pred", "realized")
 table(foo)
 
@@ -585,17 +664,17 @@ table(foo)
 ### qda
 q_da <- qda(for_mula, data=as.data.frame(reg_data))
 summary(q_da)
-date_s <- "2013-02-04/2013-02-06"
-q_da <- qda(for_mula, data=as.data.frame(reg_data["2013-02-04/2013-03-05"]))
+date_s <- "2010-05-05/2010-05-07"
+q_da <- qda(for_mula, data=as.data.frame(reg_data["2010-05-05/2010-05-07"]))
 date_s <- "2013-02-07"
-qda_predict <- predict(q_da, newdata=as.data.frame(reg_data["2013-03-06"]))
+qda_predict <- predict(q_da, newdata=as.data.frame(reg_data["2010-05-06"]))
 str(qda_predict)
 head(qda_predict$class)
 tail(qda_predict$class)
 NROW(qda_predict$class)
 sum(qda_predict$class!=1)
 sum(reg_data["2013-02-07", 1]!=1)
-foo <- data.frame(qda_predict$class, coredata(reg_data["2013-03-06", 1]))
+foo <- data.frame(qda_predict$class, coredata(reg_data["2010-05-06", 1]))
 colnames(foo) <- c("qda_pred", "realized")
 table(foo)
 

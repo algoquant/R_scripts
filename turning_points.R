@@ -252,9 +252,9 @@ beta_s <- summary(log_it)$coefficients[, "Estimate"]
 
 # list logit models
 ls(pattern=glob2rx("log*"))
-# load("C:/Develop/data/logit_models.Rdata")
+# load("C:/Develop/data/logit_models.RData")
 # save logit models
-# save(list=ls(pattern=glob2rx("log*")), file="C:/Develop/data/logit_models.Rdata")
+# save(list=ls(pattern=glob2rx("log*")), file="C:/Develop/data/logit_models.RData")
 
 # calculate in-sample confusion matrix
 fore_casts <- predict(log_it, type="response")
@@ -335,7 +335,7 @@ chart_Series(oh_lc[, 4])
 abline(v=match(se_ll, in_dex), col="red", lwd=1)
 abline(v=match(bu_y, in_dex), col="blue", lwd=1)
 
-ran_ge <- "2011-03/2011-10"
+ran_ge <- "2010-05-05/2010-05-07"
 pnl_s <- exp(cumsum(position_s[ran_ge]*re_turns[ran_ge]))
 colnames(pnl_s) <- "SPY logit"
 bench_mark <- cbind(exp(cumsum(re_turns[ran_ge])), pnl_s)
@@ -586,22 +586,22 @@ legend("topleft", legend=colnames(bench_mark),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
        col=plot_theme$col$line.col, bty="n")
 
-dates <- "2011-08-20/2011-08-24"
-foo <- bench_mark[dates]
+ran_ge <- "2010-05-05/2010-05-07"
+foo <- bench_mark[ran_ge]
 # foo <- sapply(foo, function(x) {x - as.numeric(x[1])})
 foo[, 1] <- foo[, 1] - as.numeric(foo[1, 1])
 foo[, 2] <- foo[, 2] - as.numeric(foo[1, 2])
 chart_Series(foo, theme=plot_theme,
              name="Backtest of PCR strategy for SPY")
-add_TA(position_s[dates] > 0, on=-1,
+add_TA(position_s[ran_ge] > 0, on=-1,
        col="lightgreen", border="lightgreen")
-add_TA(position_s[dates] < 0, on=-1,
+add_TA(position_s[ran_ge] < 0, on=-1,
        col="lightgrey", border="lightgrey")
 legend("topleft", legend=colnames(foo),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
        col=plot_theme$col$line.col, bty="n")
 
-bar <- xts(sig_nal, order.by=index(returns_running))[dates]
+bar <- xts(sig_nal, order.by=index(returns_running))[ran_ge]
 bench_mark <- SPY[index(bar), 4]
 bench_mark <- bench_mark - as.numeric(bench_mark[1, ])
 bar <- cbind(bench_mark, bar)
@@ -610,7 +610,7 @@ chart_Series(bar, theme=plot_theme,
 legend("topleft", legend=colnames(bar),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
        col=plot_theme$col$line.col, bty="n")
-add_TA(bar[dates], lwd=2, on=1, col='blue')
+add_TA(bar[ran_ge], lwd=2, on=1, col='blue')
 
 
 ### below are scratch scripts
