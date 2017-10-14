@@ -1,0 +1,172 @@
+---
+title: "Quant Model Project"
+author: "Jack Kopczynski and Jerzy Pawlowski, at Algoquants"
+date: '`r format(Sys.time(), "%m/%d/%Y")`'
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+email: algoquant@algoquants.ch
+affiliation: Algoquants at Newport
+---
+
+### Project Description
+
+The objective of the Quant Model Project is to create a library (package) of `R` functions and scripts for evaluationg pairs trading, statistical arbitrage, and other trading strategies.
+
+
+
+### To-do List
+
++ [ ] JK bbg: Add additional columns to the single meta-data file: volatility, dividends, stock splits, etc.
+
++ [ ] JK bbg: Add code to check for duplicate dates after bind operations.
+
++ [ ] JP: Create a Sharpe ratio heatmap with four axes.
+
++ [ ] JK: specify parameters for forecasting and parameters for trading.
+
++ [ ] JK: rename model_params to training_params.
+
++ [ ] JP trade_model: Create plot function plot_model() for plotting trade_model() stat arb model, with two dygraph plots: z-score (with levels) and cumulative pnl.
+
++ [ ] JP trade_model: Create plot function plot_model() for plotting train_model() stat arb model, with two dygraph plots: z-score (with levels) and cumulative pnl.
+
++ [x] JP trade_model: Create shiny app of trade_model() stat arb model, with two dygraph plots: z-score (with levels) and cumulative pnl, and sliders for trading levels.
+
++ [ ] JP: Create a second version of function train_model() for calibrating a model in-sample.
+train_model() should return a time series or a vector of indicators (z-scores, etc.)
+
++ [ ] JK trade_model: change cumulative returns from compounded to simple sum.
+
++ [x] JP: Create function trade_zscore() - a second version of trade_model(), for applying (testing) a model out-of-sample.
+trade_model() should accept: 
+re_turns - a time series of returns,
+in_dic - a time series of indicators (z-scores, etc.),
+trading_params - a list of trading parameters,
+trade_model() should return a list with at least two elements: a named vector of performance statistics, and a time series of out-of-sample returns, and also additional list elements as necessary.
+
++ [x] JP trade_model: remove trading_params from argument list of trade_model(). 
+
++ [x] JP trade_model: simulate model long and short positions separately, and only depending on flag_long_short_both.  Rename flag_long_short_both to flag_long_short.
+
++ [x] JP trade_model: define port_pos as the lagged pos_all.
+
++ [x] JP trade_model: change buys_sells <- rutils::diff_it(pos_all) to buys_sells <- rutils::diff_it(port_pos).
+
++ [ ] JP backtest: Separate the backtest simulation into two parts: forecasting and trading on the forecasts.
+
++ [ ] JP backtest: Perform roll_apply() of train_model() calibration function, and extract a time series of out-of-sample hedge ratio forecasts.  Calculate from the forecasts a time series of out-of-sample portfolio values, and pass it into function trade_model(). 
+
++ [ ] JP trade_model: call rutils::chart_xts() instead of this: ?
+    # plot residuals of basket
+    reg_model_plot <- lm(port_z ~ res_ts[, "index"])
+    x11(width=5,height=4)
+    plot_theme <- quantmod::chart_theme()
+    plot_theme$col$line.col <- "black"
+    plot(quantmod::chart_Series(port_z, theme=plot_theme, name=NULL))
+    title(main="Residuals of basket, with buys and sells",
+          adj=0.05, cex.main=0.8)
+    # add regression line
+    abline(reg_model_plot, lwd=2, col="red")
+    # add vertical lines
+    # abline(v=which.min(VTI_vwap), col='red')
+    # add points for buys and sells
+    buys_sells <- rutils::diff_it(pos_all)
+    which_buys <- which(buys_sells==1)
+    # add a solid red point (pch=16) for the last car
+    points(x=which_buys,
+           y=port_z[which_buys],
+           col="green", pch=19, lwd=6)
+    which_sells <- which(buys_sells==(-1))
+    points(x=which_sells,
+           y=port_z[which_sells],
+           col="red", pch=19, lwd=6)
+    text(x=1.0*max(NROW(port_z)), y=0.8*max(port_z),
+         labels=paste0("y = ",
+                       round(coef(reg_model_plot)[2], 4), "*x",
+                       ifelse(coef(reg_model_plot)[1]<0, " - ", " + "),
+                       round(abs(coef(reg_model_plot)[1]), 4)
+                       # "\nR^2 = ",
+                       # round(summary(reg_model_plot)$r.squared, 4)
+         ),
+         pos=2, cex=0.9)
+
+
+    # plot cumulative returns
+    x11(width=5, height=4)
+    plot_theme <- quantmod::chart_theme()
+    plot_theme$col$line.col <- "black"
+    plot(quantmod::chart_Series(port_cumret, theme=plot_theme, name=NULL))
+    title(main="Cumulative returns", adj=0.1, cex.main=0.8)
+    points(x=which_buys,
+           y=port_cumret[which_buys],
+           col="green", pch=19, lwd=6)
+    points(x=which_sells,
+           y=port_cumret[which_sells],
+           col="red", pch=19, lwd=6)
+
+
++ [ ] JP cointegration: write loop to test cointegration of pairs.
+
++ [ ] JP cointegration: write loop to test out-of-sample cointegration over end points.
+
++ [ ] JP aggregations: Create functional aggre_gate() for performing aggregations over a vector of end points.
+
++ [ ] JP backtest: Create functional roll_backtest() for performing a backtest simulation over a vector of end points.
+Functional roll_backtest() should accept the arguments: end_points, look_back, look_forward, time_series (prices), and functions train_model() (for training a model in-sample) and trade_model() (for running a model out-of-sample)
+
++ [x] JP: Create a function trade_model() for applying (testing) a model out-of-sample.
+trade_model() should accept: 
+time_series - a time series of prices and other data,
+trading_params - a list of trading parameters,
+calibrated_model - a calibrated model object,
+trade_model() should return a list with at least two elements: a named vector of performance statistics, and a time series of out-of-sample returns, and also additional list elements as necessary.
+
++ [x] JP: Create a function train_model() for calibrating a model in-sample.
+train_model() should accept: 
+time_series - a time series of prices and other data,
+model_params - a list of model parameters,
+train_model() should return a calibrated model object.
+
++ [x] JP: function run_backtest() remove references to res_hr$reg_summary$coefficients and replace them with res_hr$hedge_ratio
+The while() loop and the functions run_backtest*() were blowing up for flag_hr=2 because they were referencing res_hr$reg_summary$coefficients, which doesn't exist in this case.
+
++ [x] JK bbg: test the scripts for downloading Bloomberg data
+
++ [x] JP bbg: Create scripts for downloading Bloomberg data: use single loop over instruments listed in meta-data file.
+for existing data files, update: add rows and columns as needed
+for new instruments, download all data from the start date
+create log file and error file
+
++ [x] JK bbg: Create csv files containing reference entity data (meta-data).
+
++ [x] JP: Perform backtesting using function sub_set().
+
++ [x] JP: Create function sub_set() to subset time series.
+sub_set() should accept as inputs a time series, a start date, and either an end date or the number of data points to be extracted.  If a positive number is passed to sub_set(), then it should return data points from the future, and if a negative is passed then it should return data points from the past.  If a date is passed to sub_set() then it should return the usual subset from start date to end date.
+
++ [x] JP: Add regression lines to other hedge ratio calculations (flag_hr = 2, 3, 4)
+
++ [ ] JK: Test other hedge ratio calculations in the in-out sample loops
+
++ [ ] JK: Introduce global results list to store results from in-out of sample analysis.
+
++ [x] JP: Match the title letters size of the cumulative returns graph with the scatter plot chart title letters size for consistency.
+
++ [x] JP: Shorten the title on the Z time series graph and match the letters size with the size of regression plot title for consistency. 
+
++ [x] JP: Remove R^2 and from the Z time series graph (lets keep the regression equation there but we should make the fonts smaller)
+
++ [x] JP: Include slope and R^2 on the scatter plot produced by hedge_ratio function 
+
++ [ ] JK: Add trading cost (charge to returns per trade in bps passed as input)
+
++ [ ] JK&JP: think about how to handle holes in the data or differences between historical data among different instruments (what to do with the days when we have the price of one instrument but not the other, should this be handled on the data download level to csv files or R code. it will become more clear when we start using the code to analyze different pairs)
+
++ [x] JK: Download daily closing data from 2007-12-31 to 2017-8-30 for various instruments. Start with all ETFs that represent s&p subindices. 
+
++ [x] JP: Explore possibility of customizing location of the x11 chart windows and how to kill multiple open windows: not easy to do
+
+
+

@@ -35,7 +35,7 @@ chart_strategy <- function(x_ts, shad_ing=NULL, ...) {
   ch_ob <- chart_Series(x=x_ts, theme=plot_theme, plot=FALSE, ...)
   # if (n_col>1) {
   #   for (col_umn in 2:n_col)
-  #     add_TA(x_ts[, col_umn], on=1, lwd=2, 
+  #     add_TA(x_ts[, col_umn], on=1, lwd=2,
   #            col=sample(c('blue', 'yellow', 'red'), 1))
   # }  # end if
   if (!is.null(shad_ing)) {
@@ -930,14 +930,14 @@ roll_sum <- function(x_ts, win_dow) {
 #'   perform the actual aggregations.  If \code{end_points} are passed in
 #'   explicitly, then the \code{period} argument is ignored.
 #' @examples
-#' # define end points at 10-minute intervals (SPY is minutely bars)
-#' end_points <- rutils::end_points(SPY["2009"], inter_val=10)
+#' # define end points at 10-minute intervals (HighFreq::SPY is minutely bars)
+#' end_points <- rutils::end_points(HighFreq::SPY["2009"], inter_val=10)
 #' # aggregate over 10-minute end_points:
-#' to_period_rolling(x_ts=SPY["2009"], end_points=end_points)
+#' to_period_rolling(x_ts=HighFreq::SPY["2009"], end_points=end_points)
 #' # aggregate over days:
-#' to_period_rolling(x_ts=SPY["2009"], period="days")
+#' to_period_rolling(x_ts=HighFreq::SPY["2009"], period="days")
 #' # equivalent to:
-#' to.period(x=SPY["2009"], period="days", name=rutils::na_me(SPY))
+#' to.period(x=HighFreq::SPY["2009"], period="days", name=rutils::get_name(colnames(HighFreq::SPY)[1]))
 
 to_period_rolling <- function(x_ts, win_dow=10) {
   roll_open <- rutils::lag_xts(Op(x_ts), k=(win_dow-1))
@@ -965,12 +965,12 @@ to_period_rolling <- function(x_ts, win_dow=10) {
 #'   price differences within each bar of \code{OHLC} prices, and so preserves
 #'   open to close returns, variance estimates, etc.
 #' @examples
-#' # define end points at 10-minute intervals (SPY is minutely bars)
-#' end_points <- rutils::end_points(SPY["2009"], inter_val=10)
+#' # define end points at 10-minute intervals (HighFreq::SPY is minutely bars)
+#' end_points <- rutils::end_points(HighFreq::SPY["2009"], inter_val=10)
 #' # aggregate over 10-minute end_points:
-#' open_close(x_ts=SPY["2009"], end_points=end_points)
+#' open_close(x_ts=HighFreq::SPY["2009"], end_points=end_points)
 #' # aggregate over days:
-#' open_close(oh_lc=SPY["2009"], period="days")
+#' open_close(oh_lc=HighFreq::SPY["2009"], period="days")
 
 open_close <- function(oh_lc) {
   op_en <- Op(oh_lc)

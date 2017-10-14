@@ -160,7 +160,7 @@ chart_Series(pnl_s)
 
 
 ### calculate average future returns and identify points with biggest future returns
-returns_future <- rutils::roll_sum(returns_running, win_dow=5)
+returns_future <- rutils::roll_sum(returns_running, look_back=5)
 returns_future <- rutils::lag_xts(returns_running, lag=-5)
 colnames(returns_future) <- "returns_future"
 returns_future <- returns_future[returns_future < quantile(returns_future, 0.05), ]
@@ -447,7 +447,7 @@ colnames(sig_nal) <- "signal"
 # lag sig_nal by one period
 sig_nal <- rutils::lag_xts(sig_nal)
 # calculate average of sig_nal over past, to improve forecasts
-sig_nal <- rutils::roll_sum(sig_nal, win_dow=3) / 3
+sig_nal <- rutils::roll_sum(sig_nal, look_back=3) / 3
 
 
 ### calculate hit rates by signal quantiles
@@ -545,7 +545,7 @@ back_test <- function(de_sign=NULL, beta_s=NULL, thresh_old=NULL, re_turns=NULL,
   sig_nal <- de_sign %*% beta_s
   sig_nal <- rutils::lag_it(sig_nal, lag=lag)
   if (lag > 1)
-    sig_nal <- rutils::roll_sum(sig_nal, win_dow=lag) / lag
+    sig_nal <- rutils::roll_sum(sig_nal, look_back=lag) / lag
   # calculate returns
   if (is.null(thresh_old)) {
     # calculate returns proportional to sig_nal and scale them to SPY volatility

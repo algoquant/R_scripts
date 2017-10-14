@@ -36,8 +36,8 @@ sym_bol <- load("C:/Develop/data/SPY.RData")
 # plot average hourly trading volumes
 price_s <- Vo(SPY["2010-05-05/2010-05-07"])
 var_running <- period.apply(
-  x=price_s, 
-  INDEX=endpoints(price_s, "hours"), 
+  x=price_s,
+  INDEX=xts::endpoints(price_s, "hours"),
   sum)
 chart_Series(vol_ume, name="hourly volumes")
 in_dex <- format(index(vol_ume), "%H:%M")
@@ -63,15 +63,15 @@ agg_regate(price_s)
 # extract closing prices for a single day of data
 price_s <- Cl(SPY["2010-05-06"])
 
-end_points <- endpoints(price_s, "hours")
-agg_regations <- period.apply(x=price_s, 
-                            INDEX=end_points, 
+end_points <- xts::endpoints(price_s, "hours")
+agg_regations <- period.apply(x=price_s,
+                            INDEX=end_points,
                             FUN=agg_regate)
-foo_bar <- apply_rolling(x_ts=price_s, 
-                         end_points=end_points, 
+foo_bar <- apply_rolling(x_ts=price_s,
+                         end_points=end_points,
                          func_tion=agg_regate)
-agg_regations <- apply_xts(x_ts=price_s, 
-                         end_points=end_points, 
+agg_regations <- apply_xts(x_ts=price_s,
+                         end_points=end_points,
                          func_tion=agg_regate)
 
 # verify that apply_rolling() and apply_xts() produce identical output
@@ -80,25 +80,25 @@ identical(agg_regations, foo_bar)
 # compare speed of apply_rolling() versus apply_xts()
 library(microbenchmark)
 summary(microbenchmark(
-  agg_sapply=apply_rolling(x_ts=price_s, 
-                           end_points=end_points, 
-                           func_tion=agg_regate), 
-  agg_lapply=apply_xts(x_ts=price_s, 
-                                   end_points=end_points, 
-                                   func_tion=agg_regate), 
+  agg_sapply=apply_rolling(x_ts=price_s,
+                           end_points=end_points,
+                           func_tion=agg_regate),
+  agg_lapply=apply_xts(x_ts=price_s,
+                                   end_points=end_points,
+                                   func_tion=agg_regate),
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
-agg_regations <- apply_rolling(x_ts=price_s, 
-                               end_points=end_points, 
-                               look_back=3, 
+agg_regations <- apply_rolling(x_ts=price_s,
+                               end_points=end_points,
+                               look_back=3,
                                func_tion=agg_regate)
 # plot aggregations with custom line colors
 plot_theme <- chart_theme()
 plot_theme$col$line.col <- c("red", "green")
-chart_Series(agg_regations, theme=plot_theme, 
+chart_Series(agg_regations, theme=plot_theme,
              name="price aggregations")
-legend("bottomright", legend=colnames(agg_regations), 
-       bg="white", lty=c(1, 1), lwd=c(2, 2), 
+legend("bottomright", legend=colnames(agg_regations),
+       bg="white", lty=c(1, 1), lwd=c(2, 2),
        col=plot_theme$col$line.col, bty="n")
 
 
@@ -204,7 +204,7 @@ tail(cl_ose)
 ### calculate daily price profiles after overnight gaps
 
 # calculate daily Open and Close prices from high frequency data
-end_days <- endpoints(HighFreq::SPY, "days")[-1]
+end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
 start_days <- rutils::lag_it(end_days)+1
 cl_ose <- HighFreq::SPY[end_days, 4]
 index(cl_ose) <- lubridate::floor_date(index(cl_ose), "day")
@@ -280,7 +280,7 @@ in_dex <- format(index(re_turns), "%H:%M")
 re_turns <- re_turns[!in_dex=="09:31", ]
 # calculate intraday seasonality of returns
 season_rets <- HighFreq::season_ality(x_ts=re_turns)
-chart_Series(x=season_rets, 
+chart_Series(x=season_rets,
              name=paste(colnames(season_rets), "intraday seasonality"))
 
 
@@ -301,15 +301,15 @@ plot(coredata(var_rolling), t="l")
 
 # plot histogram of volatility - similar to Chi-squared distribution
 library(PerformanceAnalytics)
-PerformanceAnalytics::chart.Histogram(var_running, 
-  main="Distribution of running variance", 
-  xlab=colnames(var_running), xlim=range(var_running)/2, 
+PerformanceAnalytics::chart.Histogram(var_running,
+  main="Distribution of running variance",
+  xlab=colnames(var_running), xlim=range(var_running)/2,
   methods=c("add.density"))
 # add title
 # title(main=paste(sym_bol, "vol"), line=-1)
 # add Chi-squared fit
 x_var <- seq(from=0, to=range(var_rolling)[2]/5, length.out=100)
-lines(x=x_var, y=50*NROW(var_rolling)*dchisq(11*x_var/mean(var_rolling), df=11), 
+lines(x=x_var, y=50*NROW(var_rolling)*dchisq(11*x_var/mean(var_rolling), df=11),
       xlab="", ylab="", lwd=1, col="blue")
 
 # identify periods around volatility spikes
@@ -436,7 +436,7 @@ hurst_exp(cumsum(blah+c(0, 0.5*blah[-NROW(blah)])))
 
 # extract vector of ye_ars
 ye_ars <- format(
-  index(sk_ew[endpoints(sk_ew, on="years"), ]), 
+  index(sk_ew[xts::endpoints(sk_ew, on="years"), ]),
   format="%Y")
 # sum up volumes for each year
 volumes_yearly <- sapply(ye_ars, function(ye_ar) sum(Vo(SPY)[ye_ar]))
@@ -517,7 +517,7 @@ mad_volu <- runquantile(coredata(Vo(SPY)), probs=quan_tiles, k=win_dow)
 mad_volu <- mad_volu[, 1, ]
 # lag mad_volu
 mad_volu <- rbind(
-  matrix(numeric(ncol(mad_volu)*(win_dow-1)/2), ncol=ncol(mad_volu)), 
+  matrix(numeric(ncol(mad_volu)*(win_dow-1)/2), ncol=ncol(mad_volu)),
   mad_volu[-((NROW(mad_volu)-(win_dow-1)/2+1):(NROW(mad_volu))), ])
 colnames(mad_volu) <- names(quan_tiles)
 mad_volu <- xts(mad_volu, order.by=index(SPY))
@@ -546,7 +546,7 @@ var_rolling[1:(win_dow-1)] <- 0
 colnames(var_rolling) <- colnames(vari_ance)
 head(var_rolling)
 
-chart_Series(var_rolling[date_s], 
+chart_Series(var_rolling[date_s],
              name=paste(sym_bol, "volatility"))
 
 roll_skew <- runSum(sk_ew, n=win_dow)
@@ -554,7 +554,7 @@ roll_skew[1:(win_dow-1)] <- 0
 colnames(roll_skew) <- colnames(sk_ew)
 head(roll_skew)
 
-chart_Series(roll_skew[date_s], 
+chart_Series(roll_skew[date_s],
              name=paste(sym_bol, "skew"))
 
 win_short <- 70
@@ -622,11 +622,11 @@ foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(thresh_old
 # loop over periods
 date_s <- "2013-06-01/"
 date_s <- "2008-06-01/2009-06-01"
-end_points <- endpoints(SPY[date_s], on="days")
+end_points <- xts::endpoints(SPY[date_s], on="days")
 end_points <- format(index((SPY[date_s])[end_points[-1], ]), "%Y-%m-%d")
 win_dow <- 10
 
-position_s <- 
+position_s <-
   lapply(win_dow:NROW(end_points),
          function(end_point) {
            date_s <- paste0(end_points[end_point-win_dow+1], "/", end_points[end_point-1])
@@ -687,7 +687,7 @@ cor.test(formula=as.formula(paste("~", paste(colnames(reg_data), collapse=" + ")
 
 date_s <- "2013-06-01/"
 reg_data <- cbind(
-  coredata(re_turns[date_s, 1]), 
+  coredata(re_turns[date_s, 1]),
   c(0, coredata(roll_skew[date_s])[-NROW(roll_skew[date_s])]))
 
 
@@ -721,7 +721,7 @@ position_s <- ifelse((roll_skew*lag(roll_skew))<0, 0, position_s)
 lag_positions <- c(0, position_s[-NROW(position_s)])
 lag_positions <- na.locf(lag_positions)
 lag_positions <- merge(roll_skew, lag_positions)
-colnames(lag_positions)[2] <- 
+colnames(lag_positions)[2] <-
   paste0(sym_bol, ".Position")
 # cumulative PnL
 cumu_pnl <- cumsum(lag_positions*re_turns)
@@ -732,7 +732,7 @@ chart_Series(cumu_pnl, name=paste(sym_bol, "pnl"))
 
 foo <- rutils::roll_sum(abs(sign(sk_ew)-sign(lag_skew)), win_dow=1000)
 chart_Series(
-  foo[endpoints(foo, on="days"), ], 
+  foo[xts::endpoints(foo, on="days"), ],
   name=paste(sym_bol, "contrarian skew strategy frequency of trades"))
 # calculate transaction costs
 bid_offer <- 0.001  # 10 bps for liquid ETFs
@@ -776,7 +776,7 @@ persp3d(z=mat_rix, col="green", x=short_windows, y=long_windows)
 
 # seconds index
 in_dex <- as.POSIXct("2015-01-01 00:00:00") + 0:1000
-in_dex <- seq(from=as.POSIXct("2015-01-01 00:00:00"), 
+in_dex <- seq(from=as.POSIXct("2015-01-01 00:00:00"),
               to=as.POSIXct("2015-01-03 00:00:00"), by="sec")
 head(in_dex)
 tail(in_dex)
@@ -790,7 +790,7 @@ dim(foo)
 oh_lc <- to.period(x=foo, period="minutes", name="synth")
 tail(oh_lc)
 # OHLC candlechart
-chart_Series(x=oh_lc["2015-01-01 01:00:00/2015-01-01 05:00:00"], 
+chart_Series(x=oh_lc["2015-01-01 01:00:00/2015-01-01 05:00:00"],
              name="OHLC candlechart")
 
 # rolling volatility
@@ -819,11 +819,11 @@ foo <- xts(matrix(rnorm(3*NROW(etf_rets)), ncol=3), order.by=index(etf_rets))
 colnames(foo) <- colnames(etf_rets[, sym_bols])
 head(foo)
 
-ann_weights <- sapply(2:NROW(end_points), 
+ann_weights <- sapply(2:NROW(end_points),
                       function(in_dex) {
                         optim_portf(
-                          portf_rets=foo, 
-                          start_point=end_points[in_dex-1], 
+                          portf_rets=foo,
+                          start_point=end_points[in_dex-1],
                           end_point=end_points[in_dex])
                       }  # end anon function
 )  # end sapply
@@ -836,7 +836,7 @@ ann_weights <- t(ann_weights)
 
 bar <- lapply(3:NROW(end_points),
               function(in_dex) {
-                foo[end_points[in_dex-1]:end_points[in_dex], ] %*% 
+                foo[end_points[in_dex-1]:end_points[in_dex], ] %*%
                   c(1, ann_weights[in_dex-2, ])
               }  # end anon function
 )  # end lapply
@@ -895,7 +895,7 @@ cbind(x, sprintf("%a", x), sprintf("%a", y))
 ###
 
 # measure of dispersion
-dis_persion <- function(da_ta, 
+dis_persion <- function(da_ta,
                         meth_od=c("mean", "mean_narm", "median")) {
   # validate "meth_od" argument
   meth_od <- match.arg(meth_od)
@@ -920,8 +920,8 @@ library(roll)
 # specify regression formula
 reg_formula <- XLP ~ VTI
 # perform rolling beta regressions every month
-beta_s <- rollapply(env_etf$re_turns, width=252, 
-                    FUN=function(design_matrix) 
+beta_s <- rollapply(env_etf$re_turns, width=252,
+                    FUN=function(design_matrix)
                       coef(lm(reg_formula, data=design_matrix))[2],
                     by=22, by.column=FALSE, align="right")
 beta_s <- na.omit(beta_s)
@@ -930,7 +930,7 @@ x11()
 chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
 
 # perform daily rolling beta regressions in parallel
-beta_s <- roll::roll_lm(x=env_etf$re_turns[, "VTI"], 
+beta_s <- roll::roll_lm(x=env_etf$re_turns[, "VTI"],
                   y=env_etf$re_turns[, "XLP"],
                   width=252)$coefficients
 chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
@@ -939,13 +939,13 @@ chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
 library(microbenchmark)
 da_ta <- env_etf$re_turns["2012", c("VTI", "XLP")]
 summary(microbenchmark(
-  rollapply=rollapply(da_ta, width=22, 
-                      FUN=function(design_matrix) 
+  rollapply=rollapply(da_ta, width=22,
+                      FUN=function(design_matrix)
                         coef(lm(reg_formula, data=design_matrix))[2],
-                      by.column=FALSE, align="right"), 
-  roll_lm=roll::roll_lm(x=da_ta[, "VTI"], 
+                      by.column=FALSE, align="right"),
+  roll_lm=roll::roll_lm(x=da_ta[, "VTI"],
                   y=da_ta[, "XLP"],
-                  width=22)$coefficients, 
+                  width=22)$coefficients,
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
 
