@@ -1,3 +1,73 @@
+
+library(microbenchmark)
+foo <- rep(1, 1e6)
+summary(microbenchmark(
+  pure_r=cumsum(foo),
+  r_cpp=HighFreq::roll_sum(foo, 30),
+  r_utils=rutils::roll_sum(foo, look_back=30),
+  times=10))[, c(1, 4, 5)]
+
+foo <- matrix(rnorm(1e6), nc=1)
+look_back <- 11
+weight_s <- exp(0.1*1:look_back)
+weight_s <- weight_s/sum(weight_s)
+foob <- filter(foo, filter=weight_s[11:1], sides=1)
+foob[1:(look_back-1)] <- 0
+foobar <- HighFreq::roll_wsum(foo, weight_s)
+foobar <- roll::roll_var(foo, weights=weight_s, width=NROW(weight_s))
+
+
+summary(microbenchmark(
+  pure_r=filter(foo, filter=weight_s, sides=1),
+  r_cpp=HighFreq::roll_wsum(foo, weight_s),
+  r_oll=roll::roll_var(foo, weights=weight_s, width=NROW(weight_s)),
+  times=10))[, c(1, 4, 5)]
+
+
+##############################
+### OHLC momentum
+
+# set up data
+clo_se <- quantmod::Cl(rutils::env_etf$VTI)
+hi_gh <- quantmod::Hi(rutils::env_etf$VTI)
+lo_w <- quantmod::Lo(rutils::env_etf$VTI)
+re_turns <- clo_se - rutils::lag_xts(clo_se)
+future_returns <- rutils::lag_xts(re_turns, lagg=-1)
+high_returns <- hi_gh - rutils::lag_xts(hi_gh)
+low_returns <- lo_w - rutils::lag_xts(lo_w)
+
+
+## run regressions of future returns against different indicators
+
+# single indicator
+in_dicator <- re_turns + high_returns + low_returns
+reg_model <- lm(future_returns ~ in_dicator)
+summary(reg_model)
+
+# three indicators - lower lows is most significant
+reg_model <- lm(future_returns ~ re_turns + high_returns + low_returns)
+summary(reg_model)
+
+# single indicator
+# lower lows indicator works well in bearish periods
+in_dicator <- -re_turns - high_returns + low_returns
+in_dicator <- sign(in_dicator)
+reg_model <- lm(future_returns ~ in_dicator)
+summary(reg_model)
+
+# simulate strategy
+pnl_s <- cumsum(rutils::lag_xts(in_dicator) * re_turns)
+colnames(pnl_s) <- "strategy"
+
+# plot
+library(dygraphs)
+dygraphs::dygraph(cbind(clo_se, pnl_s)) %>%
+  dyAxis("y", label="VTI", independentTicks=TRUE) %>%
+  dyAxis("y2", label="strategy", independentTicks=TRUE) %>%
+  dySeries("strategy", axis="y2", col=c("red", "blue"))
+
+
+
 ##############################
 ### plot multiple dygraphs in the same RStudio window
 

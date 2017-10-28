@@ -62,7 +62,7 @@ prices_ts <- prices_ts[, symbol_s]
 
 # create new environment for data
 data_env <- new.env()
-dir_data <- "C:/Develop/data_bbg_records"
+dir_data <- "C:/Develop/data/bbg_records"
 # sym_bols <- c("SPX", "VIX")
 # file_names <- paste0(sym_bols, ".csv")
 file_names <- dir(dir_data)
