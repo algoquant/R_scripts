@@ -1,4 +1,346 @@
 
+# load HighFreq
+library(HighFreq)
+library(roll)
+
+s_r <- function(x) (as.numeric(x[NROW(x)])-as.numeric(x[1]))/sd(rutils::diff_xts(x))/sqrt(252)
+
+# load S&P500 constituent stock prices
+load("C:/Develop/R/lecture_slides/data/sp500.RData")
+price_s <- eapply(env_sp500, quantmod::Cl)
+price_s <- rutils::do_call(cbind, price_s)
+# remove NA values
+price_s <- zoo::na.locf(price_s)
+price_s <- zoo::na.locf(price_s, fromLast=TRUE)
+# normalize the price_s
+colnames(price_s) <- sapply(colnames(price_s),
+                            function(col_name) strsplit(col_name, split="[.]")[[1]][1])
+
+# Calculate the time series of the static, equal 
+# dollar-weighted price of the index components, 
+n_col <- NCOL(price_s)
+in_dex <- rowSums(zoo::coredata(price_s))/n_col
+in_dex <- in_dex/in_dex[1]
+sd_index <- sd(rutils::diff_it(log(in_dex)))
+# sqrt(252)*(in_dex[NROW(in_dex)]-1)/sd_index/NROW(in_dex)
+in_dex <- xts::xts(in_dex, order.by=index(price_s))
+colnames(in_dex) <- "index"
+
+
+# Calculate the percentage (log) returns of the S&P500 
+# constituent stocks, and call them re_turns.
+# You can use functions rutils::diff_xts() and log().
+
+re_turns <- rutils::diff_xts(log(price_s))
+wid_th <- 220
+returns_width <- rutils::diff_xts(log(price_s), lagg=wid_th)
+
+
+## Calculate rolling variance of S&P500 portfolio
+vari_ance <- roll::roll_var(re_turns, width=wid_th)
+vari_ance <- zoo::na.locf(vari_ance)
+vari_ance[is.na(vari_ance)] <- 0
+# vari_ance[vari_ance==0] <- 1
+# vari_ance <- zoo::na.locf(vari_ance, fromLast=TRUE)
+# sum(is.na(vari_ance))
+# sum(vari_ance==0)
+# head(vari_ance[, 100:106])
+# tail(vari_ance[, 100:106])
+
+
+## Calculate rolling Sharpe of S&P500 portfolio
+
+weight_s <- returns_width / sqrt(wid_th*vari_ance)
+weight_s[vari_ance==0] <- 0
+weight_s[1:wid_th, ] <- 1
+weight_s[is.na(weight_s)] <- 0
+
+# long-short vari_ance
+# weight_s <- 1/sqrt(wid_th*vari_ance)
+# weight_s[vari_ance==0] <- 0
+# weight_s[1:wid_th, ] <- 1
+# weight_s <- weight_s/rowSums(abs(weight_s))
+# weight_s[1:wid_th, ] <- 1/NCOL(weight_s)
+# weight_s <- (weight_s - rowMeans(weight_s))
+# sum(is.na(weight_s))
+
+# weight_s <- 1 / sqrt(wid_th*vari_ance)
+# weight_s <- zoo::na.locf(weight_s)
+# scale weight_s so that their sum of squares is equal to 1
+# weight_s <- weight_s/sqrt(rowSums(weight_s^2))
+# sum(is.na(weight_s))
+# sum(rowSums(abs(weight_s))==0)
+weight_s <- weight_s/rowSums(abs(weight_s))
+# sum(is.na(weight_s))
+# sum(rowSums(weight_s^2)==0)
+
+# calculate portfolio profits and losses
+pnl_s <- rowSums(rutils::lag_xts(weight_s)*re_turns)
+sd_moment <- sd(pnl_s)
+pnl_s <- sd_index*pnl_s/sd_moment
+pnl_s <- exp(cumsum(pnl_s))
+pnl_s <- xts(pnl_s, order.by=index(re_turns))
+colnames(pnl_s) <- "momentum"
+pnl_s <- cbind(in_dex, pnl_s)
+# s_r(pnl_s[, 1])
+sapply(pnl_s, function(x) sd(rutils::diff_xts(log(x))))
+
+# foo <- pnl_s[, 1] + pnl_s[, 2]
+# dygraphs::dygraph(foo, main="Momentum PnL")
+
+plot_theme <- chart_theme()
+plot_theme$col$line.col <- c("orange", "blue")
+chart_Series(pnl_s, theme=plot_theme, lwd=c(2, 2), 
+             name="Momentum PnL")
+legend("topleft", legend=colnames(pnl_s), 
+       inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6), 
+       col=plot_theme$col$line.col, bty="n")
+
+
+## rolling eigenvalues and eigenvectors
+n_rows <- NROW(re_turns)
+foo <- roll::roll_eigen(re_turns[(n_rows-100):n_rows, 1:5], width=10)
+foo$values[1:9, ] <- 0
+# sum(is.na(foo$values))
+plot(foo$values[, 1], t="l")
+plot(as.numeric(foo$values[101, ]), t="l")
+as.numeric(foo$values[101, ])
+foo$vectors[, , 101]
+ret_sub <- re_turns[(n_rows-9):n_rows, 1:5]
+ret_mean <- apply(ret_sub, 2, mean)
+# ret_sub <- apply(ret_sub, 2, function(x) x-mean(x))
+# co_var <- crossprod(ret_sub)
+
+## maximum Sharpe portfolio weights from inverse matrix
+co_var <- cov(ret_sub)
+ei_gen <- eigen(co_var)
+in_verse <- ei_gen$vectors %*% (t(ei_gen$vectors)/ei_gen$values)
+trunc(in_verse %*% co_var, 4)
+weight_s <- in_verse %*% ret_mean
+weight_s <- weight_s/sum(abs(weight_s))
+
+# maximum Sharpe portfolio weights
+calc_weights <- function(re_turns) {
+  ei_gen <- eigen(cov(re_turns))
+  # set tolerance for determining zero eigenvalues
+  to_l <- sqrt(.Machine$double.eps)
+  # check for zero eigenvalues
+  not_zero <- (ei_gen$values > (to_l * ei_gen$values[1]))
+  in_verse <- ei_gen$vectors[, not_zero] %*% (t(ei_gen$vectors[, not_zero])/ei_gen$values[not_zero])
+  weight_s <- in_verse %*% apply(re_turns, 2, mean)
+  weight_s/sum(abs(weight_s))
+} # end calc_weights
+calc_weights(ret_sub)
+
+## maximum Sharpe portfolio weights from optimization
+object_ive <- function(weight_s, re_turns) {
+  portf_rets <- re_turns %*% weight_s
+  if (sd(portf_rets) == 0)
+    return(0)
+  else
+    return(-mean(portf_rets)/sd(portf_rets))
+} # end object_ive
+
+op_tim <- optim(par=numeric(NCOL(ret_sub)),
+                fn=object_ive,
+                re_turns=ret_sub,
+                method="L-BFGS-B",
+                upper=(100+numeric(NCOL(ret_sub))),
+                lower=(-100+numeric(NCOL(ret_sub))))
+op_tim$par/sum(abs(op_tim$par))
+as.numeric(weight_s)
+
+
+## backtest of maximum Sharpe portfolio weights strategy
+# this strategy has similar characteristics to momentum, and also suffers crashes.
+ret_sub <- re_turns[, 1:5]
+end_points <- rutils::calc_endpoints(re_turns, inter_val="months")
+# end_points <- end_points[end_points>look_back]
+len_gth <- NROW(end_points)
+look_back <- 10
+start_points <- c(rep_len(1, look_back-1), end_points[1:(len_gth-look_back+1)])
+# Perform loop over end_points and calculate aggregations
+weight_s <- sapply(1:len_gth, function(in_dex) {
+  calc_weights(ret_sub[start_points[in_dex]:end_points[in_dex]])
+})  # end sapply
+weight_s <- t(weight_s)
+weight_s <- xts::xts(weight_s, index(re_turns[end_points, ]))
+weight_s <- cbind(re_turns[, 1], weight_s)[, -1]
+weight_s[1, ] <- rep(1/NCOL(ret_sub), NCOL(ret_sub))
+weight_s <- zoo::na.locf(weight_s)
+weight_s <- rutils::lag_xts(weight_s)
+sum(is.na(weight_s))
+
+pnl_s <- rowSums(weight_s*ret_sub)
+sd_moment <- sd(pnl_s)
+pnl_s <- sd_index*pnl_s/sd_moment
+pnl_s <- exp(cumsum(pnl_s))
+pnl_s <- xts(pnl_s, order.by=index(re_turns))
+colnames(pnl_s) <- "momentum"
+pnl_s <- cbind(in_dex, pnl_s)
+# s_r(pnl_s[, 1])
+sapply(pnl_s, function(x) sd(rutils::diff_xts(log(x))))
+
+# foo <- pnl_s[, 1] + pnl_s[, 2]
+# dygraphs::dygraph(foo, main="Momentum PnL")
+
+plot_theme <- chart_theme()
+plot_theme$col$line.col <- c("orange", "blue")
+chart_Series(pnl_s, theme=plot_theme, lwd=c(2, 2), 
+             name="Momentum PnL")
+legend("topleft", legend=colnames(pnl_s), 
+       inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6), 
+       col=plot_theme$col$line.col, bty="n")
+
+
+## GARCH variance
+garch_fit <- fGarch::garchFit(data=rutils::diff_xts(log(in_dex)))
+garch_fit@fit$par
+# plot GARCH fitted standard deviation
+fGarch::plot(garch_fit)
+garch_sdev <- xts::xts(sqrt(garch_fit@fit$series$h), order.by=index(re_turns))
+chart_Series(garch_sdev, name="GARCH fitted standard deviation")
+dygraphs::dygraph(garch_sdev, main="GARCH fitted standard deviation")
+
+
+
+## scatterplot returns versus volatility
+
+end_points <- rutils::calc_endpoints(re_turns, inter_val=20)
+ret_vol <- lapply(re_turns, function(x) {
+  re_turns <- roll::roll_mean(data=x, width=20)[end_points]
+  s_d <- sqrt(roll::roll_var(data=x, width=20)[end_points])
+  cbind(re_turns, s_d)
+})  # end lapply
+plot(x=as.numeric(ret_vol[[1]][, 2]), y=as.numeric(ret_vol[[1]][, 1]))
+reg_models <- sapply(ret_vol, function(x) {
+  reg_model <- lm(as.numeric(x[, 1]) ~ as.numeric(x[, 2]))
+  summary(reg_model)$coefficients[2, ]
+})  # end sapply
+reg_models <- t(reg_models)
+plot(x=lamb_das, y=reg_models[, 3], t="l")
+
+
+garch_sdev <- sqrt(garch_fit@fit$series$h)
+pnl_s <- rowSums(weight_s*ret_sub) / garch_sdev
+plot(x=garch_sdev, y=pnl_s)
+# orde_r <- order(garch_sdev)
+# foo <- garch_sdev[orde_r]
+# bar <- pnl_s[orde_r]
+break_s <- hist(garch_sdev, breaks="Freedman-Diaconis")
+break_s <- c(break_s$breaks, 100)
+
+bar <- sapply(2:NROW(break_s), function(x) {
+  ge_t <- (garch_sdev > (break_s[x-1]) & (garch_sdev < break_s[x]))
+  sum(pnl_s[ge_t])
+})  # end sapply
+plot(x=break_s[-NROW(break_s)], y=bar, t="l")
+
+# run EWMA strategies
+lamb_das <- seq(0.001, 0.15, 0.01)
+rets_ewma <- lapply(lamb_das, function(lamb_da) {
+  simu_ewma(oh_lc=oh_lc, lamb_da=lamb_da, wid_th=151)[, 2]
+})  # end lapply
+rets_ewma <- rutils::do_call(cbind, rets_ewma)
+colnames(rets_ewma) <- paste0("rets_", lamb_das)
+sapply(rets_ewma, function(x) sqrt(260)*sum(x)/sd(x)/NROW(x))
+chart_Series(cumsum(rets_ewma[, 1]), name="EWMA trend-following strategy")
+
+
+
+## volatility switching weights strategy
+# adjust weights depending on volatility
+
+oh_lc <- rutils::env_etf$VTI
+re_turns <- rutils::diff_xts(log(Cl(oh_lc)))
+rets_mean <- roll::roll_mean(data=re_turns, width=20)
+rets_mean[1:19] <- 0
+# garch_fit <- fGarch::garchFit(data=re_turns)
+# garch_sdev <- xts::xts(sqrt(garch_fit@fit$series$h), order.by=index(re_turns))
+s_d <- sqrt(roll::roll_var(data=re_turns, width=20))
+# first and second derivatives of volatility
+sd_diff <- rutils::diff_xts(s_d, lagg=20)
+sd_diff2 <- rutils::diff_xts(sd_diff)
+# chart_Series(sd_diff2, name="GARCH fitted standard deviation")
+rets_mean <- rutils::lag_xts(rets_mean, lagg=(-20))
+
+# regression of future returns versus past volatility
+reg_model <- lm(rets_mean ~ s_d + sd_diff + sd_diff2)
+summary(reg_model)
+plot(as.numeric(rets_mean) ~ as.numeric(sd_diff))
+abline(lm(rets_mean ~ sd_diff))
+
+# use first derivative of volatility as predictor
+foo <- NA*re_turns
+foo[1] <- 0
+foo[sd_diff > 0.001] <- (-1)
+foo[sd_diff < (-0.001)] <- 1
+foo <- na.locf(foo)
+foo <- exp(cumsum(re_turns*rutils::lag_xts(foo)))
+chart_Series(foo, name="GARCH fitted standard deviation")
+
+level_s <- seq(0.001, 0.01, 0.001)
+bar <- lapply(level_s, function(x) {
+  foo <- NA*re_turns
+  foo[1] <- 0
+  foo[sd_diff > x] <- (-1)
+  foo[sd_diff < (-x)] <- 1
+  foo <- na.locf(foo)
+  exp(cumsum(re_turns*rutils::lag_xts(foo)))
+})  # end lapply
+bar <- rutils::do_call(cbind, bar)
+dygraphs::dygraph(bar[, 7], main="GARCH fitted standard deviation")
+# chart_Series(bar[, 7], name="GARCH fitted standard deviation")
+ba_se <- Cl(oh_lc)/as.numeric(Cl(oh_lc)[1, ])
+foo <- (xts::xts(rowMeans(bar), order.by=index(re_turns)) + ba_se)/2
+dygraphs::dygraph(cbind(foo, ba_se), main="GARCH fitted standard deviation")
+
+
+
+# fit t-dist
+
+1 - be_ta^2 - 2*al_pha*be_ta - 3*al_pha^2
+
+
+moments::moment(re_turns, order = 3)
+moments::moment(re_turns, order = 2)
+
+
+
+# forecast GARCH
+foo <- fGarch::predict(garch_fit, plot=TRUE)
+
+# fit GARCH
+
+foo <- tseries::garch(x=re_turns)
+foo <- rugarch::ugarchfit(data=re_turns)
+
+library(microbenchmark)
+summary(microbenchmark(
+  inn_er=(res_ponse %*% explana_tory),
+  su_m=sum(res_ponse*explana_tory),
+  times=10))[, c(1, 4, 5)]  # end microbenchmark summary
+
+
+
+library(rugarch)
+require(xts)
+data(spyreal)
+spec = ugarchspec(mean.model = list(armaOrder = c(0, 0), include.mean = FALSE), variance.model = list(model = 'realGARCH', garchOrder = c(2, 1)))
+setbounds(spec)<-list(alpha2=c(-1,1))
+fit = ugarchfit(spec, spyreal[, 1] * 100, solver = 'hybrid', realizedVol = spyreal[,2] * 100)
+
+
+# matrix eigenvalues
+mat_rix <- cbind(c(1, -0.5, 0.5), c(-0.5, 1, -0.5), c(0.5, -0.5, 1))
+mat_rix <- cbind(c(1, 0.5, 0.5), c(0.5, 1, -0.5), c(0.5, -0.5, 1))
+mat_rix <- cbind(c(1, -0.5, -0.5), c(-0.5, 1, -0.5), c(-0.5, -0.5, 1))
+ei_gen <- eigen(mat_rix)
+ei_gen$vectors
+ei_gen$values
+
+
+# benchmarking Rcpp code
 library(microbenchmark)
 foo <- rep(1, 1e6)
 summary(microbenchmark(
@@ -11,9 +353,10 @@ foo <- matrix(rnorm(1e6), nc=1)
 look_back <- 11
 weight_s <- exp(0.1*1:look_back)
 weight_s <- weight_s/sum(weight_s)
-foob <- filter(foo, filter=weight_s[11:1], sides=1)
+foob <- filter(foo, filter=rev(weight_s), sides=1)
 foob[1:(look_back-1)] <- 0
 foobar <- HighFreq::roll_wsum(foo, weight_s)
+foobar <- roll::roll_sum(foo, weights=weight_s, width=NROW(weight_s))
 foobar <- roll::roll_var(foo, weights=weight_s, width=NROW(weight_s))
 
 
@@ -351,7 +694,7 @@ coef(summary(mo_del))
 beta_s <- -coef(summary(mo_del))[-1, 1]
 
 
-### calculate indicator from static betas and applly its rolling z-scores
+### calculate indicator from static betas and apply its rolling z-scores
 
 in_dic <- matrix(rowSums(SPY_design %*% beta_s), ncol=1)
 # in_dic <- roll::roll_scale(data=in_dic, width=6, min_obs=1)
