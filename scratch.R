@@ -1,4 +1,89 @@
 
+##############################
+### Portfolio optimization with constraints
+
+# This is an objective function equal to the portfolio 
+# variance plus a penalty term for the weight constraint:
+# sum(weight_s) == 1.
+
+object_ive <- function(weight_s, re_turns) {
+  var(re_turns %*% weight_s) + 
+    (sum(weight_s) - 1)^2
+}  # end object_ive
+
+# Perform portfolio optimization with the same two weight 
+# constraints as in p.1
+# You must use function optim().
+
+op_tim <- optim(par=rep(1.0, NCOL(re_turns)),
+                fn=object_ive,
+                method="L-BFGS-B",
+                upper=rep(1, NCOL(re_turns)),
+                lower=rep(-1, NCOL(re_turns)),
+                re_turns=re_turns)
+
+weight_s <- op_tim$par
+
+var(re_turns %*% weight_s)
+
+
+# You should get output similar to the following:
+# > op_tim$par
+
+
+object_ive <- function(weight_s, re_turns, conf_level, portfolio_sub) {
+  # portf_rets <- re_turns %*% weight_s
+  # var(portf_rets) + 
+  t(weight_s) %*% co_var %*% weight_s +
+    1000*(sum(weight_s) - 1)^2 +
+    1000*(sum(weight_s * portfolio_sub[-1]) - portfolio_sub[1])^2
+}  # end object_ive
+
+
+
+##############################
+### Linear programming using Rglpk::Rglpk_solve_LP()
+
+library(quantmod)
+library(Rglpk)
+# vector of symbol names
+sym_bols <- c("VTI", "IEF", "DBC")
+n_weights <- NROW(sym_bols)
+# calculate mean returns
+
+re_turns <- rutils::env_etf$re_turns
+n_row <- re_turns
+# remove NA values
+re_turns <- zoo::na.locf(re_turns)
+re_turns <- zoo::na.locf(re_turns, fromLast=TRUE)
+
+
+re_turns <- rutils::env_etf$re_turns[, sym_bols]
+mean_rets <- c(1, -1, 1)
+# specify weight constraints
+constraint_s <- matrix(rep(1, n_weights), 
+                       nc=n_weights, byrow=TRUE)
+direction_s <- c("==")
+rh_s <- 10
+# specify weight bounds (-1, 1) (default is c(0, Inf))
+bound_s <- 
+  list(lower=list(ind=1:n_weights, val=rep(-10, n_weights)),
+       upper=list(ind=1:n_weights, val=rep(10, n_weights)))
+# perform optimization
+op_tim <- Rglpk::Rglpk_solve_LP(
+  obj=mean_rets, 
+  mat=constraint_s, 
+  dir=direction_s, 
+  rhs=rh_s, 
+  bounds=bound_s,
+  max=TRUE)
+unlist(op_tim[1:2])
+
+
+
+##############################
+### Rolling S&P500 portfolio strategies
+
 # load HighFreq
 library(HighFreq)
 library(roll)
