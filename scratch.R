@@ -1,4 +1,104 @@
 
+### sweep() for matrix multiplication
+
+mat_rix1 <- matrix(rnorm(1e6), ncol=100)
+vec_tor <- rnorm(1e2)
+mat_rix2 <- diag(vec_tor)
+foo_mat_rix <- mat_rix1 %*% mat_rix2
+foo_mat_rix2 <- sweep(mat_rix1, 2, vec_tor, FUN="*")
+
+
+library(microbenchmark)
+summary(microbenchmark(
+  matrix_mult=(mat_rix1 %*% mat_rix2),
+  sweep=sweep(mat_rix1, 2, vec_tor, FUN="*"),
+  times=10))[, c(1, 4, 5)]  # end microbenchmark summary
+
+
+### Dendrogram of student scores clusters
+# read data frame of student scores from clipboard
+read_clip <- function(file="clipboard", sep="\t", 
+                      header=TRUE, ...) {
+  read.table(file=file, sep=sep, header=header, ...)
+}  # end read_clip
+data_frame <- read_clip()
+sapply(data_frame, class)
+# create vector of student scores
+score_s <- data_frame[, 2]
+names(score_s) <- as.character(data_frame[, 1])
+
+# create distance object from vector of student scores
+dis_tance <- sapply(score_s, function(x) 
+  sapply(score_s, function(x, y) {(x+y) + 10*abs(x-y)}, x=x))
+dis_tance <- as.dist(dis_tance)
+# perform hierarchical clustering analysis
+clus_ter <- hclust(dis_tance)
+plot(clus_ter, ann=FALSE, xlab="", ylab="")
+title("Dendrogram of hierarchical clustering", line=-0.5)
+
+
+
+### reading binary data
+
+# Create a connection object to read the file in binary mode using "rb".
+si_ze <- file.info("C:/Users/Jerzy/Downloads/ESH7.bin")$size
+connect_ion <- file("C:/Users/Jerzy/Downloads/ESH7.bin", open="rb")
+
+# reset position of pointer
+seek(connect_ion, where=(si_ze-12), origin="start")
+seek(connect_ion, where=0, origin="start")
+
+# First read the column names. n = 3 as we have 3 columns.
+# column.names <- readBin(connect_ion, character(),  n = 3)
+
+# Read the n, k, and version integer values
+da_ta <- readBin(connect_ion, what="integer",  n=3)
+
+da_ta <- readBin(connect_ion, what="double",  n=4)
+
+# seek() gives 
+off_set <- seek(connect_ion, origin="end")
+seek(connect_ion, where=12, origin="start")
+
+da_ta <- readBin(connect_ion, what="raw",  n=4)
+da_ta <- readBin(connect_ion, what="double", n=4)
+da_ta <- readBin(connect_ion, what="double", n=4, size=4)
+da_ta <- readBin(connect_ion, what="double", n=4, size=4, endian="big")
+da_ta <- readBin(connect_ion, what="numeric", n=4)
+da_ta <- readBin(connect_ion, what="numeric", n=4, size=4)
+da_ta <- readBin(connect_ion, what="numeric", n=4, size=4, endian="big")
+
+close(connect_ion)
+
+
+# Read compressed files directly
+
+connect_ion <- gzfile("C:/Users/Jerzy/Downloads/ESH8_20171213.bin.gz", open="rb")
+connect_ion <- gzfile("C:/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
+
+col_names <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
+               "pB1r", "sB1r", "pA1r", "sA1r", "pB1c", "sB1c", "pA1c",
+               "sA1c")
+
+# read header with format info:  941642 x 15, format 1
+head_er <- readBin(connect_ion, 'integer', 3)
+da_ta <- readBin(connect_ion, 'double', head_er[1]*head_er[2])
+da_ta <- matrix(da_ta, nrow=head_er[1], ncol=head_er[2], 
+                byrow=TRUE, dimnames=list(NULL, col_names))
+
+close(connect_ion)
+
+
+da_ta <- readBin(connect_ion, what=integer(),  n=3)
+da_ta <- readBin(connect_ion, what=double(),  n=4)
+
+foo <- seek(connect_ion, origin="end")
+
+close(connect_ion)
+
+
+
+
 ##############################
 ### Portfolio optimization with constraints
 
@@ -121,7 +221,7 @@ wid_th <- 220
 returns_width <- rutils::diff_xts(log(price_s), lagg=wid_th)
 
 
-## Calculate rolling variance of S&P500 portfolio
+## Calculate rolling variance of S&P500 constituents
 vari_ance <- roll::roll_var(re_turns, width=wid_th)
 vari_ance <- zoo::na.locf(vari_ance)
 vari_ance[is.na(vari_ance)] <- 0
@@ -133,7 +233,7 @@ vari_ance[is.na(vari_ance)] <- 0
 # tail(vari_ance[, 100:106])
 
 
-## Calculate rolling Sharpe of S&P500 portfolio
+## Calculate rolling Sharpe of S&P500 constituents
 
 weight_s <- returns_width / sqrt(wid_th*vari_ance)
 weight_s[vari_ance==0] <- 0
