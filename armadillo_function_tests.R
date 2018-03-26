@@ -95,11 +95,17 @@ sub_mat(mat_rix=mat_rix, row_num=c(1, 3), col_num=1:2)
 sub_mat(mat_rix=mat_rix, row_num=1:2, col_num=1:2)
 sub_mat_cast(mat_rix=mat_rix, row_num=1:2, col_num=1:2)
 
+library(microbenchmark)
+# microbenchmark shows: sub_mat() is slightly faster
+summary(microbenchmark(
+  sub_mat=sub_mat(mat_rix=mat_rix, row_num=1:2, col_num=1:2),
+  sub_mat_cast=sub_mat_cast(mat_rix=mat_rix, row_num=1:2, col_num=1:2),
+  times=100))[, c(1, 4, 5)]  # end microbenchmark summary
+
 
 select_sub_mat(mat_rix=mat_rix, 0.4, 0)
 find_sub_mat(mat_rix=mat_rix, 0.4, 0)
 
-library(microbenchmark)
 summary(microbenchmark(
   select_sub_mat=select_sub_mat(mat_rix=mat_rix, 0.4, 0),
   find_sub_mat=find_sub_mat(mat_rix=mat_rix, 0.4, 0),
@@ -301,12 +307,71 @@ summary(microbenchmark(
 
 
 
-## matrix inversion
+## matrix inversion correlation PCA
+
+# create random matrix
+mat_rix <- matrix(rnorm(500), nc=5)
+# calculate correlation matrix
+matrix_cor <- cor(mat_rix)
+matrix_cor <- get_cor(mat_rix)
+
+library(microbenchmark)
+summary(microbenchmark(
+  cor_mat=cor(mat_rix),
+  cor_arma=get_cor(mat_rix),
+  times=100))[, c(1, 4, 5)]  # end microbenchmark summary
+
+# microbenchmark shows: 
+# get_cor() is over 4 times faster than cor()
+#       expr     mean  median
+# 1  cor_mat 36.06386 32.7460
+# 2 cor_arma 21.12839  7.8205
+
+
+# calculate eigen matrix
+eigen_decompr <- eigen(cor(mat_rix))
+eigen_decomp <- get_eigen(mat_rix)
+all.equal(eigen_decompr$values, sort(drop(eigen_decomp$eigval), decreasing=TRUE))
+all.equal(abs(eigen_decompr$vectors), 
+          abs(eigen_decomp$eigvec)[, match(round(abs(eigen_decompr$vectors[1, ]), 3), round(abs(eigen_decomp$eigvec[1, ]), 3))])
+
+summary(microbenchmark(
+  eigen_r=eigen(cor(mat_rix)),
+  eigen_arma=get_eigen(mat_rix),
+  times=100))[, c(1, 4, 5)]  # end microbenchmark summary
+
+# microbenchmark shows: 
+# get_eigen() is about 18 times faster than eigen() plus cor()
+#         expr      mean   median
+# 1    eigen_r 435.81817 429.3475
+# 2 eigen_arma  39.67553  23.9480
+
+
+# de-mean (center) and scale the mat_rix columns
+mat_rix <- t(t(mat_rix) - colMeans(mat_rix))
+mat_rix <- t(t(mat_rix) / sqrt(colSums(mat_rix^2)/(NROW(mat_rix)-1)))
+# calculate PCA
+pc_a <- get_pca(mat_rix)
+
+summary(microbenchmark(
+  eigen_r=eigen(cor(mat_rix)),
+  eigen_arma=get_eigen(mat_rix),
+  pc_a=get_pca(mat_rix),
+  times=100))[, c(1, 4, 5)]  # end microbenchmark summary
+
+# microbenchmark shows: 
+# get_eigen() is about 6 times faster than get_pca()
+#         expr      mean   median
+# 1    eigen_r 436.10160 429.5920
+# 2 eigen_arma  24.15352  23.4595
+# 3       pc_a 148.45158 145.6415
+
+
 
 # create random positive semi-definite matrix
 mat_rix <- matrix(runif(25), nc=5)
 mat_rix <- t(mat_rix) %*% mat_rix
-
+# perform matrix inversion
 matrix_inv <- solve(mat_rix)
 matrix_inv <- invspd_arma(mat_rix)
 matrix_inv <- invspd_rcpp(mat_rix)

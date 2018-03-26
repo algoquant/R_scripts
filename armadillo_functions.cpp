@@ -221,7 +221,7 @@ arma::vec tapply_arma(const arma::vec& vec_tor, const arma::vec& fac_tor) {
 // It uses Rcpp.
 //' @export
 // [[Rcpp::export]]
-NumericMatrix cbind_rcpp(NumericMatrix mat_rix1, NumericMatrix mat_rix2){
+NumericMatrix cbind_rcpp(NumericMatrix mat_rix1, NumericMatrix mat_rix2) {
   int n_col1 = mat_rix1.ncol();
   int n_col2 = mat_rix2.ncol();
   NumericMatrix out_put = Rcpp::no_init_matrix(mat_rix1.nrow(), n_col1 + n_col2);
@@ -240,7 +240,7 @@ NumericMatrix cbind_rcpp(NumericMatrix mat_rix1, NumericMatrix mat_rix2){
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-arma::mat cbind_arma(const arma::mat& mat_rix1, const arma::mat& mat_rix2){
+arma::mat cbind_arma(const arma::mat& mat_rix1, const arma::mat& mat_rix2) {
   return arma::join_rows(mat_rix1, mat_rix2);
 }  // end cbind_arma
 
@@ -474,7 +474,7 @@ double  agg_mat(const arma::mat& mat_rix) {
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-arma::mat demean_arma(const arma::mat& mat_rix){
+arma::mat demean_arma(const arma::mat& mat_rix) {
   // de-mean response and explanatory variables
   arma::mat mat_demean(mat_rix.n_rows, mat_rix.n_cols);
   for (unsigned int i = 0; i < mat_rix.n_cols; i++) {
@@ -491,7 +491,7 @@ arma::mat demean_arma(const arma::mat& mat_rix){
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-double demean_mat(arma::mat& mat_rix){
+double demean_mat(arma::mat& mat_rix) {
   // de-mean response and explanatory variables
   // arma::mat mat_demean(mat_rix.n_cols);
   for (unsigned int i = 0; i < mat_rix.n_cols; i++) {
@@ -507,7 +507,7 @@ double demean_mat(arma::mat& mat_rix){
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-double vec_in(const arma::vec& vec1, const arma::vec& vec2){
+double vec_in(const arma::vec& vec1, const arma::vec& vec2) {
   return arma::dot(vec1, vec2);
 }  // end vec_in
 
@@ -517,7 +517,7 @@ double vec_in(const arma::vec& vec1, const arma::vec& vec2){
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-arma::vec mat_vec_in(const arma::vec& vec_tor, const arma::mat& mat_rix){
+arma::vec mat_vec_in(const arma::vec& vec_tor, const arma::mat& mat_rix) {
   return mat_rix * vec_tor;
 }  // end mat_vec_in
 
@@ -528,7 +528,7 @@ arma::vec mat_vec_in(const arma::vec& vec_tor, const arma::mat& mat_rix){
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-double mat_2vec_in(const arma::vec& vec_tor2, const arma::mat& mat_rix, const arma::vec& vec_tor1){
+double mat_2vec_in(const arma::vec& vec_tor2, const arma::mat& mat_rix, const arma::vec& vec_tor1) {
   return arma::as_scalar(trans(vec_tor2) * (mat_rix * vec_tor1));
 }  // end mat_2vec_in
 
@@ -540,7 +540,7 @@ double mat_2vec_in(const arma::vec& vec_tor2, const arma::mat& mat_rix, const ar
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-double mat_vec_by(arma::vec& vec_tor, arma::mat& mat_rix){
+double mat_vec_by(arma::vec& vec_tor, arma::mat& mat_rix) {
   // unsigned int mn_rows = mat_rix.n_rows;
   unsigned int mn_cols = mat_rix.n_cols;
   arma::mat vec_mat = repmat(vec_tor, 1, mn_cols);
@@ -561,7 +561,7 @@ double mat_vec_by(arma::vec& vec_tor, arma::mat& mat_rix){
 // https://stackoverflow.com/questions/24933290/elementwise-matrix-multiplication-r-versus-rcpp-how-to-speed-this-code-up
 //' @export
 // [[Rcpp::export]]
-double mat_2vec_by(arma::vec& vec_tor2, arma::mat& mat_rix, arma::vec& vec_tor1){
+double mat_2vec_by(arma::vec& vec_tor2, arma::mat& mat_rix, arma::vec& vec_tor1) {
   unsigned int mn_rows = mat_rix.n_rows;
   unsigned int mn_cols = mat_rix.n_cols;
   arma::mat vec_mat = repmat(vec_tor2, 1, mn_cols);
@@ -582,7 +582,7 @@ double mat_2vec_by(arma::vec& vec_tor2, arma::mat& mat_rix, arma::vec& vec_tor1)
 // It uses Rcpp.
 //' @export
 // [[Rcpp::export]]
-int mat_2vec_rcpp_by(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVector& vec_tor1){
+int mat_2vec_rcpp_by(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVector& vec_tor1) {
   unsigned int mn_rows = mat_rix.nrow();
   unsigned int mn_cols = mat_rix.ncol();
   if (!(mn_rows == vec_tor2.size())) stop("vec_tor2 length not equal to number of rows of mat_rix");
@@ -601,7 +601,7 @@ int mat_2vec_rcpp_by(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVec
 // but uses a simple loop without Rcpp, and is much slower.
 //' @export
 // [[Rcpp::export]]
-int mat_2vec_rcpp_by2(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVector& vec_tor1){
+int mat_2vec_rcpp_by2(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVector& vec_tor1) {
   for (int i = 0; i < mat_rix.nrow(); i++) {
     for (int j = 0; j < mat_rix.ncol(); j++) {
       mat_rix(i, j) = vec_tor1(j) * vec_tor2(i) * mat_rix(i, j);
@@ -611,24 +611,77 @@ int mat_2vec_rcpp_by2(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVe
 }  // end mat_2vec_rcpp_by2
 
 
+// The function get_cor() calculates the correlation of the matrix re_turns.
+//' @export
+// [[Rcpp::export]]
+arma::mat get_cor(const arma::mat& re_turns) {
+  return arma::cor(re_turns);
+}  // end get_cor
+
+
+// homework
+// The function get_eigenvals() calculates the eigen_values 
+// of the matrix cov_mat.
+//' @export
+// [[Rcpp::export]]
+arma::vec get_eigenvals(const arma::mat& cov_mat) {
+  arma::vec eigen_vals = arma::eig_sym(cov_mat);
+  return eigen_vals;
+}  // end get_eigenvals
+
+
+// The function get_eigen() calculates the eigen decomposition 
+// of the matrix re_turns.
+//' @export
+// [[Rcpp::export]]
+List get_eigen(const arma::mat& re_turns) {
+  arma::mat eigen_vec;
+  arma::vec eigen_val;
+  arma::eig_sym(eigen_val, eigen_vec, cor(re_turns));
+  return List::create(Named("eigval") = eigen_val,
+                      Named("eigvec") = eigen_vec);
+}  // end get_eigen
+
+
+// homework
+// The function get_pca() calculates the PCA 
+// of the matrix re_turns.
+//' @export
+// [[Rcpp::export]]
+List get_pca(const arma::mat& re_turns) {
+  arma::mat co_eff;
+  arma::mat sco_re;
+  arma::vec la_tent;
+  arma::vec t_squared;
+  
+  arma::princomp(co_eff, sco_re, la_tent, t_squared, re_turns);
+  
+  return List::create(Named("coefficients") = co_eff,
+                      Named("score") = sco_re,
+                      Named("latent") = la_tent,
+                      Named("tsquared") = t_squared);
+  
+}  // end get_pca
+
+
 // The function invspd_rcpp() calculates the inverse of symmetric positive
 // definite matrix.
 // It uses Rcpp and RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-SEXP invspd_rcpp( SEXP X_ ){
+SEXP invspd_rcpp(SEXP X_) {
   arma::mat X    = Rcpp::as<arma::mat>(X_);
   arma::mat Xinv = arma::inv_sympd(X);
   return(Rcpp::wrap(Xinv));
 }  // end invspd_rcpp
 
 
-// The function invspd_arma() calculates the inverse of symmetric positive
+// The function invspd_arma() calculates the inverse of symmetric positive 
 // definite matrix.
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-arma::mat invspd_arma(const arma::mat& mat_rix){
+arma::mat invspd_arma(const arma::mat& mat_rix) {
   arma::mat mat_inv = arma::inv_sympd(mat_rix);
   return mat_inv;
 }  // end invspd_arma
@@ -641,7 +694,7 @@ arma::mat invspd_arma(const arma::mat& mat_rix){
 // It uses RcppArmadillo.
 //' @export
 // [[Rcpp::export]]
-double inv_mat(arma::mat& mat_rix){
+double inv_mat(arma::mat& mat_rix) {
   mat_rix = arma::inv_sympd(mat_rix);
   return mat_rix.n_cols;
 }  // end inv_mat
@@ -651,6 +704,8 @@ double inv_mat(arma::mat& mat_rix){
 // calculates the beta coefficients and their t-values and p-values, and the
 // R-squared and F-statistic.
 // It uses RcppArmadillo.
+// Adapted from:
+// http://gallery.rcpp.org/articles/fast-linear-model-with-armadillo/
 //' @export
 // [[Rcpp::export]]
 List lm_arma(const arma::colvec& res_ponse, const arma::mat& ex_plain) {
@@ -687,7 +742,7 @@ List lm_arma(const arma::colvec& res_ponse, const arma::mat& ex_plain) {
   Rcpp::colnames(co_ef) = Rcpp::CharacterVector::create("betas", "std_err", "tvals", "pvals");
   
   return List::create(Named("coefficients") = co_ef,
-                      Named("stats")  = stat_s);
+                      Named("stats") = stat_s);
 }  // end lm_arma
 
 
@@ -700,7 +755,7 @@ List lm_arma(const arma::colvec& res_ponse, const arma::mat& ex_plain) {
 // The function test_rcpp() is for testing some Rcpp code snippets.
 //' @export
 // [[Rcpp::export]]
-LogicalVector test_rcpp(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVector& vec_tor1){
+LogicalVector test_rcpp(NumericVector& vec_tor2, NumericMatrix& mat_rix, NumericVector& vec_tor1) {
   Rcpp::IntegerVector stat_s(4);
   stat_s(0) = mat_rix.nrow();
   stat_s(1) = mat_rix.ncol();
@@ -719,7 +774,7 @@ LogicalVector test_rcpp(NumericVector& vec_tor2, NumericMatrix& mat_rix, Numeric
 // The function test_arma() is for testing some RcppArmadillo code snippets.
 //' @export
 // [[Rcpp::export]]
-LogicalVector test_arma(arma::mat& mat_rix){
+LogicalVector test_arma(arma::mat& mat_rix) {
   // Rcout << "Num rows: " << mat_rix.n_rows << std::endl;
   // Rcout << "Num cols: " << mat_rix.n_cols << std::endl;
   mat_rix.print("This is the input matrix:");
@@ -730,7 +785,7 @@ LogicalVector test_arma(arma::mat& mat_rix){
 
 //' @export
 // [[Rcpp::export]]
-arma::uvec test_more_arma(const LogicalVector& vec_tor){
+arma::uvec test_more_arma(const LogicalVector& vec_tor) {
   Function whi_ch3("whi_ch3");
   // Rcout << "Num rows: " << mat_rix.n_rows << std::endl;
   // Rcout << "Num cols: " << mat_rix.n_cols << std::endl;

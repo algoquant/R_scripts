@@ -1,3 +1,260 @@
+## Rolling Portfolio Optimization Strategy for S&P500 constituents
+
+library(HighFreq)
+load("C:/Develop/R/lecture_slides/data/sp500_prices.RData")
+
+n_col <- NCOL(price_s)
+end_points <- rutils::calc_endpoints(price_s, inter_val="months")
+end_points <- end_points[end_points>50]
+len_gth <- NROW(end_points)
+look_back <- 12
+start_points <- c(rep_len(1, look_back-1), end_points[1:(len_gth-look_back+1)])
+
+date_s <- index(price_s)
+price_s <- t(t(price_s) / as.numeric(price_s[1, ]))
+sum(is.na(price_s))
+in_dex <- xts(rowSums(price_s)/n_col, date_s)
+re_turns <- diff_it(price_s)
+
+Rcpp::sourceCpp(file="C:/Develop/R/lecture_slides/scripts/rcpp_test6.cpp")
+
+al_pha <- 0.01
+max_eigen <- 2
+strat_rets_arma <- roll_portf(re_turns,
+                              re_turns,
+                              start_points-1,
+                              end_points-1,
+                              al_pha=al_pha,
+                              max_eigen=max_eigen)
+x11()
+strat_rets_arma <- cumsum(strat_rets_arma)
+strat_rets_arma <- xts(strat_rets_arma, date_s)
+
+library(dygraphs)
+dygraphs::dygraph(strat_rets_arma,
+                  main="Cumulative Returns of Max Sharpe Portfolio Strategy")
+
+strat_rets_arma <- cbind(strat_rets_arma, in_dex)
+col_names <- c("Strategy", "Index")
+colnames(strat_rets_arma) <- col_names
+
+dygraphs::dygraph(strat_rets_arma, main=paste(col_names, collapse=" and ")) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(col_names[2], axis="y2", col=c("red", "blue"))
+
+
+foo <- diff_it(log(strat_rets_arma-min(strat_rets_arma)+1))
+sqrt(260)*mean(foo)/sd(foo)
+bar <- diff_it(strat_rets_arma2)
+sqrt(260)*mean(bar)/sd(bar)
+bar <- diff_it(log(in_dex-min(in_dex)+1))
+sqrt(260)*mean(bar)/sd(bar)
+cor(foo, bar)
+
+foobar <- 0.1*foo+0.9*bar
+foobar <- exp(cumsum(foobar))
+
+sapply(seq(0, 1, 0.1), function(x) {
+  foobar <- x*foo+(1-x)*bar
+  sqrt(260)*mean(foobar)/sd(foobar)
+})
+
+## Rolling Portfolio Optimization Strategy for ETFs
+
+library(HighFreq)
+# load data
+# sym_bols contains all the symbols in rutils::env_etf$re_turns except for "VXX"
+sym_bols <- colnames(rutils::env_etf$re_turns)
+sym_bols <- sym_bols[!(sym_bols=="VXX")]
+# Extract columns of rutils::env_etf$re_turns and remove NA values
+re_turns <- rutils::env_etf$re_turns[, sym_bols]
+re_turns <- zoo::na.locf(re_turns)
+re_turns <- na.omit(re_turns)
+
+# Rolling Portfolio Optimization Strategy
+look_back <- 12
+end_points <- rutils::calc_endpoints(re_turns, inter_val="months")
+# Remove initial end_points for warmpup
+end_points <- end_points[end_points>50]
+len_gth <- NROW(end_points)
+# sliding window
+start_points <- c(rep_len(1, look_back-1), end_points[1:(len_gth-look_back+1)])
+# expanding window
+start_points <- rep_len(1, NROW(end_points))
+
+
+# coredata(re_turns) <- matrix(rnorm(prod(dim(re_turns)), sd=0.01), nc=NCOL(re_turns))
+# tail(re_turns)
+# risk_free is the daily risk-free rate
+risk_free <- 0.03/260
+ex_cess <- re_turns - risk_free
+# weight_s <- sapply(1:(NROW(end_points)-1),
+#                    function(i) {
+#                      # subset the ex_cess returns
+#                      ex_cess <- ex_cess[start_points[i]:end_points[i], ]
+#                      in_verse <- solve(cov(ex_cess))
+#                      # calculate the maximum Sharpe ratio portfolio weights
+#                      weight_s <- in_verse %*% colMeans(ex_cess)
+#                      weight_s <- drop(weight_s/sum(weight_s))
+#                    }  # end anonymous function
+# )  # end sapply
+# round(weight_s, 2)
+# dim(weight_s)
+
+# regular inverse
+portf_rets <- lapply(2:NROW(end_points),
+                     function(i) {
+                       # subset the ex_cess returns
+                       ex_cess <- ex_cess[start_points[i-1]:end_points[i-1], ]
+                       in_verse <- solve(cov(ex_cess))
+                       # calculate the maximum Sharpe ratio portfolio weights
+                       weight_s <- in_verse %*% colMeans(ex_cess)
+                       weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
+                       # subset the re_turns
+                       re_turns <- re_turns[(end_points[i-1]+1):end_points[i], ]
+                       # calculate the out-of-sample portfolio returns
+                       xts(re_turns %*% weight_s, index(re_turns))
+                     }  # end anonymous function
+)  # end lapply
+
+# with regularization
+max_eigen <- 2
+portf_rets <- lapply(2:NROW(end_points),
+                     function(i) {
+                       # subset the ex_cess returns
+                       ex_cess <- ex_cess[start_points[i-1]:end_points[i-1], ]
+                       cov_mat <- cov(ex_cess)
+                       # perform eigen decomposition and calculate eigenvectors and eigenvalues
+                       ei_gen <- eigen(cov_mat)
+                       eigen_vec <- ei_gen$vectors
+                       # calculate regularized inverse
+                       in_verse <- eigen_vec[, 1:max_eigen] %*% (t(eigen_vec[, 1:max_eigen]) / ei_gen$values[1:max_eigen])
+                       # calculate the maximum Sharpe ratio portfolio weights
+                       # weight_s <- in_verse %*% colMeans(ex_cess)
+                       # weight_s <- rep(mean(colMeans(ex_cess)), NCOL(ex_cess))
+                       weight_s <- colMeans(ex_cess)
+                       # shrink weight_s to the mean of weight_s
+                       weight_s <- ((1-al_pha)*weight_s + al_pha*mean(weight_s))
+                       weight_s <- in_verse %*% weight_s
+                       weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
+                       # subset the re_turns
+                       re_turns <- re_turns[(end_points[i-1]+1):end_points[i], ]
+                       # calculate the out-of-sample portfolio returns
+                       xts(re_turns %*% weight_s, index(re_turns))
+                     }  # end anonymous function
+)  # end lapply
+
+
+# with shrinkage intensity
+al_pha <- 0.9
+portf_rets <- lapply(2:NROW(end_points),
+                     function(i) {
+                       # subset the ex_cess returns
+                       ex_cess <- ex_cess[start_points[i-1]:end_points[i-1], ]
+                       cov_mat <- cov(ex_cess)
+                       cor_mat <- cor(ex_cess)
+                       std_dev <- sqrt(diag(cov_mat))
+                       # calculate target matrix
+                       cor_mean <- mean(cor_mat[upper.tri(cor_mat)])
+                       tar_get <- matrix(cor_mean, nr=NROW(cov_mat), nc=NCOL(cov_mat))
+                       diag(tar_get) <- 1
+                       tar_get <- t(t(tar_get * std_dev) * std_dev)
+                       # calculate shrinkage covariance matrix
+                       cov_mat <- (1-al_pha)*cov_mat + al_pha*tar_get
+                       in_verse <- solve(cov_mat)
+                       # calculate the maximum Sharpe ratio portfolio weights
+                       weight_s <- in_verse %*% colMeans(ex_cess)
+                       weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
+                       # subset the re_turns
+                       re_turns <- re_turns[(end_points[i-1]+1):end_points[i], ]
+                       # calculate the out-of-sample portfolio returns
+                       xts(re_turns %*% weight_s, index(re_turns))
+                     }  # end anonymous function
+)  # end lapply
+
+
+portf_rets <- rutils::do_call(rbind, portf_rets)
+colnames(portf_rets) <- "portf_rets"
+in_dex <- index(re_turns)[index(re_turns) < start(portf_rets)]
+portf_rets <- rbind(xts(numeric(NROW(in_dex)), in_dex), portf_rets)
+all.equal(as.numeric(portf_rets), drop(foo))
+
+
+# tail(portf_rets, 11)
+# dim(portf_rets)
+# sqrt(260)*(mean(portf_rets)-risk_free) / sd(portf_rets)
+portf_rets <- cumsum(portf_rets)
+# tail(portf_rets, 11)
+quantmod::chart_Series(portf_rets,
+  name="Cumulative Returns of Max Sharpe Portfolio Strategy")
+dygraphs::dygraph(portf_rets, 
+  main="Cumulative Returns of Max Sharpe Portfolio Strategy")
+
+Rcpp::sourceCpp(file="C:/Develop/R/lecture_slides/scripts/rcpp_test6.cpp")
+foo <- roll_portf(ex_cess, re_turns, start_points-1, end_points-1, al_pha=al_pha, max_eigen)
+coredata(portf_rets) <- cumsum(foo)
+
+
+
+### Regularized inverse of covariance matrix
+
+# create random covariance matrix
+set.seed(1121)
+mat_rix <- matrix(rnorm(5e2), nc=5)
+cov_mat <- cov(mat_rix)
+# perform eigen decomposition
+ei_gen <- eigen(cov_mat)
+eigen_vec <- ei_gen$vectors
+# calculate regularized inverse matrix
+max_eigen <- 2
+in_verse <- eigen_vec[, 1:max_eigen] %*% 
+  (t(eigen_vec[, 1:max_eigen]) / ei_gen$values[1:max_eigen])
+
+all.equal(in_verse, solve(cov_mat))
+
+Rcpp::sourceCpp(file="C:/Develop/R/lecture_slides/scripts/rcpp_test6.cpp")
+
+foo <- inv_reg(mat_rix, max_eigen)
+all.equal(in_verse, foo)
+
+
+library(microbenchmark)
+summary(microbenchmark(
+  r_code={cov_mat <- cov(mat_rix)
+  ei_gen <- eigen(cov_mat)
+  eigen_vec <- ei_gen$vectors
+  eigen_vec[, 1:max_eigen] %*% (t(eigen_vec[, 1:max_eigen]) / ei_gen$values[1:max_eigen])},
+  arma_code=inv_reg(mat_rix, max_eigen),
+  times=10))[, c(1, 4, 5)]  # end microbenchmark summary
+
+
+# calculate the maximum Sharpe ratio portfolio weights
+weight_s <- colMeans(ex_cess)
+weight_s <- ((1-al_pha)*weight_s + al_pha*mean(weight_s))
+weight_s <- in_verse %*% weight_s
+weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
+names(weight_s) <- colnames(re_turns)
+foo <- drop(sharpe_weights_reg(ex_cess, al_pha, max_eigen))
+all.equal(unname(weight_s), foo)
+
+portf_rets <- xts(cumsum(re_turns %*% weight_s), index(re_turns))
+colnames(portf_rets) <- "portf_rets"
+dygraphs::dygraph(portf_rets, 
+                  main="Cumulative Returns of Max Sharpe Portfolio Strategy")
+
+
+summary(microbenchmark(
+  r_code={cov_mat <- cov(mat_rix)
+  ei_gen <- eigen(cov_mat)
+  eigen_vec <- ei_gen$vectors
+  in_verse <- eigen_vec[, 1:max_eigen] %*% (t(eigen_vec[, 1:max_eigen]) / ei_gen$values[1:max_eigen])
+  in_verse %*% colMeans(mat_rix)
+  },
+  arma_code=sharpe_weights_reg(mat_rix, max_eigen),
+  times=10))[, c(1, 4, 5)]  # end microbenchmark summary
+
+
 
 ### sweep() for matrix multiplication
 
@@ -134,7 +391,7 @@ var(re_turns %*% weight_s)
 object_ive <- function(weight_s, re_turns, conf_level, portfolio_sub) {
   # portf_rets <- re_turns %*% weight_s
   # var(portf_rets) + 
-  t(weight_s) %*% co_var %*% weight_s +
+  t(weight_s) %*% cov_mat %*% weight_s +
     1000*(sum(weight_s) - 1)^2 +
     1000*(sum(weight_s * portfolio_sub[-1]) - portfolio_sub[1])^2
 }  # end object_ive
@@ -294,13 +551,13 @@ foo$vectors[, , 101]
 ret_sub <- re_turns[(n_rows-9):n_rows, 1:5]
 ret_mean <- apply(ret_sub, 2, mean)
 # ret_sub <- apply(ret_sub, 2, function(x) x-mean(x))
-# co_var <- crossprod(ret_sub)
+# cov_mat <- crossprod(ret_sub)
 
 ## maximum Sharpe portfolio weights from inverse matrix
-co_var <- cov(ret_sub)
-ei_gen <- eigen(co_var)
+cov_mat <- cov(ret_sub)
+ei_gen <- eigen(cov_mat)
 in_verse <- ei_gen$vectors %*% (t(ei_gen$vectors)/ei_gen$values)
-trunc(in_verse %*% co_var, 4)
+trunc(in_verse %*% cov_mat, 4)
 weight_s <- in_verse %*% ret_mean
 weight_s <- weight_s/sum(abs(weight_s))
 
@@ -2423,9 +2680,9 @@ bar <- cov_mat(re_turns, an_gle=pi/4)
 (t(bar) %*% bar) / NROW(bar)
 
 angle_s <- seq(0, pi/2, by=pi/24)
-co_var <- sapply(angle_s, function(an_gle)
+cov_mat <- sapply(angle_s, function(an_gle)
   cov_mat(re_turns, an_gle=an_gle)[1, 1])
-plot(x=angle_s, y=co_var, t="l")
+plot(x=angle_s, y=cov_mat, t="l")
 
 op_tim <- optimize(
   f=function(an_gle)
