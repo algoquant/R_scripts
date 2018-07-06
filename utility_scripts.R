@@ -162,5 +162,3 @@ localH2O = h2o.init(nthreads=-1)
 # Finally, let's run a demo to see H2O at work.
 demo(h2o.kmeans)
 
-
-

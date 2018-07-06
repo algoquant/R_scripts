@@ -100,6 +100,144 @@ col_names <- rutils::get_name(colnames(price_s))
 
 
 
+###############
+### Load and save OHLC bar data
+
+library(HighFreq)
+
+## Load ES1 futures data from binary file
+load(file="C:/Develop/data/ES1.RData")
+# or
+# load ES1 futures data from CSV file
+oh_lc <- read.zoo(file="C:/Develop/data/bar_data/ES1.csv", 
+                  header=TRUE, sep=",",
+                  drop=FALSE, format="%Y-%m-%d %H:%M",
+                  FUN=as.POSIXct, tz="America/New_York")
+# coerce to xts series
+oh_lc <- as.xts(oh_lc)
+# subset to trading hours
+oh_lc <- oh_lc["T09:00:00/T16:30:00"]
+# save the bar data to binary file
+save(oh_lc, file="C:/Develop/data/ES1.RData")
+
+
+## Load futures data from CSV files
+
+# read file names
+file_names <- scan(file="C:/Develop/data/bar_data/etf_file_names.txt", what=character(), sep=",")
+
+# remember the cwd
+c_wd <- getwd()
+# set the cwd to the file directory
+file_dir <- strsplit(file_names[1], split="/")[[1]]
+file_dir <- file_dir[-NROW(file_dir)]
+file_dir <- paste(file_dir, collapse="/")
+# or
+# file_dir <- do.call(file.path, as.list(file_dir))
+setwd(dir=file_dir)
+
+# loop over the file_names, load data from CSV files,
+# and save the bar data to binary files
+for (file_name in file_names) {
+  file_name <- strsplit(file_name, split="/")[[1]]
+  file_name <- file_name[NROW(file_name)]
+  # load time series data from CSV file
+  oh_lc <- read.zoo(file=file_name, 
+                    header=TRUE, sep=",",
+                    drop=FALSE, format="%Y-%m-%d %H:%M",
+                    FUN=as.POSIXct, tz="America/New_York")
+  # coerce to xts series
+  oh_lc <- as.xts(oh_lc)
+  sym_bol <- strsplit(file_name, split="[.]")[[1]][1]
+  # rename column names
+  colnames(oh_lc) <- paste(sym_bol, colnames(oh_lc), sep=".")
+  # subset to trading hours
+  # oh_lc <- oh_lc["T09:00:00/T16:30:00"]
+  # save the bar data to binary file
+  save(oh_lc, file=paste0(sym_bol, ".RData"))
+}  # end for
+
+# restore the cwd
+setwd(dir=c_wd)
+
+
+## Load futures data from RData files
+
+# read the symbols
+sym_bols <- scan(file="C:/Develop/data/bar_data/etf_symbols.txt", what=character(), sep=",")
+# specify the file directory
+file_dir <- "C:/Develop/data/bar_data/"
+# specify new environment for data
+env_etf <- new.env()
+# specify the file names
+# file_names <- paste0(file_dir, sym_bols, ".RData")
+
+# load data in a loop and copy into env_etf
+for (sym_bol in sym_bols) {
+  # specify the file name
+  file_name <- paste0(file_dir, sym_bol, ".RData")
+  load_ed <- load(file=file_name)
+  assign(x=sym_bol, value=get(load_ed), envir=env_etf)
+}  # end for
+
+
+## Combine the ETF series of prices into a single xts series and save it into env_etf
+
+# extract only first 4 OHLC price columns from each ETF series
+assign(x="oh_lc", 
+       value=rutils::do_call(cbind, eapply(env_etf, function(x_ts) x_ts[, 1:4])), 
+       envir=env_etf)
+# oh_lc <- rutils::do_call(cbind, eapply(env_etf, function(x_ts) x_ts[, 1:4]))
+env_etf$oh_lc <- na.omit(env_etf$oh_lc)
+# subset to trading hours
+env_etf$oh_lc <- env_etf$oh_lc["T09:00:00/T16:30:00"]
+# save the bar data to binary file
+save(env_etf, file=paste0(file_dir, "etf_series.RData"))
+
+
+
+## Load futures data from binary files and combine into a single xts series
+# first load ES1 data and extract only first 4 OHLC price columns
+load(file="C:/Develop/data/ES1.RData")
+com_bo <- oh_lc[, 1:4]
+colnames(com_bo) <- paste0("ES1.", colnames(com_bo))
+# next load TU1 data and cbind it to ES1 data
+load(file="C:/Develop/data/TU1UST2yr.RData")
+oh_lc <- oh_lc[, 1:4]
+colnames(oh_lc) <- paste0("TU1.", colnames(oh_lc))
+com_bo <- cbind(com_bo, oh_lc)
+# next load TY1 data and cbind it to ES1 data
+load(file="C:/Develop/data/TY1UST10yr.RData")
+oh_lc <- oh_lc[, 1:4]
+colnames(oh_lc) <- paste0("TY1.", colnames(oh_lc))
+com_bo <- cbind(com_bo, oh_lc)
+# next load UX1 data and cbind it to ES1 data
+load(file="C:/Develop/data/UX1_VIX.RData")
+oh_lc <- oh_lc[, 1:4]
+colnames(oh_lc) <- paste0("UX1.", colnames(oh_lc))
+com_bo <- cbind(com_bo, oh_lc)
+load(file="C:/Develop/data/UX2_VIX.RData")
+oh_lc <- oh_lc[, 1:4]
+# next load UX1 data and cbind it to ES1 data
+colnames(oh_lc) <- paste0("UX2.", colnames(oh_lc))
+com_bo <- cbind(com_bo, oh_lc)
+
+# combine into a single xts series
+oh_lc <- na.omit(com_bo)
+# save the bar data to binary file
+save(com_bo, file="C:/Develop/data/combined.RData")
+# load(file="C:/Develop/data/combined.RData")
+
+# plot dygraph
+label_s <- c("TY1.Close", "TU1.Close")
+# dygraphs::dygraph(cbind(clo_se, da_ta())["2018-02-09"], main="OHLC Technicals Strategy") %>%
+dygraphs::dygraph(oh_lc[endpoints(oh_lc, on="hours"), label_s], main="OHLC Data") %>%
+  dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%
+  dySeries(label_s[2], axis="y2", col=c("blue", "red"))
+
+
+
 ####################################
 # ignore below
 
