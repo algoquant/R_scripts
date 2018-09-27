@@ -913,7 +913,7 @@ library(roll)
 # specify regression formula
 reg_formula <- XLP ~ VTI
 # perform rolling beta regressions every month
-beta_s <- rollapply(env_etf$re_turns, width=252,
+beta_s <- rollapply(etf_env$re_turns, width=252,
                     FUN=function(design_matrix)
                       coef(lm(reg_formula, data=design_matrix))[2],
                     by=22, by.column=FALSE, align="right")
@@ -923,14 +923,14 @@ x11()
 chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
 
 # perform daily rolling beta regressions in parallel
-beta_s <- roll::roll_lm(x=env_etf$re_turns[, "VTI"],
-                  y=env_etf$re_turns[, "XLP"],
+beta_s <- roll::roll_lm(x=etf_env$re_turns[, "VTI"],
+                  y=etf_env$re_turns[, "XLP"],
                   width=252)$coefficients
 chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
 
 # compare speed of rollapply() versus roll_lm()
 library(microbenchmark)
-da_ta <- env_etf$re_turns["2012", c("VTI", "XLP")]
+da_ta <- etf_env$re_turns["2012", c("VTI", "XLP")]
 summary(microbenchmark(
   rollapply=rollapply(da_ta, width=22,
                       FUN=function(design_matrix)
@@ -1021,11 +1021,11 @@ sapply(seq(0, 1, 0.1), function(x) {
 
 library(rutils)
 # load data
-# sym_bols contains all the symbols in rutils::env_etf$re_turns except for "VXX"
-sym_bols <- colnames(rutils::env_etf$re_turns)
+# sym_bols contains all the symbols in rutils::etf_env$re_turns except for "VXX"
+sym_bols <- colnames(rutils::etf_env$re_turns)
 sym_bols <- sym_bols[!(sym_bols=="VXX")]
-# Extract columns of rutils::env_etf$re_turns and remove NA values
-re_turns <- rutils::env_etf$re_turns[, sym_bols]
+# Extract columns of rutils::etf_env$re_turns and remove NA values
+re_turns <- rutils::etf_env$re_turns[, sym_bols]
 re_turns <- zoo::na.locf(re_turns)
 re_turns <- na.omit(re_turns)
 
@@ -1409,7 +1409,7 @@ chart_Series(cumsum(rets_ewma[, 1]), name="EWMA trend-following strategy")
 ## volatility switching weights strategy
 # adjust weights depending on volatility
 
-oh_lc <- rutils::env_etf$VTI
+oh_lc <- rutils::etf_env$VTI
 re_turns <- rutils::diff_it(log(Cl(oh_lc)))
 rets_mean <- roll::roll_mean(data=re_turns, width=20)
 rets_mean[1:19] <- 0
@@ -1528,9 +1528,9 @@ summary(microbenchmark(
 ### OHLC momentum
 
 # set up data
-clo_se <- quantmod::Cl(rutils::env_etf$VTI)
-hi_gh <- quantmod::Hi(rutils::env_etf$VTI)
-lo_w <- quantmod::Lo(rutils::env_etf$VTI)
+clo_se <- quantmod::Cl(rutils::etf_env$VTI)
+hi_gh <- quantmod::Hi(rutils::etf_env$VTI)
+lo_w <- quantmod::Lo(rutils::etf_env$VTI)
 re_turns <- clo_se - rutils::lag_it(clo_se)
 returns_adv <- rutils::lag_it(re_turns, lagg=-1)
 returns_high <- hi_gh - rutils::lag_it(hi_gh)
@@ -2052,7 +2052,7 @@ re_turns <- parLapply(clus_ter, lamb_das, function(lamb_da) {
 
 ## Simple trend-following strategy
 
-bar <- rutils::env_etf$re_turns[, "VTI"]
+bar <- rutils::etf_env$re_turns[, "VTI"]
 bar <- cumsum(bar*sign(rutils::lag_it(bar)))
 chart_Series(bar, name="Simple trend-following strategy")
 

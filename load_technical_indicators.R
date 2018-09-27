@@ -4,7 +4,7 @@
 library(rutils)
 
 # Define OHLC data
-oh_lc <- log(rutils::env_etf$VTI)
+oh_lc <- log(rutils::etf_env$VTI)
 op_en <- Op(oh_lc)
 hi_gh <- Hi(oh_lc)
 lo_w <- Lo(oh_lc)

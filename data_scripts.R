@@ -5,6 +5,18 @@
 library(rutils)
 
 
+###########
+### Download VIX CSV files from CBOE
+
+# download text data from URL - doesn't download data - just html code
+foo <- RCurl::getURL("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
+foo <- readLines("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
+foo <- read.csv("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
+class(foo)
+NROW(foo)
+bar <- grep(glob2rx("*.csv"), foo)
+
+
 
 ###########
 ### Download multiple symbols from Bloomberg
@@ -62,10 +74,10 @@ prices_ts <- prices_ts[, symbol_s]
 
 # create new environment for data
 data_env <- new.env()
-dir_data <- "C:/Develop/data/bbg_records"
+data_dir <- "C:/Develop/data/bbg_records"
 # sym_bols <- c("SPX", "VIX")
 # file_names <- paste0(sym_bols, ".csv")
-file_names <- dir(dir_data)
+file_names <- dir(data_dir)
 sym_bols <- rutils::get_name(file_names)
 
 # subset sym_bols by removing currency symbols
@@ -78,7 +90,7 @@ sub_symbols <- sub_symbols[-grep("GDB", sub_symbols, ignore.case=TRUE)]
 
 # load data from csv files into the environment
 out <- rutils::get_data(sym_bols=sub_symbols,
-                        data_dir=dir_data,
+                        data_dir=data_dir,
                         data_env=data_env,
                         e_cho=FALSE)
 
@@ -168,31 +180,31 @@ sym_bols <- scan(file="C:/Develop/data/bar_data/etf_symbols.txt", what=character
 # specify the file directory
 file_dir <- "C:/Develop/data/bar_data/"
 # specify new environment for data
-env_etf <- new.env()
+etf_env <- new.env()
 # specify the file names
 # file_names <- paste0(file_dir, sym_bols, ".RData")
 
-# load data in a loop and copy into env_etf
+# load data in a loop and copy into etf_env
 for (sym_bol in sym_bols) {
   # specify the file name
   file_name <- paste0(file_dir, sym_bol, ".RData")
   load_ed <- load(file=file_name)
-  assign(x=sym_bol, value=get(load_ed), envir=env_etf)
+  assign(x=sym_bol, value=get(load_ed), envir=etf_env)
 }  # end for
 
 
-## Combine the ETF series of prices into a single xts series and save it into env_etf
+## Combine the ETF series of prices into a single xts series and save it into etf_env
 
 # extract only first 4 OHLC price columns from each ETF series
 assign(x="oh_lc", 
-       value=rutils::do_call(cbind, eapply(env_etf, function(x_ts) x_ts[, 1:4])), 
-       envir=env_etf)
-# oh_lc <- rutils::do_call(cbind, eapply(env_etf, function(x_ts) x_ts[, 1:4]))
-env_etf$oh_lc <- na.omit(env_etf$oh_lc)
+       value=rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4])), 
+       envir=etf_env)
+# oh_lc <- rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4]))
+etf_env$oh_lc <- na.omit(etf_env$oh_lc)
 # subset to trading hours
-env_etf$oh_lc <- env_etf$oh_lc["T09:00:00/T16:30:00"]
+etf_env$oh_lc <- etf_env$oh_lc["T09:00:00/T16:30:00"]
 # save the bar data to binary file
-save(env_etf, file=paste0(file_dir, "etf_series.RData"))
+save(etf_env, file=paste0(file_dir, "etf_series.RData"))
 
 
 

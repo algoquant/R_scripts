@@ -12,7 +12,7 @@ source("C:/Develop/R/scripts/calc_strategy.R")
 # load OHLC data
 # oh_lc <- HighFreq::SPY
 # oh_lc <- HighFreq::SPY["2010-10/2010-11"]
-# oh_lc <- rutils::env_etf$VTI
+# oh_lc <- rutils::etf_env$VTI
 # load recent ES1 futures data
 # load(file="C:/Develop/data/ES1.RData")
 # or
@@ -24,17 +24,16 @@ source("C:/Develop/R/scripts/calc_strategy.R")
 # save(oh_lc, file="C:/Develop/data/ES1.RData")
 # load recent combined futures data
 load(file="C:/Develop/data/combined.RData")
-com_bo <- oh_lc
 
 # set up data for signal
 sym_bol <- "UX1"
-oh_lc <- oh_lc[, paste(sym_bol, c("Open", "High", "Low", "Close"), sep=".")]
+oh_lc <- com_bo[, paste(sym_bol, c("Open", "High", "Low", "Close"), sep=".")]
 
-log_ohlc <- log(oh_lc)
+ohlc_log <- log(oh_lc)
 # sum(is.na(oh_lc))
 # sapply(oh_lc, class)
 # tail(oh_lc, 11)
-clo_se <- Cl(log_ohlc)
+clo_se <- Cl(ohlc_log)
 close_num <- as.numeric(clo_se)
 re_turns <- rutils::diff_it(clo_se)
 # regression with clo_se prices as response requires clo_se to be a vector
@@ -46,10 +45,10 @@ dygraphs::dygraph(xts::to.hourly(clo_se), main=sym_bol)
 # clo_se <- as.numeric(cumsum(re_turns))
 
 # Define OHLC data
-op_en <- Op(log_ohlc)
-hi_gh <- Hi(log_ohlc)
+op_en <- Op(ohlc_log)
+hi_gh <- Hi(ohlc_log)
 high_num <- as.numeric(hi_gh)
-lo_w <- Lo(log_ohlc)
+lo_w <- Lo(ohlc_log)
 low_num <- as.numeric(lo_w)
 close_high <- (close_num == high_num)
 close_high_count <- roll_count(close_high)
@@ -218,7 +217,6 @@ summary(microbenchmark(
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
 
-# wipp
 # contrarian strategy
 po_sit <- rep(NA_integer_, NROW(oh_lc))
 po_sit[1] <- 0
@@ -242,6 +240,32 @@ po_sit[close_low] <- 1
 po_sit <- roll_cum(po_sit, 2)
 po_sit <- rutils::lag_it(po_sit, lagg=1)
 
+
+# wipp
+# contrarian strategy using roll_maxmin()
+look_back <- 11
+max_min <- roll_maxmin(close_num, look_back)
+close_max <- (close_num == max_min[, 1])
+close_min <- (close_num == max_min[, 2])
+vol_at <- HighFreq::roll_variance(oh_lc=ohlc_log, look_back=5*look_back, sca_le=FALSE)
+vol_at <- sqrt(vol_at)
+vol_at[1] <- vol_at[2]
+colnames(vol_at) <- "volat"
+dra_w <- rutils::diff_it(close_num, lagg=look_back)
+dra_w <- as.numeric(dra_w/vol_at)
+max_min <- roll_maxmin(dra_w, look_back)
+draw_max <- (dra_w == max_min[, 1])
+draw_min <- (dra_w == max_min[, 2])
+
+po_sit <- rep(NA_integer_, NROW(oh_lc))
+po_sit[1] <- 0
+# po_sit[close_max] <- (-1)
+# po_sit[close_min] <- 1
+po_sit[(dra_w>4) & draw_max & close_max] <- (-1)
+po_sit[(dra_w<(-4)) & draw_min & close_min] <- 1
+po_sit <- zoo::na.locf(po_sit)
+po_sit <- rutils::lag_it(po_sit, lagg=1)
+
 # number of trades
 sum(abs(rutils::diff_it(po_sit))) / NROW(po_sit)
 
@@ -249,15 +273,22 @@ sum(abs(rutils::diff_it(po_sit))) / NROW(po_sit)
 pnl_s <- cumsum(po_sit*re_turns)
 colnames(pnl_s) <- "strategy"
 
-# plot dygraphs
-dygraphs::dygraph(pnl_s[xts::endpoints(pnl_s, on="days")], main="ES1 strategy")
-# plot dygraphs with two "y" axes
+
+# dygraphs plot
+end_points <- xts::endpoints(pnl_s, on="days")
+dygraphs::dygraph(pnl_s[end_points], main="ES1 strategy")
+# data for plot
+da_ta <- cbind(clo_se, pnl_s)[end_points]
+colnames(da_ta) <- c(sym_bol, "pnls")
+# or
 da_ta <- cbind(clo_se, po_sit)
-colnames(da_ta) <- c(symbol_asset, "position")
-dygraphs::dygraph(da_ta, main=paste(symbol_asset, "Strategy Using OHLC Technical Indicators")) %>%
-  dyAxis("y", label=symbol_asset, independentTicks=TRUE) %>%
-  dyAxis("y2", label="position", independentTicks=TRUE) %>%
-  dySeries("position", axis="y2", col=c("blue", "red"))
+colnames(da_ta) <- c(sym_bol, "position")
+# dygraphs plot with two "y" axes
+second_series <- colnames(da_ta)[2]
+dygraphs::dygraph(da_ta, main=paste(sym_bol, "Strategy Using OHLC Technical Indicators")) %>%
+  dyAxis("y", label=sym_bol, independentTicks=TRUE) %>%
+  dyAxis("y2", label=second_series, independentTicks=TRUE) %>%
+  dySeries(second_series, axis="y2", col=c("blue", "red"))
 
 
 x11()
@@ -290,41 +321,67 @@ close_low_count <- drop(close_low_count)
 abline(v=which(close_high_count[rang_e]>0), col='red')
 abline(v=which(close_low_count[rang_e]>0), col='blue')
 
+draw_max <- xts::xts(draw_max, index(oh_lc))
+draw_min <- xts::xts(draw_min, index(oh_lc))
+abline(v=draw_max[rang_e], col='blue')
+abline(v=draw_min[rang_e], col='red')
+# add background shading of areas
+chart_Series(x=Cl(oh_lc[rang_e]))
+add_TA(draw_max[rang_e], on=-1,
+       col="blue", border="blue")
+add_TA(draw_min[rang_e], on=-1,
+       col="red", border="red")
+
+# wipp
+# dygraphs plot with max_min lines
+da_ta <- xts::xts(cbind(close_num, max_min), index(oh_lc))[rang_e]
+colnames(da_ta) <- c(sym_bol, "max", "min")
+col_ors <- c("blue", "red", "green")
+dygraphs::dygraph(da_ta, main=paste(sym_bol, "max and min lines")) %>%
+  dyOptions(colors=col_ors)
+
+# standard plot with max_min lines
+# plot(as.numeric(da_ta[, 1]), type="l", col="blue", 
+#      main=paste(sym_bol, "max and min lines"), 
+#      xlab="", ylab="")
+# lines(da_ta[, 2], col="red")
+# lines(da_ta[, 3], col="green")
+plot_theme <- chart_theme()
+plot_theme$col$line.col <- col_ors
+quantmod::chart_Series(da_ta, theme=plot_theme, name=paste(sym_bol, "max and min lines"))
+legend(x="left", title=NULL, legend=colnames(da_ta),
+       inset=0.1, cex=1.2, bg="white", bty="n",
+       lwd=6, lty=1, col=col_ors)
 
 
 # calculate the rolling maximum and minimum over a vector of data
-roll_maxmin <- function(vec_tor, look_back) {
+roll_maxminr <- function(vec_tor, look_back) {
   len_gth <- NROW(vec_tor)
   max_min <- matrix(numeric(2*len_gth), nc=2)
-  
   # startup periods
-  max_min[1, 1] <- vec_tor[1];
-  max_min[1, 2] <- vec_tor[1];
+  max_min[1, 1] <- vec_tor[1]
+  max_min[1, 2] <- vec_tor[1]
   for (it in 2:(look_back-1)) {
-    sub_vec <- vec_tor[1:it];
-    max_min[it, 1] <- max(sub_vec);
-    max_min[it, 2] <- min(sub_vec);
+    sub_vec <- vec_tor[1:it]
+    max_min[it, 1] <- max(sub_vec)
+    max_min[it, 2] <- min(sub_vec)
   }  # end for
-  
   # remaining periods
   for (it in look_back:len_gth) {
-    sub_vec <- vec_tor[(it-look_back+1):it];
-    max_min[it, 1] <- max(sub_vec);
-    max_min[it, 2] <- min(sub_vec);
+    sub_vec <- vec_tor[(it-look_back+1):it]
+    max_min[it, 1] <- max(sub_vec)
+    max_min[it, 2] <- min(sub_vec)
   }  # end for
-  
   return(max_min)
-}  # end roll_maxmin
+}  # end roll_maxminr
 
-max_min <- roll_maxmin(as.numeric(clo_se["2014-05"]), look_back)
-bar <- TTR::runMax(x=clo_se["2014-05"], n=look_back)
-all.equal(foo[-(1:look_back), 1], as.numeric(bar)[-(1:look_back)])
-foo <- cbind(foo, bar)
-bar <- TTR::runMin(x=clo_se["2014-05"], n=look_back)
-all.equal(foo[-(1:look_back), 2], as.numeric(bar)[-(1:look_back)])
-foo <- cbind(foo, bar)
-tail(foo, 22)
-head(foo, 22)
+max_min <- roll_maxmin(close_num, look_back)
+max_minr <- roll_maxminr(close_num, look_back)
+all.equal(max_min, max_minr)
+bar <- TTR::runMax(x=close_num, n=look_back)
+all.equal(max_min[-(1:look_back), 1], bar[-(1:look_back)])
+bar <- TTR::runMin(x=close_num, n=look_back)
+all.equal(max_min[-(1:look_back), 2], bar[-(1:look_back)])
 max_min <- xts(max_min, index(clo_se["2014-05"]))
 dygraphs::dygraph(max_min[, 1]-clo_se["2014-05"])
 
@@ -527,7 +584,7 @@ plot(sig_nal, t="l")
 # par_am <- cbind(6:10, rep((3:12)/10, each=NROW(6:10)))
 posit_mat <- sapply(4:8, function(look_short) {
   # mean reverting signal
-  sig_nal_short <- calc_signal(oh_lc=log_ohlc,
+  sig_nal_short <- calc_signal(oh_lc=ohlc_log,
                                clo_se=close_num,
                                de_sign=de_sign,
                                look_short=look_short, high_freq=FALSE)
@@ -595,11 +652,11 @@ summary(microbenchmark(
 
 # OHLC data setup
 oh_lc <- log(HighFreq::SPY["2010-10/2010-11"])
-log_ohlc <- log(oh_lc)
-op_en <- Op(log_ohlc)
-hi_gh <- Hi(log_ohlc)
-lo_w <- Lo(log_ohlc)
-clo_se <- Cl(log_ohlc)
+ohlc_log <- log(oh_lc)
+op_en <- Op(ohlc_log)
+hi_gh <- Hi(ohlc_log)
+lo_w <- Lo(ohlc_log)
+clo_se <- Cl(ohlc_log)
 re_turns <- rutils::diff_it(clo_se)
 # colnames(re_turns) <- "returns"
 close_num <- as.numeric(clo_se)
@@ -1095,9 +1152,9 @@ Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/kalman_filter.cpp")
 
 
 # Calculate ETF prices
-sym_bols <- colnames(rutils::env_etf$price_s)
+sym_bols <- colnames(rutils::etf_env$price_s)
 sym_bols <- sym_bols[!(sym_bols=="VXX")]
-price_s <- rutils::env_etf$price_s[, sym_bols]
+price_s <- rutils::etf_env$price_s[, sym_bols]
 # Carry forward non-NA prices
 price_s <- zoo::na.locf(price_s)
 price_s <- na.omit(price_s)
@@ -1283,7 +1340,7 @@ wei_ghts <- c(1, rep(1e-5, 10))
 
 wei_ghts <- exp(-0.2*1:11)
 wei_ghts <- wei_ghts/sum(wei_ghts)
-vec_tor <- as.numeric(rutils::env_etf$VTI[, 6])
+vec_tor <- as.numeric(rutils::etf_env$VTI[, 6])
 weight_ed <- HighFreq::roll_wsum(vec_tor=vec_tor, wei_ghts=rev(wei_ghts))
 filter_ed <- filter(x=vec_tor, filter=wei_ghts, method="convolution", sides=1)
 
@@ -2185,9 +2242,9 @@ plot(foo[, 1]/foo[, 2], t="l")
 ### portfolio optimization using quadratic solver
 
 load("C:/Develop/data/etf_data.RData")
-ls(env_etf)
-dim(env_etf$re_turns)
-colnames(env_etf$re_turns)
+ls(etf_env)
+dim(etf_env$re_turns)
+colnames(etf_env$re_turns)
 
 
 
@@ -2300,7 +2357,7 @@ summary(foo)
 
 ##
 
-16*sd(rutils::env_etf$re_turns[, "VTI"])
+16*sd(rutils::etf_env$re_turns[, "VTI"])
 sqrt(250)
 250/5
 
@@ -2445,7 +2502,7 @@ source("C:/Develop/R/scripts/ewma_model.R")
 # Define oh_lc series, the EWMA look_back, and lamb_das.
 
 library(HighFreq)
-oh_lc <- rutils::env_etf$VTI["/2011"]
+oh_lc <- rutils::etf_env$VTI["/2011"]
 look_back <- 51
 lamb_das <- seq(0.001, 0.01, 0.001)
 

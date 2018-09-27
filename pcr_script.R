@@ -86,7 +86,7 @@ library(roll)
 # specify regression formula
 for_mula <- XLP ~ VTI
 # perform rolling beta regressions every month
-beta_s <- rollapply(env_etf$re_turns, width=252,
+beta_s <- rollapply(etf_env$re_turns, width=252,
                     FUN=function(de_sign)
                       coef(lm(for_mula, data=de_sign))[2],
                     by=22, by.column=FALSE, align="right")
@@ -96,15 +96,15 @@ x11()
 chart_Series(x=beta_s, name=paste("rolling betas", format(for_mula)))
 
 # perform daily rolling beta regressions in parallel - FAST!
-beta_s <- roll::roll_lm(x=env_etf$re_turns[, "VTI"],
-                        y=env_etf$re_turns[, "XLP"],
+beta_s <- roll::roll_lm(x=etf_env$re_turns[, "VTI"],
+                        y=etf_env$re_turns[, "XLP"],
                         width=252)$coefficients
 beta_s <- na.omit(beta_s[, 2])
 chart_Series(x=beta_s, name=paste("rolling betas", format(for_mula)))
 
 # compare speed of rollapply() versus roll_lm()
 library(microbenchmark)
-da_ta <- env_etf$re_turns["2012", c("VTI", "XLP")]
+da_ta <- etf_env$re_turns["2012", c("VTI", "XLP")]
 summary(microbenchmark(
   rollapply=rollapply(da_ta, width=22,
                       FUN=function(de_sign)
