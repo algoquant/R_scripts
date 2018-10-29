@@ -60,7 +60,7 @@ colnames(moment_um) <- "moment_um"
 indicator_s <- cbind(re_turns, vol_at, sk_ew)
 # scale indicator_s using roll_scale()
 look_back <- 60
-indicator_s <- roll::roll_scale(data=indicator_s, width=look_back, min_obs=1)
+indicator_s <- roll::roll_scale(indicator_s, width=look_back, min_obs=1)
 indicator_s[1, ] <- 0
 indicator_s <- cbind(indicator_s, z_scores)
 indicator_s[1:3, ] <- 0

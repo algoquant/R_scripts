@@ -1,9 +1,28 @@
 ###############
+### Test HighFreq functions
+
+library(HighFreq)
+
+# Compile Rcpp functions
+Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/temp.cpp")
+
+
+re_turns <- na.omit(rutils::etf_env$re_turns[, 1:9])
+
+foo <- drop(HighFreq::calc_weights(re_turns, typ_e="rank"))
+
+
+
+
+
+###############
 ### Load and save OHLC bar data
 
 library(HighFreq)
+
 # Compile Rcpp functions
 Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/lm_arma.cpp")
+
 
 # Source the strategy functions
 source("C:/Develop/R/scripts/calc_strategy.R")
@@ -97,7 +116,7 @@ colnames(returns_adv) <- "returns_adv"
 # begin old stuff
 
 ###############
-### strategy using rolling zscores over OHLC technical indicators
+### strategy using rolling z-scores over OHLC technical indicators
 # with regression and dimensionality reduction
 
 

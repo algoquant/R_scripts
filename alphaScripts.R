@@ -20,6 +20,197 @@ library(TTR)
 
 ########### start temp scripts ###########
 
+# Summary: Create an AR(p) model for forecasting returns 
+# from a "kitchen sink" design matrix.  Apply shrinkage to
+# the design matrix and perform a backtest to find the 
+# optimal shrinkage parameter.
+
+# strategy using rolling zscores over OHLC technical indicators
+
+# Find the optimal meta-parameters (the length of look-back interval 
+# look_back and the order of the AR(p) process p) by minimizing the 
+# out-of-sample MSE.
+
+## Calculate a "kitchen sink" design matrix called de_sign
+
+# Set up data from OHLC prices
+
+library(HighFreq)
+
+look_back <- 252
+
+oh_lc <- rutils::etf_env$VTI
+op_en <- quantmod::Op(oh_lc)
+hi_gh <- quantmod::Hi(oh_lc)
+lo_w <- quantmod::Lo(oh_lc)
+clo_se <- quantmod::Cl(oh_lc)
+re_turns <- rutils::diff_it(log(clo_se))
+colnames(re_turns) <- "returns"
+vol_ume <- Vo(oh_lc)
+colnames(volume) <- "volume"
+
+
+# Calculate various indicators
+
+# wippp
+
+vari_ance <- HighFreq::roll_variance(oh_lc=log(oh_lc), look_back=look_back, sca_le=FALSE)
+colnames(vari_ance) <- "variance"
+
+sig_nal <- HighFreq::roll_zscores(res_ponse=close_num, de_sign=de_sign, look_back=look_back)
+colnames(sig_nal) <- "sig_nal"
+sig_nal[1:look_back] <- 0
+
+roll_sharpe
+
+# residuals of the regression of the time series of clo_se prices
+date_s <- xts::.index(oh_lc)
+# foo <- unique(date_s)
+de_sign <- matrix(date_s, nc=1)
+# foo <- MASS::ginv(de_sign)
+look_back <- 11
+z_scores <- HighFreq::roll_zscores(res_ponse=clo_se, 
+                                   de_sign=de_sign, 
+                                   look_back=look_back)
+colnames(z_scores) <- "z_scores"
+z_scores[1:3] <- 0
+
+moment_um <- ((clo_se-op_en) - (hi_gh-lo_w)) + 1.0
+colnames(moment_um) <- "moment_um"
+
+
+lambda_s <- 0:31/30
+
+weight_s <- sapply(lambda_s, function(lamb_da) {
+  op_tim <- optim(par=rep(1.0, n_weights),
+                  fn=object_ive,
+                  method="L-BFGS-B",
+                  upper=rep(10, n_weights),
+                  lower=rep(-10, n_weights),
+                  ex_cess=ex_cess,
+                  cov_mat=cov_mat,
+                  lamb_da=lamb_da,
+                  al_pha=1)
+  op_tim$par/sum(op_tim$par)
+})  # end sapply
+
+
+
+
+
+# Calculate the coefficients of the AR(11) model for vol_ume.
+# You must perform a regression on lagged vol_ume using matrix 
+# algebra, not arima().
+
+# define design matrix
+de_sign <- sapply(1:11, function(lagg) {
+  rutils::lag_it(vol_ume, lagg=lagg)
+})  # end sapply
+# generalized inverse of design matrix
+design_inv <- MASS::ginv(de_sign)
+# regression coefficients with response equal to ari_ma
+co_eff <- drop(design_inv %*% vol_ume)
+
+# You should get the following output:
+co_eff
+# [1] -0.544335000 -0.346797195 -0.393230034 -0.218591436
+# [5] -0.199455627 -0.232981341 -0.130858453 -0.010743125
+# [9]  0.099890590  0.032009602  0.003775291
+
+
+# 2. (20pts) Create a function called back_test() which 
+# backtests an AR(p) forecasting model on a vector of data.
+# back_test() should calculate the out-of-sample forecasts 
+# of the AR(p) forecasting model, and return their MSE.
+# The function back_test() should accept the following 
+# arguments:
+#  se_ries - a vector of data,
+#  look_back - lookback interval,
+#  or_der - order of the AR(p) model, 
+#  end_points = the end points: seq_along(se_ries),
+
+back_test <- function(se_ries, look_back=100, or_der=5, end_points=end_points, n_rows=n_rows) {
+  # Calculate aggregations.
+  de_sign <- sapply(1:or_der, function(lagg) {
+    rutils::lag_it(se_ries, lagg=lagg)
+  })  # end sapply
+  de_sign <- cbind(se_ries, de_sign)
+  start_points <- c(rep_len(1, look_back-1), 
+                    end_points[1:(NROW(end_points)-look_back+1)])
+  # Perform rolling forecasting
+  fore_casts <- sapply(end_points[-(1:(or_der-1))], function(it) {
+    de_sign <- de_sign[start_points[it]:end_points[it], ]
+    # calculate AR(p) coefficients
+    design_inv <- MASS::ginv(de_sign[, -1])
+    co_eff <- drop(design_inv %*% de_sign[, 1])
+    de_sign[(NROW(de_sign)-or_der+1):NROW(de_sign), 1] %*% co_eff
+  })  # end sapply
+  fore_casts <- c(rep(fore_casts[1], or_der-1), fore_casts)
+  # Lag the forecasts to push them out-of-sample
+  fore_casts <- rutils::lag_it(fore_casts)
+  mean((fore_casts-se_ries)^2)
+}  # end back_test
+
+# Run back_test() as follows:
+
+end_points <- seq_along(vol_ume)
+n_rows <- NROW(end_points)
+
+back_test(se_ries=vol_ume, look_back=300, or_der=11, end_points=end_points)
+
+# You should get the following output:
+# [1] 1.73671
+
+
+# 3. (20pts) Perform two separate sapply() loops over 
+# back_test(), to determine the optimal values of or_der 
+# and look_back.
+
+# Create vector of moment orders for performing the sapply() loop
+or_ders <- 9:25
+
+# First perform an sapply() loop over or_der=or_ders, 
+# and with look_back=200.
+
+mse_s <- sapply(or_ders, back_test, se_ries=vol_ume, look_back=200, end_points=end_points)
+
+# You should get the following output:
+round(mse_s, 3)
+#  [1] 1.725 1.629 1.777 1.592 1.787 1.772 1.847 1.586 1.689 1.753
+# [11] 2.210 2.077 1.966 2.354 2.078 2.943 2.409
+
+# Notice that the MSE increases with higher AR(p) order 
+# because of model overfitting.
+
+# Create a plot similar to backtest_ar_order.png
+
+x11()
+plot(x=or_ders, y=mse_s, t="l", lwd=2, xlab="AR(p) Order", ylab="",
+     main="MSE as Function of AR(p) Order")
+
+
+# Second perform an sapply() loop over look_back=(50*(2:10)), 
+# and with or_der=11.
+
+# Create vector of look_backs for performing the sapply() loop
+look_backs <- 50*(2:10)
+
+mse_s <- sapply(look_backs, back_test, se_ries=vol_ume, or_der=11, end_points=end_points)
+
+# You should get the following output:
+round(mse_s, 3)
+# [1] 1.871 1.805 1.777 1.762 1.737 1.730 1.730 1.726 1.721
+
+# Create a plot similar to backtest_ar_lookback.png
+
+plot(x=look_backs, y=mse_s, t="l", lwd=2, xlab="Lookback length", ylab="",
+     main="MSE as Function of AR(p) Lookback")
+
+
+
+
+
+
 ###########
 # perform aggregations by applying a function over a vector of endpoints
 
@@ -1528,9 +1719,10 @@ summary(microbenchmark(
 ### OHLC momentum
 
 # set up data
-clo_se <- quantmod::Cl(rutils::etf_env$VTI)
-hi_gh <- quantmod::Hi(rutils::etf_env$VTI)
-lo_w <- quantmod::Lo(rutils::etf_env$VTI)
+oh_lc <- rutils::etf_env$VTI
+clo_se <- quantmod::Cl(oh_lc)
+hi_gh <- quantmod::Hi(oh_lc)
+lo_w <- quantmod::Lo(oh_lc)
 re_turns <- clo_se - rutils::lag_it(clo_se)
 returns_adv <- rutils::lag_it(re_turns, lagg=-1)
 returns_high <- hi_gh - rutils::lag_it(hi_gh)
@@ -1693,7 +1885,7 @@ plot(x=as.numeric(vari_ance[vari_ance > 1e-03]), y=as.numeric(pnl_s[vari_ance > 
 
 
 ## calculate the strategy success rate as the product of the forecast position_s times the actual position (return direction)
-# result: : there is no significant correlation between the daily average success rate and the level of vari_ance
+# result: there is no significant correlation between the daily average success rate and the level of vari_ance
 bar <- apply.daily(position_s*sign(re_turns), FUN=sum)
 foo <- apply.daily(vari_ance, FUN=sum)
 mo_del <- lm(bar ~ foo)
