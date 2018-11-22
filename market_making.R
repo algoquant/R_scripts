@@ -10,6 +10,11 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   # buy_limit <- (pmin(ohlc_lag[, 3], lag_1[, 3]) - buy_spread)
   # sell_limit <- (pmax(ohlc_lag[, 2], lag_1[, 2]) + sell_spread)
 
+  # buy_limit should be no greater than open price oh_lc[, 1]
+  buy_limit <- pmin(oh_lc[, 1], buy_limit)
+  # sell_limit should be no less than open price oh_lc[, 1]
+  sell_limit <- pmax(oh_lc[, 1], sell_limit)
+
   buy_ind <- (oh_lc[, 3] < buy_limit)
   sell_ind <- (oh_lc[, 2] > sell_limit)
 
@@ -34,8 +39,8 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
 # make_market_loop() Function for market making strategy - loop version
 make_market_loop <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc), buy_spread, sell_spread) {
   n_rows <- NROW(oh_lc)
-  buy_limit <- numeric(n_rows)
-  sell_limit <- numeric(n_rows)
+  # buy_limit <- numeric(n_rows)
+  # sell_limit <- numeric(n_rows)
   n_buy <- numeric(n_rows)
   n_sell <- numeric(n_rows)
   buy_s <- numeric(n_rows)
@@ -62,15 +67,19 @@ make_market_loop <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc), buy_spread, 
     # if ((n_buy[it-1]-n_sell[it-1]) > 20)
     #   b_spread <- buy_spread + 5
 
-    buy_limit[it] <- (ohlc_lag[it, 3] - b_spread)
-    sell_limit[it] <- (ohlc_lag[it, 2] + s_spread)
+    buy_limit <- (ohlc_lag[it, 3] - b_spread)
+    # buy_limit should be no greater than open price
+    buy_limit <- min(oh_lc[it, 1], buy_limit)
+    sell_limit <- (ohlc_lag[it, 2] + s_spread)
+    # sell_limit should be no less than open price
+    sell_limit <- max(oh_lc[it, 1], sell_limit)
 
-    buy_ind <- (oh_lc[it, 3] < buy_limit[it])
-    sell_ind <- (oh_lc[it, 2] > sell_limit[it])
+    buy_ind <- (oh_lc[it, 3] < buy_limit)
+    sell_ind <- (oh_lc[it, 2] > sell_limit)
     n_buy[it] <- n_buy[it-1] + buy_ind
     n_sell[it] <- n_sell[it-1] + sell_ind
-    buy_s[it] <- buy_s[it-1] + buy_ind*buy_limit[it]
-    sell_s[it] <- sell_s[it-1] + sell_ind*sell_limit[it]
+    buy_s[it] <- buy_s[it-1] + buy_ind*buy_limit
+    sell_s[it] <- sell_s[it-1] + sell_ind*sell_limit
     pnl_s[it] <- ((sell_s[it] - buy_s[it]) - oh_lc[it, 4]*(n_sell[it] - n_buy[it]))
   }  # end for
 
