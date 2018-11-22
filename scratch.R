@@ -12,11 +12,72 @@ re_turns <- na.omit(rutils::etf_env$re_turns[, 1:9])
 foo <- drop(HighFreq::calc_weights(re_turns, typ_e="rank"))
 
 
+###############
+### Strategy for market making using limit orders
+
+data_dir <- "C:/Develop/data/ib_data"
+setwd(dir=data_dir)
+load("oh_lc.RData")
+ohlc_data <- coredata(oh_lc)
+n_rows <- NROW(ohlc_data)
+
+ohlc_lag <- rutils::lag_it(ohlc_data)
+price_s <- ohlc_data[, 4]
+
+buy_spread <- 0.25
+sell_spread <- 0.25
+
+# Vectorized version
+
+buy_price <- (ohlc_lag[, 3] - buy_spread)
+sell_price <- (ohlc_lag[, 2] + sell_spread)
+
+buy_ind <- (ohlc_data[, 3] < buy_price)
+n_buy <- cumsum(buy_ind)
+sell_ind <- (ohlc_data[, 2] > sell_price)
+n_sell <- cumsum(sell_ind)
+
+buy_s <- numeric(n_rows)
+buy_s[buy_ind] <- buy_price[buy_ind]
+buy_s <- cumsum(buy_s)
+sell_s <- numeric(n_rows)
+sell_s[sell_ind] <- sell_price[sell_ind]
+sell_s <- cumsum(sell_s)
+
+pnl_s <- ((sell_s-buy_s) - price_s*(n_sell-n_buy))
+
+
+# Loop version
+
+buy_price <- numeric(n_rows)
+sell_price <- numeric(n_rows)
+n_buy <- numeric(n_rows)
+n_sell <- numeric(n_rows)
+buy_s <- numeric(n_rows)
+sell_s <- numeric(n_rows)
+pnl_s <- numeric(n_rows)
+
+for (it in 2:n_rows) {
+  buy_price[it] <- (ohlc_lag[it, 3] - buy_spread)
+  sell_price[it] <- (ohlc_lag[it, 2] + sell_spread)
+
+  buy_ind <- (ohlc_data[it, 3] < buy_price[it])
+  sell_ind <- (ohlc_data[it, 2] > sell_price[it])
+  n_buy[it] <- n_buy[it-1] + buy_ind
+  n_sell[it] <- n_sell[it-1] + sell_ind
+  buy_s[it] <- buy_s[it-1] + buy_ind*buy_price[it]
+  sell_s[it] <- sell_s[it-1] + sell_ind*sell_price[it]
+  pnl_s[it] <- ((sell_s[it] - buy_s[it]) - price_s[it]*(n_sell[it] - n_buy[it]))
+}  # end for
+
+
+plot(pnl_s[c(1, rutils::calc_endpoints(oh_lc, inter_val="minutes"))], t="l", main="Market Making Strategy")
+
 
 
 
 ###############
-### Load and save OHLC bar data
+### Strategy using OHLC technical indicators
 
 library(HighFreq)
 
@@ -35,7 +96,7 @@ source("C:/Develop/R/scripts/calc_strategy.R")
 # load recent ES1 futures data
 # load(file="C:/Develop/data/ES1.RData")
 # or
-# oh_lc <- read.zoo(file="C:/Develop/data/bar_data/ES1.csv", header=TRUE, sep=",",
+# oh_lc <- read.zoo(file="C:/Develop/data/new_bar/ES1.csv", header=TRUE, sep=",",
 #                   drop=FALSE, format="%Y-%m-%d %H:%M",
 #                   FUN=as.POSIXct, tz="America/New_York")
 # oh_lc <- as.xts(oh_lc)
@@ -116,7 +177,7 @@ colnames(returns_adv) <- "returns_adv"
 # begin old stuff
 
 ###############
-### strategy using rolling z-scores over OHLC technical indicators
+### Strategy using rolling z-scores over OHLC technical indicators
 # with regression and dimensionality reduction
 
 
@@ -192,7 +253,7 @@ pnl_s <- xts(pnl_s, index(oh_lc))
 colnames(pnl_s) <- paste0("look_back=", look_backs[1:10])
 # plot matrix using plot.zoo()
 col_ors <- colorRampPalette(c("red", "blue"))(NCOL(pnl_s))
-plot.zoo(pnl_s[endpoints(pnl_s, on="days")], main="pnls", lwd=2, 
+plot.zoo(pnl_s[endpoints(pnl_s, on="days")], main="pnls", lwd=2,
          plot.type="single", xlab="", ylab="pnls", col=col_ors)
 # add legend
 legend("bottomright", legend=colnames(pnl_s), col=col_ors, lty=1, lwd=4, inset=0.05, cex=0.8)
@@ -360,8 +421,8 @@ dygraphs::dygraph(da_ta, main=paste(sym_bol, "max and min lines")) %>%
   dyOptions(colors=col_ors)
 
 # standard plot with max_min lines
-# plot(as.numeric(da_ta[, 1]), type="l", col="blue", 
-#      main=paste(sym_bol, "max and min lines"), 
+# plot(as.numeric(da_ta[, 1]), type="l", col="blue",
+#      main=paste(sym_bol, "max and min lines"),
 #      xlab="", ylab="")
 # lines(da_ta[, 2], col="red")
 # lines(da_ta[, 3], col="green")
@@ -427,8 +488,8 @@ date_s <- xts::.index(oh_lc)
 de_sign <- matrix(date_s, nc=1)
 # foo <- MASS::ginv(de_sign)
 look_back <- 11
-z_scores <- HighFreq::roll_zscores(res_ponse=clo_se, 
-                                   de_sign=de_sign, 
+z_scores <- HighFreq::roll_zscores(res_ponse=clo_se,
+                                   de_sign=de_sign,
                                    look_back=look_back)
 colnames(z_scores) <- "z_scores"
 z_scores[1:3] <- 0
@@ -503,8 +564,8 @@ colnames(indicator_s) <- col_names
 de_sign <- as.data.frame(cbind(returns_adv, indicator_s))
 colnames(de_sign)[1] <- "returns_adv"
 # or
-de_sign <- cbind(HighFreq::roll_sum(re_turns, look_back=look_back), 
-                 HighFreq::roll_sum(moment_um, look_back=look_back), 
+de_sign <- cbind(HighFreq::roll_sum(re_turns, look_back=look_back),
+                 HighFreq::roll_sum(moment_um, look_back=look_back),
                  HighFreq::roll_sum(sk_ew, look_back=look_back))
 de_sign <- as.data.frame(cbind(returns_adv, de_sign))
 # de_sign <- cbind(returns_adv>0, de_sign)
@@ -540,8 +601,8 @@ de_sign <- as.data.frame(cbind(returns_adv, de_sign))
 de_sign <- as.data.frame(cbind(returns_adv, indicator_s))
 colnames(de_sign)[1] <- "returns_adv"
 # or
-de_sign <- cbind(HighFreq::roll_sum(re_turns, look_back=look_back), 
-                 HighFreq::roll_sum(moment_um, look_back=look_back), 
+de_sign <- cbind(HighFreq::roll_sum(re_turns, look_back=look_back),
+                 HighFreq::roll_sum(moment_um, look_back=look_back),
                  HighFreq::roll_sum(sk_ew, look_back=look_back))
 de_sign <- as.data.frame(cbind(returns_adv, de_sign))
 # de_sign <- cbind(returns_adv>0, de_sign)
@@ -766,8 +827,8 @@ dygraphs::dygraph(cbind(clo_se, pnl_s)[endpoints(pnl_s, on="days")], main="OHLC 
 # trade ensemble of strategies using slope as technical indicator
 # mean-reverting strategies
 foo <- sapply(2:15, function(look_back) {
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, 
-                          de_sign=de_sign, 
+  sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se,
+                          de_sign=de_sign,
                           look_back=look_back)
   sig_nal[1:3, ] <- 0
   # sig_nal <- rutils::lag_it(sig_nal)
@@ -896,7 +957,7 @@ model_sum$coefficients
 
 
 # curated PCs
-rota_tion <- cbind(PC1=rep(0.2, 5), 
+rota_tion <- cbind(PC1=rep(0.2, 5),
                    PC2=c(-2, -1, 0, 1, 2),
                    PC3=c(-1, 0.5, 1, 0.5, -1))
 pca_ts <- xts(de_sign %*% rota_tion, order.by=index(de_sign))
@@ -1052,7 +1113,7 @@ to_l <- sqrt(.Machine$double.eps)
 not_zero <- (eigen_values > (to_l * eigen_values[1]))
 
 # calculate generalized inverse from eigen decomposition
-eigen_inverse <- eigen_vec[, not_zero] %*% 
+eigen_inverse <- eigen_vec[, not_zero] %*%
   (t(eigen_vec[, not_zero]) / eigen_values[not_zero])
 
 # perform eigen decomposition and calculate eigenvectors and eigenvalues
@@ -1251,7 +1312,7 @@ colnames(indicator_s) <- "strat_rets"
 all.equal(strat_rets, indicator_s[index(strat_rets)])
 
 # Plot dygraph
-dygraphs::dygraph(cumsum(indicator_s), 
+dygraphs::dygraph(cumsum(indicator_s),
                   main="Cumulative Returns of Max Sharpe Portfolio Strategy")
 
 
@@ -1299,7 +1360,7 @@ co_eff <- c(-0.8, 0.2)
 # old
 ari_ma <- numeric(NROW(in_nov))
 ari_ma[1] <- in_nov[1]
-ari_ma[2] <- co_eff[1]*ari_ma[1] + in_nov[2] 
+ari_ma[2] <- co_eff[1]*ari_ma[1] + in_nov[2]
 for (i in 3:NROW(in_nov)) {
   ari_ma[i] <- co_eff[1]*ari_ma[i-1] + co_eff[2]*ari_ma[i-2] + in_nov[i]
 }  # end for
@@ -1504,16 +1565,16 @@ summary(microbenchmark(
 ###############
 ### Portfolio optimization with constraints
 
-# This is an objective function equal to the portfolio 
+# This is an objective function equal to the portfolio
 # variance plus a penalty term for the weight constraint:
 # sum(weight_s) == 1.
 
 object_ive <- function(weight_s, re_turns) {
-  var(re_turns %*% weight_s) + 
+  var(re_turns %*% weight_s) +
     (sum(weight_s) - 1)^2
 }  # end object_ive
 
-# Perform portfolio optimization with the same two weight 
+# Perform portfolio optimization with the same two weight
 # constraints as in p.1
 # You must use function optim().
 
@@ -1535,7 +1596,7 @@ var(re_turns %*% weight_s)
 
 object_ive <- function(weight_s, re_turns, conf_level, portfolio_sub) {
   # portf_rets <- re_turns %*% weight_s
-  # var(portf_rets) + 
+  # var(portf_rets) +
   t(weight_s) %*% cov_mat %*% weight_s +
     1000*(sum(weight_s) - 1)^2 +
     1000*(sum(weight_s * portfolio_sub[-1]) - portfolio_sub[1])^2
@@ -1548,10 +1609,10 @@ object_ive <- function(weight_s, re_turns, conf_level, portfolio_sub) {
 
 # create the time series
 temperature <- ts(frequency = 12, start = c(1980, 1),
-                  data = c(7.0, 6.9, 9.5, 14.5, 18.2, 21.5, 
+                  data = c(7.0, 6.9, 9.5, 14.5, 18.2, 21.5,
                            25.2, 26.5, 23.3, 18.3, 13.9, 9.6))
 rainfall <- ts(frequency = 12, start = c(1980, 1),
-               data = c(49.9, 71.5, 106.4, 129.2, 144.0, 176.0, 
+               data = c(49.9, 71.5, 106.4, 129.2, 144.0, 176.0,
                         135.6, 148.5, 216.4, 194.1, 95.6, 54.4))
 
 # create a list of dygraphs objects
@@ -1560,7 +1621,7 @@ dy_graph <- list(
   dygraphs::dygraph(temperature, group="temp_rain", main="temperature", width=400, height=200),
   dygraphs::dygraph(rainfall, group="temp_rain", main="rainfall", width=400, height=200)
 )  # end list
-  
+
 # render the dygraphs objects using htmltools
 htmltools::browsable(htmltools::tagList(dy_graph))
 
@@ -1629,7 +1690,7 @@ jul_dates <- in_dex[7 + 12*(0:(n_years - 1))]
 # jul_dates <- in_dex[which(months(in_dex)=="July")]
 
 # create dygraph object
-dy_graph <- dygraphs::dygraph(l_deaths, main="Dygraph of ldeaths with Annotations") %>% 
+dy_graph <- dygraphs::dygraph(l_deaths, main="Dygraph of ldeaths with Annotations") %>%
   dyHighlight(highlightCircleSize=5)
 
 # add annotations for the January and July dates to dygraph object

@@ -5,6 +5,88 @@
 library(rutils)
 
 
+###############
+### Load, chain together, and save futures OHLC bar data
+
+# Set parameters
+sym_bol <- "ES"
+data_dir <- "C:/Develop/data/ib_data"
+setwd(dir=data_dir)
+
+# Get all csv file names in the data_dir directory
+file_names <- Sys.glob(paste(data_dir, "*.csv", sep="/"))
+# Subset to only "ES" file names
+file_names <- file_names[grep(sym_bol, file_names)]
+# Subset to only files createed after "2018-10-01"
+cut_off <- as.POSIXct("2018-10-01", tz="America/New_York", origin="1970-01-01")
+file_names <- file_names[file.info(file_names)$mtime > cut_off]
+# Exclude "ESTSY"
+file_names <- file_names[-1]
+
+# Create new environment for data
+data_env <- new.env()
+
+# loop over the file_names, load data from CSV files,
+# and save the bar data to binary files
+count_er <- 1
+for (file_name in file_names) {
+  cat("count_er: ", count_er, "\n")
+  # load time series data from CSV file
+  oh_lc <- data.table::fread(file_name)
+  data.table::setDF(oh_lc)
+  if (!is.numeric(oh_lc[1, 1])) {
+    # Remove rows with non-numeric datestamps
+    oh_lc <- oh_lc[!is.na(as.numeric(oh_lc[, 1])), ]
+    oh_lc <- sapply(oh_lc, as.numeric)
+  }  # end if
+  oh_lc <- xts::xts(oh_lc[, -1], order.by=as.POSIXct(oh_lc[, 1], tz="America/New_York", origin="1970-01-01"))
+  # nam_e <- paste0("ES", count_er)
+  assign(x=paste0(sym_bol, count_er), value=oh_lc, envir=data_env)
+  count_er <- count_er + 1
+}  # end for
+
+# Inspect the data
+ls(data_env)
+do.call(rbind, eapply(data_env, dim))
+save(data_env, file="data_env.RData")
+
+# Define function for chaining the data
+rbind_ohlc <- function(ohlc_1, ohlc_2) {
+  if (end(ohlc_1) < start(ohlc_2)) {
+    di_ff <- as.numeric(ohlc_2[start(ohlc_2), 1]) - as.numeric(ohlc_1[end(ohlc_1), 4])
+    ohlc_1[, c(1:4, 6)] <- ohlc_1[, c(1:4, 6)] + di_ff
+    return(rbind(ohlc_1, ohlc_2))
+  } else if (end(ohlc_2) < start(ohlc_1)) {
+    di_ff <- as.numeric(ohlc_1[start(ohlc_1), 1]) - as.numeric(ohlc_2[end(ohlc_2), 4])
+    ohlc_2[, c(1:4, 6)] <- ohlc_2[, c(1:4, 6)] + di_ff
+    return(rbind(ohlc_2, ohlc_1))
+  } else {
+    warning("Overlapping data")
+    return(NULL)
+  } # end if
+}  # end rbind_ohlc
+
+foo <- rbind_ohlc(data_env$ES1, data_env$ES2)
+
+# Chain the data
+oh_lc <- rutils::do_call(rbind_ohlc, as.list(data_env)[order(sapply(data_env, start))])
+dim(oh_lc)
+# colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "WAP", "Count")
+
+# Create new time index
+in_deks <- seq.int(from=5*((as.numeric(Sys.time())-NROW(oh_lc)) %/% 5), by=5, length.out=NROW(oh_lc))
+in_deks <- as.POSIXct(in_deks, tz="America/New_York", origin="1970-01-01")
+oh_lc <- xts::xts(coredata(oh_lc), in_deks)
+
+library(dygraphs)
+dygraphs::dygraph(xts::to.minutes(oh_lc)[, 1:4]) %>% dyCandlestick()
+
+data_env$oh_lc <- oh_lc
+save(data_env, file="data_env.RData")
+save(oh_lc, file=paste0(sym_bol, "_ohlc.RData"))
+
+
+
 ###########
 ### Download VIX CSV files from CBOE
 
@@ -121,7 +203,7 @@ library(HighFreq)
 load(file="C:/Develop/data/ES1.RData")
 # or
 # load ES1 futures data from CSV file
-oh_lc <- read.zoo(file="C:/Develop/data/bar_data/ES1.csv", 
+oh_lc <- read.zoo(file="C:/Develop/data/bar_data/ES1.csv",
                   header=TRUE, sep=",",
                   drop=FALSE, format="%Y-%m-%d %H:%M",
                   FUN=as.POSIXct, tz="America/New_York")
@@ -154,7 +236,7 @@ for (file_name in file_names) {
   file_name <- strsplit(file_name, split="/")[[1]]
   file_name <- file_name[NROW(file_name)]
   # load time series data from CSV file
-  oh_lc <- read.zoo(file=file_name, 
+  oh_lc <- read.zoo(file=file_name,
                     header=TRUE, sep=",",
                     drop=FALSE, format="%Y-%m-%d %H:%M",
                     FUN=as.POSIXct, tz="America/New_York")
@@ -196,8 +278,8 @@ for (sym_bol in sym_bols) {
 ## Combine the ETF series of prices into a single xts series and save it into etf_env
 
 # extract only first 4 OHLC price columns from each ETF series
-assign(x="oh_lc", 
-       value=rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4])), 
+assign(x="oh_lc",
+       value=rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4])),
        envir=etf_env)
 # oh_lc <- rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4]))
 etf_env$oh_lc <- na.omit(etf_env$oh_lc)
