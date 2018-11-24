@@ -71,7 +71,7 @@ foo <- rbind_ohlc(data_env$ES1, data_env$ES2)
 # Chain the data
 oh_lc <- rutils::do_call(rbind_ohlc, as.list(data_env)[order(sapply(data_env, start))])
 dim(oh_lc)
-# colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "WAP", "Count")
+colnames(oh_lc) <- paste(sym_bol, c("Open", "High", "Low", "Close", "Volume", "WAP", "Count"), sep=".")
 
 # Create new time index
 in_deks <- seq.int(from=5*((as.numeric(Sys.time())-NROW(oh_lc)) %/% 5), by=5, length.out=NROW(oh_lc))
