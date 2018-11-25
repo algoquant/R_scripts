@@ -75,14 +75,17 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   hi_gh <- oh_lc[, 2]
   lo_w <- oh_lc[, 3]
   clo_se <- oh_lc[, 4]
-  look_back <- 111
-  weight_s <- exp(-lamb_da*1:look_back)
-  weight_s <- weight_s/sum(weight_s)
-  ew_ma <- HighFreq::roll_wsum(vec_tor=rutils::lag_it(oh_lc)[, 4], weight_s=rev(weight_s))
-  ew_ma <- drop(ew_ma)
+  ohlc_1 <- rutils::lag_it(oh_lc)
+  # look_back <- 111
+  # weight_s <- exp(-lamb_da*1:look_back)
+  # weight_s <- weight_s/sum(weight_s)
+  ew_ma <- numeric(n_rows)
+  ew_ma[1] <- ohlc_1[1, 4]
+  # ew_ma <- HighFreq::roll_wsum(vec_tor=ohlc_1[, 4], weight_s=rev(weight_s))
+  # ew_ma <- drop(ew_ma)
   # sprea_d is the spread for biasing the limit price, depending on the ew_ma
-  sprea_d <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
-  # sprea_d <- numeric(n_rows)
+  # sprea_d <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
+  sprea_d <- numeric(n_rows)
   # buy_limit <- numeric(n_rows)
   # sell_limit <- numeric(n_rows)
   n_buys <- numeric(n_rows)
@@ -117,6 +120,8 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
     # if ((n_buys[it-1]-n_sells[it-1]) > 20)
     #   b_spread <- buy_spread + 5
 
+    ew_ma[it] <- lamb_da*ohlc_1[it, 4] + (1-lamb_da)*ew_ma[it-1]
+    sprea_d[it] <- (if (ohlc_lag[it, 4] > ew_ma[it]) 0.25 else -0.25)
 
     buy_limit <- (ohlc_lag[it, 3] - buy_spread + sprea_d[it])
     # buy_limit should be no greater than open price
