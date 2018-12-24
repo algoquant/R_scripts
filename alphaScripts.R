@@ -295,7 +295,7 @@ legend("bottomright", legend=colnames(agg_regations),
 re_turns <- 86400*diff(Cl(SPY))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
 sum(is.na(re_turns))
-re_turns <- na.locf(re_turns)
+re_turns <- na.locf(re_turns, na.rm=FALSE)
 
 sd(x=coredata(re_turns))
 # skewness() from package "moments"
@@ -457,7 +457,7 @@ plot.zoo(foo, t="l", main="simple contrarian strategy", ylab="")
 re_turns <- diff(log(Cl(SPY)))/c(1, diff(.index(SPY)))
 re_turns <- diff(Cl(SPY))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
-re_turns <- na.locf(re_turns)
+re_turns <- na.locf(re_turns, na.rm=FALSE)
 sum(is.na(re_turns))
 # remove overnight return spikes at "09:31"
 in_dex <- format(index(re_turns), "%H:%M")
@@ -749,7 +749,7 @@ head(vwap_short)
 head(vwap_long)
 vwap_diff <- vwap_short - vwap_long
 colnames(vwap_diff) <- paste(sym_bol, "vwap", sep=".")
-vwap_diff <- na.locf(vwap_diff)
+vwap_diff <- na.locf(vwap_diff, na.rm=FALSE)
 
 
 ## data: lagged returns plus explanatory variables
@@ -903,7 +903,7 @@ position_s <- ifelse(roll_skew<(-thresh_old), 1, position_s)
 position_s <- ifelse((roll_skew*lag(roll_skew))<0, 0, position_s)
 # lag the position_s
 lag_positions <- c(0, position_s[-NROW(position_s)])
-lag_positions <- na.locf(lag_positions)
+lag_positions <- na.locf(lag_positions, na.rm=FALSE)
 lag_positions <- merge(roll_skew, lag_positions)
 colnames(lag_positions)[2] <-
   paste0(sym_bol, ".Position")
@@ -985,7 +985,7 @@ tail(var_running)
 sk_ew <- roll_vwap(oh_lc=oh_lc, x_ts=6.5*60^4*HighFreq::run_skew(oh_lc=oh_lc), win_dow=1000)
 sk_ew <- sk_ew/(var_running)^(1.5)
 sk_ew[1, ] <- 0
-sk_ew <- na.locf(sk_ew)
+sk_ew <- na.locf(sk_ew, na.rm=FALSE)
 chart_Series(x=var_running, name="volatility")
 chart_Series(x=sk_ew, name="skew")
 
@@ -1217,7 +1217,7 @@ sym_bols <- colnames(rutils::etf_env$re_turns)
 sym_bols <- sym_bols[!(sym_bols=="VXX")]
 # Extract columns of rutils::etf_env$re_turns and remove NA values
 re_turns <- rutils::etf_env$re_turns[, sym_bols]
-re_turns <- zoo::na.locf(re_turns)
+re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
 re_turns <- na.omit(re_turns)
 
 # Rolling Portfolio Optimization Strategy
@@ -1359,8 +1359,8 @@ load("C:/Develop/R/lecture_slides/data/sp500.RData")
 price_s <- eapply(env_sp500, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
 # remove NA values
-price_s <- zoo::na.locf(price_s)
-price_s <- zoo::na.locf(price_s, fromLast=TRUE)
+price_s <- zoo::na.locf(price_s, na.rm=FALSE)
+price_s <- zoo::na.locf(price_s, na.rm=FALSE, fromLast=TRUE)
 # normalize the price_s
 colnames(price_s) <- sapply(colnames(price_s),
                             function(col_name) strsplit(col_name, split="[.]")[[1]][1])
@@ -1387,10 +1387,10 @@ returns_width <- rutils::diff_it(log(price_s), lagg=wid_th)
 
 ## Calculate rolling variance of S&P500 constituents
 vari_ance <- roll::roll_var(re_turns, width=wid_th)
-vari_ance <- zoo::na.locf(vari_ance)
+vari_ance <- zoo::na.locf(vari_ance, na.rm=FALSE)
 vari_ance[is.na(vari_ance)] <- 0
 # vari_ance[vari_ance==0] <- 1
-# vari_ance <- zoo::na.locf(vari_ance, fromLast=TRUE)
+# vari_ance <- zoo::na.locf(vari_ance, na.rm=FALSE, fromLast=TRUE)
 # sum(is.na(vari_ance))
 # sum(vari_ance==0)
 # head(vari_ance[, 100:106])
@@ -1414,7 +1414,7 @@ weight_s[is.na(weight_s)] <- 0
 # sum(is.na(weight_s))
 
 # weight_s <- 1 / sqrt(wid_th*vari_ance)
-# weight_s <- zoo::na.locf(weight_s)
+# weight_s <- zoo::na.locf(weight_s, na.rm=FALSE)
 # scale weight_s so that their sum of squares is equal to 1
 # weight_s <- weight_s/sqrt(rowSums(weight_s^2))
 # sum(is.na(weight_s))
@@ -1516,7 +1516,7 @@ weight_s <- t(weight_s)
 weight_s <- xts::xts(weight_s, index(re_turns[end_points, ]))
 weight_s <- cbind(re_turns[, 1], weight_s)[, -1]
 weight_s[1, ] <- rep(1/NCOL(ret_sub), NCOL(ret_sub))
-weight_s <- zoo::na.locf(weight_s)
+weight_s <- zoo::na.locf(weight_s, na.rm=FALSE)
 weight_s <- rutils::lag_it(weight_s)
 sum(is.na(weight_s))
 
@@ -1624,7 +1624,7 @@ foo <- NA*re_turns
 foo[1] <- 0
 foo[sd_diff > 0.001] <- (-1)
 foo[sd_diff < (-0.001)] <- 1
-foo <- na.locf(foo)
+foo <- na.locf(foo, na.rm=FALSE)
 foo <- exp(cumsum(re_turns*rutils::lag_it(foo)))
 chart_Series(foo, name="GARCH fitted standard deviation")
 
@@ -1634,7 +1634,7 @@ bar <- lapply(level_s, function(x) {
   foo[1] <- 0
   foo[sd_diff > x] <- (-1)
   foo[sd_diff < (-x)] <- 1
-  foo <- na.locf(foo)
+  foo <- na.locf(foo, na.rm=FALSE)
   exp(cumsum(re_turns*rutils::lag_it(foo)))
 })  # end lapply
 bar <- rutils::do_call(cbind, bar)
@@ -1850,7 +1850,7 @@ ran_ge <- rutils::lag_it(ran_ge)
 position_s <- ifelse(in_dic > 0.96*ran_ge[, "max"], -1,
                      ifelse(in_dic < 0.96*ran_ge[, "min"], 1, NA))
 position_s[1] <- 0
-position_s <- na.locf(position_s)
+position_s <- na.locf(position_s, na.rm=FALSE)
 # position_s <- rutils::lag_it(position_s)
 position_s <- lapply(1:3, rutils::lag_it, x_ts=position_s)
 position_s <- rutils::do_call(cbind, position_s)
@@ -1942,7 +1942,7 @@ ran_ge <- rutils::lag_it(ran_ge)
 position_s <- ifelse(z_scores[[3]] > 0.96*ran_ge[, "max"], -1,
                      ifelse(z_scores[[3]] < 0.96*ran_ge[, "min"], 1, NA))
 position_s[1] <- 0
-position_s <- na.locf(position_s)
+position_s <- na.locf(position_s, na.rm=FALSE)
 # position_s <- rutils::lag_it(position_s)
 position_s <- lapply(1:3, rutils::lag_it, x_ts=position_s)
 position_s <- rutils::do_call(cbind, position_s)
@@ -1965,7 +1965,7 @@ cum_pnl <- function(z_scores, thresh_old=1.0, look_back=21, lag=3) {
   position_s <- ifelse(z_scores > thresh_old*ran_ge[, "max"], -1,
                        ifelse(z_scores < thresh_old*ran_ge[, "min"], 1, NA))
   position_s[1] <- 0
-  position_s <- na.locf(position_s)
+  position_s <- na.locf(position_s, na.rm=FALSE)
   position_s <- lapply(1:lag, rutils::lag_it, x_ts=position_s)
   position_s <- rutils::do_call(cbind, position_s)
   position_s <- rowSums(position_s)/NCOL(position_s)
@@ -1999,7 +1999,7 @@ unlist(lapply(bar, last))
 z_pos <- function(z_scores, thresh_old=2.0) {
   position_s <- ifelse(abs(z_scores) > thresh_old, sign(z_scores), NA)
   position_s[1] <- 0
-  na.locf(position_s)
+  na.locf(position_s, na.rm=FALSE)
 }  # end z_pos
 
 # calculate time series of pnls from z-scores
@@ -2038,7 +2038,7 @@ position_s <- rutils::lag_it(position_s, lag=1)
 z_rets <- lapply(z_scores, function(z_scores) {
   position_s <- ifelse(abs(z_scores) > 2.0, sign(z_scores), NA)
   position_s[1] <- 0
-  position_s <- na.locf(position_s)
+  position_s <- na.locf(position_s, na.rm=FALSE)
   position_s <- rutils::lag_it(position_s)
   -position_s*re_turns
 })  # end lapply
@@ -2115,7 +2115,7 @@ co_ef <- rutils::lag_it(co_ef)
 beta_s <- NA*SPY_design
 beta_s[1, ] <- 0
 beta_s[end_days, ] <- co_ef
-beta_s <- na.locf(beta_s)
+beta_s <- na.locf(beta_s, na.rm=FALSE)
 
 # calculate position_s and pnl_s
 position_s <- rowSums(SPY_design * beta_s)
@@ -2124,7 +2124,7 @@ position_s <- rowSums(SPY_design * beta_s)
 position_s <- rowSums(SPY_design %*% beta_s)
 # position_s <- ifelse(abs(position_s)>0.01, sign(position_s), NA)
 # position_s[1] <- 0
-# position_s <- na.locf(position_s)
+# position_s <- na.locf(position_s, na.rm=FALSE)
 position_s <- rutils::lag_it(position_s)
 position_s <- rutils::roll_sum(position_s, look_back=5) / 5
 # histo_gram <- hist(position_s, breaks=200, xlim=c(-0.05, 0.05))
@@ -2158,7 +2158,7 @@ trade_dates <- which(trade_dates) + 1
 pos_vwap <- rep(NA_integer_, NROW(pnl_s))
 pos_vwap[1] <- 0
 pos_vwap[trade_dates] <- in_dic[trade_dates]
-pos_vwap <- na.locf(pos_vwap)
+pos_vwap <- na.locf(pos_vwap, na.rm=FALSE)
 pos_vwap <- xts(pos_vwap, order.by=index(pnl_s))
 
 # calculate daily profits and losses
@@ -2207,7 +2207,7 @@ simu_ewma <- function(x_ts, lamb_da=0.05, look_back=51) {
   position_s <- rep(NA_integer_, NROW(x_ts))
   position_s[1] <- 0
   position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
-  na.locf(position_s)
+  na.locf(position_s, na.rm=FALSE)
 }  # end simu_ewma
 
 end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
@@ -2216,7 +2216,7 @@ positions_hours <- simu_ewma(x_ts=HighFreq::SPY[end_hours], lamb_da=0.01, look_b
 position_s <- rep(NA_integer_, NROW(HighFreq::SPY))
 position_s[1] <- 0
 position_s[end_hours] <- positions_hours
-position_s <- na.locf(position_s)
+position_s <- na.locf(position_s, na.rm=FALSE)
 chart_Series(-cumsum(position_s*re_turns)[end_days], name="SPY minutely vwap strategy")
 position_s <- xts(position_s, order.by=index(re_turns))
 add_TA(position_s > 0, on=-1,
@@ -2256,7 +2256,7 @@ bar <- -cumsum(re_turns*sign(bar))
 
 position_s <- ifelse(abs(SPY_design)>0.052, sign(SPY_design), NA)
 position_s[1] <- 0
-position_s <- na.locf(position_s)
+position_s <- na.locf(position_s, na.rm=FALSE)
 position_s <- rutils::lag_it(position_s)
 pnl_s <- -cumsum(position_s*re_turns)
 colnames(pnl_s) <- "SPY skew contrarian"
@@ -2265,7 +2265,7 @@ chart_Series(x=pnl_s[end_days, ], name="SPY skew contrarian")
 cum_pnl <- function(position_s=sk_ew, thresh_old=0.05, re_turns=re_turns) {
   position_s <- ifelse(abs(position_s)>thresh_old, sign(position_s), NA)
   position_s[1] <- 0
-  position_s <- na.locf(position_s)
+  position_s <- na.locf(position_s, na.rm=FALSE)
   position_s <- rutils::lag_it(position_s)
   -sum(position_s*re_turns)
 }  # end cum_pnl
@@ -2337,7 +2337,7 @@ trade_dates <- which(trade_dates) + 1
 position_s <- rep(NA_integer_, NROW(cl_ose))
 position_s[1] <- 0
 position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
-position_s <- na.locf(position_s)
+position_s <- na.locf(position_s, na.rm=FALSE)
 position_s <- xts(position_s, order.by=index(oh_lc))
 
 prices_lag <- rutils::lag_it(cl_ose)
@@ -2373,7 +2373,7 @@ simu_ewma <- function(oh_lc, lamb_da=0.05, look_back=51) {
   position_s <- rep(NA_integer_, NROW(cl_ose))
   position_s[1] <- 0
   position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
-  position_s <- xts(na.locf(position_s), order.by=index(oh_lc))
+  position_s <- xts(na.locf(position_s, na.rm=FALSE), order.by=index(oh_lc))
   op_en <- Op(oh_lc)
   prices_lag <- rutils::lag_it(cl_ose)
   position_lagged <- rutils::lag_it(position_s)

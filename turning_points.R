@@ -35,7 +35,7 @@ sig_nal <- SPY_design[, "returns.roll"] * (SPY_design[, "variance"] + SPY_design
 # apply rolling centering and scaling to the design matrix
 sig_nal <- roll::roll_scale(data=sig_nal, width=6.5*60, min_obs=1)
 sig_nal[1] <- 0
-sig_nal <- zoo::na.locf(sig_nal)
+sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
 colnames(sig_nal) <- "signal"
 hist(sig_nal, breaks=30)
 hist(sig_nal[abs(sig_nal)<2], breaks=30)
@@ -46,7 +46,7 @@ position_s <- rep.int(NA, NROW(SPY))
 position_s[1] <- 0
 position_s[sig_nal > thresh_old] <- -1
 position_s[sig_nal < -thresh_old] <- 1
-position_s <- zoo::na.locf(position_s)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
 position_s <- rutils::lag_it(position_s)
 pnl_s <- exp(cumsum(position_s*returns_running))
 colnames(pnl_s) <- "SPY contrarian"
@@ -62,7 +62,7 @@ cum_pnl <- function(thresh_old) {
   position_s[1] <- 0
   position_s[sig_nal > thresh_old] <- -1
   position_s[sig_nal < -thresh_old] <- 1
-  position_s <- zoo::na.locf(position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- rutils::lag_it(position_s)
   exp(sum(position_s*returns_running))
 }  # end cum_pnl
@@ -151,7 +151,7 @@ position_s <- rep.int(NA, NROW(oh_lc))
 position_s[1] <- 0
 position_s[match(bu_y, date_s)] <- 1.0
 position_s[match(se_ll, date_s)] <- -1.0
-position_s <- zoo::na.locf(position_s)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
 pnl_s <- exp(cumsum((position_s * returns_running[date_s])))-1
 colnames(pnl_s) <- "SPY Optimal"
 last(pnl_s)
@@ -202,7 +202,7 @@ cum_pnl <- function(param_s, x_ts=oh_lc) {
   position_s[1] <- 0
   position_s[bu_y] <- 1
   position_s[se_ll] <- -1
-  position_s <- zoo::na.locf(position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   -exp(sum(position_s*returns_running[index(x_ts)]))
 }  # end cum_pnl
 
@@ -302,7 +302,7 @@ position_s[buy_prob > thresh_old] <- 1
 # sell_prob <- predict(logit_sell, newdata=SPY_design, type="response")
 sell_prob <- 1 / (1 + exp(-SPY_design %*% logit_sell$coefficients))
 position_s[sell_prob > thresh_old] <- -1
-position_s <- zoo::na.locf(position_s)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
 position_s <- rutils::lag_it(position_s)
 # re_turns <- 6.5*60^2*HighFreq::run_returns(x_ts=HighFreq::SPY[index(SPY_design)])
 pnl_s <- exp(cumsum(position_s*returns_running)) - 1
@@ -318,7 +318,7 @@ cum_pnl <- function(thresh_old) {
   position_s[1] <- 0
   position_s[buy_prob > thresh_old] <- 1
   position_s[sell_prob > thresh_old] <- -1
-  position_s <- zoo::na.locf(position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- rutils::lag_it(position_s)
   exp(sum(position_s*returns_running))
 }  # end cum_pnl
@@ -363,7 +363,7 @@ position_s[1] <- 0
 
 pnl_s <- function(poin_t=NA, directio_n=NA, position_s=NA, re_turns=NA) {
   position_s[poin_t] <- directio_n
-  position_s <- zoo::na.locf(position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   exp(cumsum(position_s*re_turns))
 }  # end pnl_s
 
@@ -483,7 +483,7 @@ position_s <- rep.int(NA, NROW(sig_nal))
 position_s[sig_nal > thresh_old] <- -1.0
 position_s[sig_nal < (-thresh_old)] <- 1.0
 position_s[ran_ge] <- 0.0
-position_s <- zoo::na.locf(position_s)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
 # lag the position_s ?
 # position_s <- c(0, position_s[-NROW(position_s)])
 # position_s <- xts(position_s, order.by=index(returns_running))
@@ -560,7 +560,7 @@ back_test <- function(de_sign=NULL, beta_s=NULL, thresh_old=NULL, re_turns=NULL,
     position_s[1] <- 0.0
     position_s[sig_nal > thresh_old] <- 1.0
     position_s[sig_nal < (-thresh_old)] <- -1.0
-    position_s <- zoo::na.locf(position_s)
+    position_s <- zoo::na.locf(position_s, na.rm=FALSE)
     pnl_s <- position_s * re_turns
     fac_tor <- 1
   }

@@ -1,4 +1,55 @@
 ###############
+### Forecasting for univariate regression
+
+library(HighFreq)
+source("C:/Develop/R/scripts/market_making.R")
+
+data_dir <- "C:/Develop/data/ib_data/"
+sym_bol <- "ES"
+load(paste0(data_dir, sym_bol, "_ohlc.RData"))
+n_rows <- NROW(oh_lc)
+oh_lc <- coredata(oh_lc)
+
+look_back <- 500
+de_sign <- cbind(rep(1, look_back), 1:look_back)
+deg_free <- (look_back - NCOL(de_sign))
+design_inv <- MASS::ginv(de_sign)
+design_2 <- MASS::ginv(crossprod(de_sign))
+lagg <- 1
+oo_s <- cbind(1, look_back + lagg)
+oos_t <- t(oo_s)
+
+# influ_ence <- de_sign %*% design_inv
+# fit_ted <- drop(influ_ence %*% se_ries)
+
+# se_ries <- oh_lc[(look_back+1):(look_back+100), 4]
+# val_ue <- oh_lc[201, 4]
+# calc_zscore(val_ue, se_ries, de_sign, design_inv, design_2, oo_s, oos_t, deg_free)
+
+z_scores <- sapply((look_back+1):n_rows, function(x) {
+  se_ries <- oh_lc[(x-look_back):(x-1), 4]
+  val_ue <- oh_lc[x, 4]
+  calc_zscore(val_ue, se_ries, de_sign, design_inv, design_2, oo_s, oos_t, deg_free)
+})  # end sapply
+z_scores <- c(rep(0, look_back), z_scores)
+
+hist(z_scores, breaks=100)
+quantile(z_scores, 0.9)
+
+foo <- which((z_scores < quantile(z_scores, 0.1)) & (z_scores > quantile(z_scores, 0.01)))
+foo <- which((z_scores > quantile(z_scores, 0.9)) & (z_scores < quantile(z_scores, 0.99)))
+foo <- foo[(foo>(30)) & (foo<(n_rows-100))]
+foo <- lapply(foo, function(x) {
+  oh_lc[(x-30):(x+100), 4]/oh_lc[x, 4]
+})
+foo <- rutils::do_call(cbind, foo)
+foo <- rowMeans(foo)
+plot(foo, t="l")
+
+
+
+
+###############
 ### Test HighFreq functions
 
 library(HighFreq)
@@ -131,14 +182,13 @@ high_num <- as.numeric(hi_gh)
 lo_w <- Lo(ohlc_log)
 low_num <- as.numeric(lo_w)
 close_high <- (close_num == high_num)
-close_high_count <- roll_count(close_high)
-close_low <- (close_num == low_num)
-close_low_count <- roll_count(close_low)
-open_num <- as.numeric(op_en)
-open_high <- (open_num == high_num)
-open_high_count <- roll_count(open_high)
-open_low <- (open_num == low_num)
-open_low_count <- roll_count(open_low)
+close_high_count <- drop(roll_count(close_high))
+close_low <- (clo_se == lo_w)
+close_low_count <- drop(roll_count(close_low))
+open_high <- (op_en == hi_gh)
+open_high_count <- drop(roll_count(open_high))
+open_low <- (op_en == lo_w)
+open_low_count <- drop(roll_count(open_low))
 
 
 # set up data for trading
@@ -302,7 +352,7 @@ po_sit <- rep(NA_integer_, NROW(oh_lc))
 po_sit[1] <- 0
 po_sit[close_high] <- (-1)
 po_sit[close_low] <- 1
-po_sit <- zoo::na.locf(po_sit)
+po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
 po_sit <- rutils::lag_it(po_sit, lagg=1)
 
 # contrarian strategy using roll_count()
@@ -310,7 +360,7 @@ po_sit <- rep(NA_integer_, NROW(oh_lc))
 po_sit[1] <- 0
 po_sit[close_high_count>2] <- (-1)
 po_sit[close_low_count>2] <- 1
-po_sit <- zoo::na.locf(po_sit)
+po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
 po_sit <- rutils::lag_it(po_sit, lagg=1)
 
 # contrarian strategy using roll_cum()
@@ -343,7 +393,7 @@ po_sit[1] <- 0
 # po_sit[close_min] <- 1
 po_sit[(dra_w>4) & draw_max & close_max] <- (-1)
 po_sit[(dra_w<(-4)) & draw_min & close_min] <- 1
-po_sit <- zoo::na.locf(po_sit)
+po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
 po_sit <- rutils::lag_it(po_sit, lagg=1)
 
 # number of trades
@@ -650,7 +700,7 @@ sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=l
 sig_nal <- roll::roll_scale(data=sig_nal, width=look_back, min_obs=1)
 sig_nal[1:look_back, ] <- 0
 sig_nal[is.infinite(sig_nal)] <- NA
-sig_nal <- zoo::na.locf(sig_nal)
+sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
 sum(is.infinite(sig_nal))
 sum(is.na(sig_nal))
 sd(sig_nal)
@@ -686,7 +736,7 @@ posit_mat <- sapply(1:NROW(par_am), function(it) {
   po_sit[1] <- 0
   po_sit[sig_nal < (-en_ter)] <- 1
   po_sit[sig_nal > en_ter] <- (-1)
-  na.locf(po_sit)
+  na.locf(po_sit, na.rm=FALSE)
 })  # end sapply
 po_sit <- rowMeans(posit_mat)
 po_sit[is.na(po_sit)] <- 0
@@ -751,7 +801,7 @@ run_signal <- function(look_back, re_turns) {
   sig_nal[1:look_back, ] <- 0
   # sig_nal[is.infinite(sig_nal), ] <- 0
   sig_nal[is.infinite(sig_nal)] <- NA
-  sig_nal <- zoo::na.locf(sig_nal)
+  sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
   rutils::lag_it(sig_nal, lagg=1)
 }  # end run_signal
 sig_nal <- run_signal(look_back, re_turns)
@@ -762,7 +812,7 @@ run_signal <- function(look_back, clo_se, de_sign) {
   # sig_nal[1:look_back, ] <- 0
   # sig_nal[is.infinite(sig_nal), ] <- 0
   sig_nal[is.infinite(sig_nal)] <- NA
-  sig_nal <- zoo::na.locf(sig_nal)
+  sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
   rutils::lag_it(sig_nal, lagg=1)
 }  # end run_signal
 sig_nal <- run_signal(look_back, clo_se, de_sign)
@@ -786,7 +836,7 @@ run_strategy <- function(sig_nal, re_turns, en_ter, ex_it, close_high=TRUE, clos
   # po_sit[sig_nal > en_ter] <- (-1)
   po_sit[(sig_nal > en_ter) & close_high] <- (-1)
   po_sit[abs(sig_nal) < ex_it] <- 0
-  po_sit <- zoo::na.locf(po_sit)
+  po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
   po_sit <- po_sit + rutils::lag_it(po_sit, lagg=1)
   pnl_s <- cumsum(po_sit*re_turns)
   pnl_s[NROW(pnl_s)]
@@ -1236,7 +1286,7 @@ sym_bols <- colnames(rutils::etf_env$price_s)
 sym_bols <- sym_bols[!(sym_bols=="VXX")]
 price_s <- rutils::etf_env$price_s[, sym_bols]
 # Carry forward non-NA prices
-price_s <- zoo::na.locf(price_s)
+price_s <- zoo::na.locf(price_s, na.rm=FALSE)
 price_s <- na.omit(price_s)
 # Calculate simple ETF returns
 re_turns <- rutils::diff_it(price_s)
@@ -2354,7 +2404,7 @@ cum_pnl <- function(beta_s, la_g=15, de_sign=de_sign, re_turns=returns_running, 
   # sell signal
   position_s[se_ll] <- -1.0
   position_s[bu_y] <- 1.0
-  position_s <- zoo::na.locf(position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- c(0, position_s[-NROW(position_s)])
   # pnl_s <- position_s*re_turns
   # be_ta <- (sum(pnl_s * re_turns) - sum(pnl_s) * sum(re_turns)) / (sum(pnl_s * pnl_s) - sum(pnl_s)^2 )
@@ -2391,7 +2441,7 @@ cum_pnl <- function(inter_val) {
   se_ll <- as.logical(rutils::lag_it(bu_y, lag=inter_val))
   position_s[se_ll] <- -1.0
   position_s[bu_y] <- 1.0
-  position_s <- zoo::na.locf(position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- c(0, position_s[-NROW(position_s)])
   exp(sum((position_s * returns_running)))-1
 }  # end cum_pnl

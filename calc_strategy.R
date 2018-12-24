@@ -26,7 +26,7 @@ calc_signal <- function(oh_lc, clo_se, de_sign, look_short, look_long=look_short
   # sig_nal <- HighFreq::roll_scale(mat_rix=sig_nal, look_back=look_short, use_median=TRUE)
   # sig_nal[1:look_short, ] <- 0
   sig_nal[is.infinite(sig_nal)] <- NA
-  sig_nal <- zoo::na.locf(sig_nal)
+  sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
   # sig_nal[is.na(sig_nal), ] <- 0
   # sig_nal[is.infinite(sig_nal), ] <- 0
   # rutils::lag_it(sig_nal, lagg=trade_lag)
@@ -72,7 +72,7 @@ sim_revert <- function(sig_nal, re_turns, close_high, close_high_count, close_lo
   # po_sit[(close_high_count == trade_lag)] <- (-1)
   # po_sit[(close_high_count) & close_high] <- (-1)
   po_sit[abs(sig_nal) < ex_it] <- 0
-  po_sit <- zoo::na.locf(po_sit)
+  po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
   # pnl_s <- xts(sig_nal, index(re_turns))
   # pnl_s <- xts(po_sit, index(re_turns))
   # po_sit <- rutils::lag_it(po_sit, lagg=trade_lag)
@@ -93,7 +93,7 @@ sim_trend <- function(sig_nal, re_turns, en_ter, ex_it, close_high, close_low, t
   # enter short trending position only on uptick
   po_sit[(sig_nal < 0) & close_high] <- (-1)
   # po_sit[abs(sig_nal) < ex_it] <- 0
-  po_sit <- zoo::na.locf(po_sit)
+  po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
   po_sit <- rutils::lag_it(po_sit, lagg=trade_lag)
   # pnl_s <- xts(po_sit, index(re_turns))
   # pnl_s <- xts(sig_nal, index(re_turns))
@@ -122,7 +122,7 @@ sim_revert_trending <- function(signal_short, signal_long, re_turns, en_ter, ex_
   # po_sit[(signal_short > en_ter) & (signal_long < 0) & close_high] <- (-1)
   po_sit[((signal_short-signal_long) > en_ter) & close_high] <- (-1)
   # po_sit[abs(signal_short) < ex_it] <- 0
-  po_sit <- zoo::na.locf(po_sit)
+  po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
   po_sit <- rutils::lag_it(po_sit, lagg=trade_lag)
   # pnl_s <- (signal_short-signal_long)
   # pnl_s <- xts(po_sit, index(sig_nal))
