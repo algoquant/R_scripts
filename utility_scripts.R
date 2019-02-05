@@ -34,6 +34,28 @@ sapply(Sys.glob("*.Rmd"),
 
 
 ###############
+### Read the RData file sp500.RData, and write all the time series into separate CSV files using function data.table::fwrite()
+
+dir_name <- "C:/Develop/R/lecture_slides/data/SP500/"
+load("C:/Develop/R/lecture_slides/data/sp500.RData")
+
+file_names <- eapply(env_sp500, function(x) {
+  file_name <- rutils::get_name(colnames(x)[1])
+  data.table::fwrite(data.table::as.data.table(x), file=paste0(dir_name, file_name, ".csv"))
+  file_name
+})
+names(file_names)
+
+# Or
+file_names <- lapply(as.list(env_sp500), function(x) {
+  file_name <- rutils::get_name(colnames(x)[1])
+  data.table::fwrite(data.table::as.data.table(x), file=paste0(dir_name, file_name, ".csv"))
+  file_name
+})
+names(file_names)
+
+
+###############
 ### Compare contents of all the files in two different directories, assuming same file names
 
 dir_1 <- "C:/Develop/R/statarb/results"
