@@ -39,20 +39,39 @@ sapply(Sys.glob("*.Rmd"),
 dir_name <- "C:/Develop/R/lecture_slides/data/SP500/"
 load("C:/Develop/R/lecture_slides/data/sp500.RData")
 
-file_names <- eapply(env_sp500, function(x) {
-  file_name <- rutils::get_name(colnames(x)[1])
-  data.table::fwrite(data.table::as.data.table(x), file=paste0(dir_name, file_name, ".csv"))
+dir_name <- "C:/Develop/data/"
+# Using lapply() and zoo::write.zoo()
+file_names <- lapply(ls(etf_env), function(sym_bol) {
+  x_ts <- get(sym_bol, envir=etf_env)
+  zoo::write.zoo(x_ts, file=paste0(dir_name, sym_bol, ".csv"))
+  sym_bol
+})  # end lapply
+unlist(file_names)
+
+# Or using lapply() and data.table::fwrite()
+file_names <- lapply(ls(env_sp500), function(sym_bol) {
+  x_ts <- get(sym_bol, envir=env_sp500)
+  data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, sym_bol, ".csv"))
+  sym_bol
+})  # end eapply
+names(file_names)
+
+# Or using eapply() and data.table::fwrite()
+file_names <- eapply(env_sp500, function(x_ts) {
+  file_name <- rutils::get_name(colnames(x_ts)[1])
+  data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
   file_name
-})
+})  # end eapply
 names(file_names)
 
 # Or
-file_names <- lapply(as.list(env_sp500), function(x) {
-  file_name <- rutils::get_name(colnames(x)[1])
-  data.table::fwrite(data.table::as.data.table(x), file=paste0(dir_name, file_name, ".csv"))
+file_names <- lapply(as.list(env_sp500), function(x_ts) {
+  file_name <- rutils::get_name(colnames(x_ts)[1])
+  data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
   file_name
-})
+})  # end lapply
 names(file_names)
+
 
 
 ###############
@@ -99,7 +118,70 @@ name_s <- unique(name_s)
 
 
 ###############
-### Read binary data
+### Read Excel spreadsheets
+
+# Install and load package readxl
+install.packages("readxl")
+library(readxl)
+
+# Read names of all the sheets from the Excel spreadsheet
+fil_e <- "C:/Develop/R/capstone/Xuewan_Zhao/SP500 5Y Fundamental data.xlsx"
+name_s <- readxl::excel_sheets(fil_e)
+
+# Read all the sheets from the Excel spreadsheet - takes very long time
+sheet_s <- lapply(name_s, readxl::read_xlsx, path=fil_e)
+# Remove first sheet - it's empty
+sheet_s <- sheet_s[-1]
+name_s <- name_s[-1]
+# Rename sheets to their stock tickers
+name_s <- sapply(name_s, function(x) strsplit(x[1], " ")[[1]][1])
+names(sheet_s) <- name_s
+
+# The sheet_s are a list of tibbles (data frames)
+class(sheet_s)
+tib_ble <- sheet_s[[1]]
+class(tib_ble)
+# Some tibble columns are character strings, not numeric
+class(tib_ble$'BEst P/E Ratio')
+
+# Coerce tibble to matrix
+# Function to coerce tibble columns from character strings to numeric
+to_matrix <- function(tib_ble) {
+  # Coerce columns from strings to numeric
+  lis_t <- lapply(tib_ble, as.numeric)
+  # Flatten list into matrix
+  do.call(cbind, lis_t)
+}  # end to_matrix
+mat_rix <- to_matrix(tib_ble)
+colnames(mat_rix)
+# Calculate number of rows in mat_rix
+NROW(mat_rix)
+# Calculate number of NA values in column "P/E Ratio"
+sum(is.na(mat_rix[, "BEst P/E Ratio"]))
+
+# Calculate number of NA values in column "P/E Ratio"
+sum(is.na(as.numeric(tib_ble$'BEst P/E Ratio')))
+# Function to calculate number of NA values in column P/E Ratio
+num_na <- function(tib_ble) {
+  sum(is.na(as.numeric(tib_ble$'BEst P/E Ratio')))
+}  # end num_na
+num_na(tib_ble)
+
+# Calculate number of NA values in column "P/E Ratio" in all the sheet_s tibbles
+num_na_s <- sapply(sheet_s, num_na)
+# Or simply
+num_na_s <- sapply(sheet_s, function(tib_ble) 
+  sum(is.na(as.numeric(tib_ble$'BEst P/E Ratio'))))
+median(num_na_s)
+
+# Plot histogram of NA values in column "P/E Ratio" in all the sheet_s elements
+x11()
+hist(num_na_s)
+
+
+
+###############
+### Read binary data files
 
 # Create a connection object to read the file in binary mode using "rb".
 si_ze <- file.info("C:/Users/Jerzy/Downloads/ESH7.bin")$size
