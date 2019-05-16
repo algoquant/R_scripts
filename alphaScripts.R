@@ -54,7 +54,7 @@ colnames(volume) <- "volume"
 
 # wippp
 
-vari_ance <- HighFreq::roll_variance(oh_lc=log(oh_lc), look_back=look_back, sca_le=FALSE)
+vari_ance <- HighFreq::roll_variance(oh_lc=log(oh_lc), look_back=look_back, scal_e=FALSE)
 colnames(vari_ance) <- "variance"
 
 sig_nal <- HighFreq::roll_zscores(res_ponse=close_num, de_sign=de_sign, look_back=look_back)
@@ -669,7 +669,7 @@ bar <- bar[!blah, ]
 ## returns
 
 # lag_rets equals returns lagged by -1
-re_turns <- 6.5*60^2*HighFreq::run_returns(x_ts=HighFreq::SPY, sca_le=FALSE)
+re_turns <- 6.5*60^2*HighFreq::run_returns(x_ts=HighFreq::SPY, scal_e=FALSE)
 lag_rets <- rutils::lag_it(returns_running)
 # lag_rets <- c(lag_rets[-1, ], lag_rets[NROW(lag_rets)])
 tail(lag_rets)
@@ -1764,17 +1764,17 @@ dygraphs::dygraph(cbind(clo_se, pnl_s)) %>%
 ###############
 ### Forecast and trade minutely stock returns, using static betas over design matrix
 
-re_turns <- 6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, sca_le=FALSE)
+re_turns <- 6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, scal_e=FALSE)
 look_back <- 5
-rets_lag <- 6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, lag=look_back, sca_le=FALSE)
+rets_lag <- 6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, lag=look_back, scal_e=FALSE)
 colnames(rets_lag) <- "rets_lag"
-rets_lag2 <- 6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, lag=2*look_back, sca_le=FALSE)
+rets_lag2 <- 6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, lag=2*look_back, scal_e=FALSE)
 colnames(rets_lag2) <- "rets_lag2"
 rets_adv <- rutils::lag_it(rets_lag, lag=-look_back)
 colnames(rets_adv) <- "rets_adv"
 rets_adv2 <- rutils::lag_it(rets_lag2, lag=-2*look_back)
 colnames(rets_adv2) <- "rets_adv2"
-vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, sca_le=FALSE)
+vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, scal_e=FALSE)
 vari_ance <- HighFreq::roll_vwap(oh_lc=HighFreq::SPY, x_ts=vari_ance, look_back=look_back)
 colnames(vari_ance) <- "variance"
 # var_lag2 <- HighFreq::roll_vwap(oh_lc=HighFreq::SPY, x_ts=vari_ance, look_back=2*look_back)
@@ -1803,10 +1803,10 @@ colnames(hu_rst) <- "hurst"
 
 
 # rets_lag <- lapply(1:(3*look_back), function(lag) {
-#   6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, lag=lag, sca_le=FALSE)
+#   6.5*60*HighFreq::run_returns(x_ts=HighFreq::SPY, lag=lag, scal_e=FALSE)
 # })  # end lapply
 rets_lag <- lapply(1:(3*look_back), HighFreq::run_returns,
-                   x_ts=HighFreq::SPY, col_umn=4, sca_le=FALSE)
+                   x_ts=HighFreq::SPY, col_umn=4, scal_e=FALSE)
 rets_lag <- 6.5*60*rutils::do_call(cbind, rets_lag)
 colnames(rets_lag) <- paste0("rets_lag_", 1:(3*look_back))
 
@@ -1862,7 +1862,7 @@ plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 ## calculate the strategy success rate as the pnl divided by asset return volatility (to normalize the asset returns)
 # result: the plot of the strategy success rate doesn't show any time variation or dependence on volatility
-vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, sca_le=TRUE)
+vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, scal_e=TRUE)
 vari_ance <- sqrt(vari_ance)
 vari_ance <- HighFreq::roll_vwap(oh_lc=HighFreq::SPY, x_ts=vari_ance, look_back=look_back)
 bar <- rutils::diff_it(cum_pnls, lag=look_back) / vari_ance
@@ -1874,7 +1874,7 @@ plot.zoo(foo, main="foo", xlab=NA, ylab=NA)
 
 
 # calculate correlation between strategy pnl_s and vari_ance: there is no correlation
-vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, sca_le=TRUE)
+vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, scal_e=TRUE)
 vari_ance <- sqrt(vari_ance)
 range(vari_ance)
 range(vari_ance[vari_ance > 1e-06])

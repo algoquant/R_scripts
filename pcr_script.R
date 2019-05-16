@@ -179,7 +179,7 @@ pnl_s <- exp(cumsum(sign(sig_nal) * returns_running))
 # lag sig_nal two periods into future
 sig_nal <- rutils::lag_xts(sig_nal, lag=2)
 # calculate open to open returns
-returns_open <- HighFreq::run_returns(x_ts=HighFreq::SPY, col_umn=1, sca_le=FALSE)
+returns_open <- HighFreq::run_returns(x_ts=HighFreq::SPY, col_umn=1, scal_e=FALSE)
 colnames(returns_open) <- "returns_advanced"
 pnl_s <- exp(cumsum(sign(sig_nal) * returns_open))
 

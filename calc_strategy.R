@@ -12,14 +12,14 @@ calc_signal <- function(oh_lc, clo_se, de_sign, look_short, look_long=look_short
     sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_short)
   else {
     # signal equal to trailing average returns
-    # vari_ance <- HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_long, sca_le=FALSE)
+    # vari_ance <- HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_long, scal_e=FALSE)
     # vari_ance[vari_ance==0] <- as.numeric(vari_ance[2])
     # re_turns <- rutils::diff_it(clo_se, lagg=look_short)/look_short/sqrt(vari_ance)
     # re_turns <- roll::roll_scale(data=re_turns, width=look_long, min_obs=1, center=FALSE)
     # vari_ance <- roll::roll_scale(data=vari_ance, width=look_long, min_obs=1, center=FALSE)
     # sig_nal <- re_turns + vari_ance
     # signal equal to trailing average returns
-    sig_nal <- rutils::diff_it(clo_se, lagg=look_short)/sqrt(look_short)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_short, sca_le=FALSE))
+    sig_nal <- rutils::diff_it(clo_se, lagg=look_short)/sqrt(look_short)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_short, scal_e=FALSE))
     # sig_nal <- roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_short)
   }  # end if
   sig_nal[1:look_short, ] <- 0

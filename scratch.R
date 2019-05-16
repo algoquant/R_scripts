@@ -1,4 +1,101 @@
 ###############
+### Importance Sampling
+
+set.seed(1121) # reset random number generator
+# Sample from Standard Normal Distribution
+n_rows <- 1000
+sam_ple <- rnorm(n_rows)
+sam_ple <- sort(sam_ple)
+# Monte Carlo estimate of quantile
+conf_level <- 0.99
+qnorm(conf_level)
+quantile(sam_ple, probs=conf_level)
+sam_ple[conf_level*n_rows]
+# Monte Carlo estimate of cumulative probability
+pnorm(-2)
+integrate(dnorm, low=2, up=6)
+sum(sam_ple > 2)/n_rows
+# Monte Carlo estimate of expected value
+integrate(function(x) x*dnorm(x), low=2, up=6)
+sum((sam_ple > 2)*sam_ple)/n_rows
+
+
+## Importance sample
+lamb_da <- 1.5
+# sam_ple <- rnorm(n_rows, mean=lamb_da)
+# sample_is <- (sam_ple + lamb_da)
+
+# Importance sampling estimate of quantile
+# sample_is <- sort(sample_is)
+qnorm(conf_level)
+quantile(sample_is, probs=conf_level) - lamb_da
+sample_is[conf_level*n_rows] - lamb_da
+
+# Importance sampling estimate of cumulative probability
+pnorm(-2)
+integrate(dnorm, low=2, up=6)
+sum(sample_is > 2)/n_rows
+weight_s <- exp(-lamb_da*sample_is + lamb_da^2/2)
+sum((sample_is > 2)*weight_s)/n_rows
+
+# Importance sampling estimate of expected value
+integrate(function(x) x*dnorm(x), low=2, up=6)
+sum((sam_ple > 2)*sam_ple)/n_rows
+weight_s <- exp(-lamb_da*sample_is + lamb_da^2/2)
+sum((sample_is > 2)*sample_is*weight_s)/n_rows
+
+
+# Bootstrap of standard errors of quantile
+boot_strap <- sapply(1:1000, function(x) {
+  sam_ple <- rnorm(n_rows)
+  sam_ple <- sort(sam_ple)
+  c(MC=sam_ple[conf_level*n_rows],
+    IS=((sam_ple + lamb_da)[conf_level*n_rows] - lamb_da))
+}) # end sapply
+
+
+# Bootstrap of standard errors of cumulative probability
+boot_strap <- sapply(1:1000, function(x) {
+  sam_ple <- rnorm(n_rows)
+  m_c <- sum(sam_ple > 2)/n_rows
+  sam_ple <- (sam_ple + lamb_da)
+  weight_s <- exp(-lamb_da*sam_ple + lamb_da^2/2)
+  i_s <- sum((sam_ple > 2)*weight_s)/n_rows
+  c(MC=m_c,IS=i_s)
+}) # end sapply
+
+
+# Bootstrap of standard errors of expected value
+boot_strap <- sapply(1:1000, function(x) {
+  sam_ple <- rnorm(n_rows)
+  m_c <- sum((sam_ple > 2)*sam_ple)/n_rows
+  sam_ple <- (sam_ple + lamb_da)
+  weight_s <- exp(-lamb_da*sam_ple + lamb_da^2/2)
+  i_s <- sum((sam_ple > 2)*sam_ple*weight_s)/n_rows
+  c(MC=m_c,IS=i_s)
+}) # end sapply
+
+
+apply(boot_strap, MARGIN=1, 
+      function(x) c(mean=mean(x), sd=sd(x)))
+
+
+boot_strap[, 1:3]
+# standard error from formula
+sd(sam_ple)/sqrt(n_rows)
+# standard error of mean from bootstrap
+sd(boot_strap["mean", ])
+# standard error of median from bootstrap
+sd(boot_strap["median", ])
+
+
+foo*exp(-2*lamb_da*foo + lamb_da^2)
+bar <- conf_level*(1-exp(-2*lamb_da*qnorm(conf_level) + lamb_da^2))
+foo <- sam_ple[bar*n_rows]
+
+
+
+###############
 ### Forecasting for univariate regression
 
 library(HighFreq)
@@ -199,7 +296,7 @@ re_turns <- rutils::diff_it(log(com_bo[, paste(sym_bol, "Close", sep=".")]))
 
 # vari_ance <- (hi_gh - lo_w)^2
 look_back <- 11
-vari_ance <- HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_back, sca_le=FALSE)
+vari_ance <- HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE)
 colnames(vari_ance) <- "variance"
 vol_at <- sqrt(vari_ance)
 colnames(vol_at) <- "volat"
@@ -377,7 +474,7 @@ look_back <- 11
 max_min <- roll_maxmin(close_num, look_back)
 close_max <- (close_num == max_min[, 1])
 close_min <- (close_num == max_min[, 2])
-vol_at <- HighFreq::roll_variance(oh_lc=ohlc_log, look_back=5*look_back, sca_le=FALSE)
+vol_at <- HighFreq::roll_variance(oh_lc=ohlc_log, look_back=5*look_back, scal_e=FALSE)
 vol_at <- sqrt(vol_at)
 vol_at[1] <- vol_at[2]
 colnames(vol_at) <- "volat"
@@ -640,7 +737,7 @@ indicator_s <- c("ES1.Close", "TY1.Close", "TU1.Close", "UX1.Close", "UX2.Close"
 dygraphs::dygraph(oh_lc[, indicator_s[2]]-oh_lc[, indicator_s[3]])
 indicator_s <- lapply(indicator_s, function(col_umn) {
   col_umn <- oh_lc[, col_umn]
-  sig_nal <- rutils::diff_it(clo_se, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_back, sca_le=FALSE))
+  sig_nal <- rutils::diff_it(clo_se, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE))
   HighFreq::roll_sum(indicator_s[, col_umn], look_back=look_back)/look_back
 })  # end lapply
 indicator_s <- rutils::do_call(cbind, indicator_s)

@@ -14,7 +14,7 @@ file_names <- file_names[-grep("FRE", file_names)]
 ### Render *.Rnw files into *.pdf files.
 # loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
 setwd("C:/Develop/R/lecture_slides")
-sapply(file_names, knitr::knit2pdf)
+sapply(file_names, knitr::knit2pdf, bib_engine="biber")
 
 
 

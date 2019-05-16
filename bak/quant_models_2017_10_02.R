@@ -132,7 +132,7 @@ lapply(1:NCOL(price_s), function(i) {
 
 # calculate the Yang-Zhang rolling daily variance using roll_variance()
 look_back <- 22
-var_rolling <- eapply(data_env, roll_variance, look_back=look_back, sca_le=FALSE)
+var_rolling <- eapply(data_env, roll_variance, look_back=look_back, scal_e=FALSE)
 # sapply(var_rolling, function(x) sum(is.na(x)))
 
 # plot rolling variance and volume
