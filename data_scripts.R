@@ -50,7 +50,11 @@ ls(data_env)
 do.call(rbind, eapply(data_env, dim))
 save(data_env, file="data_env.RData")
 
+# Fix rbind_ohlc() by using ratio, as in slide Chaining Together Futures Prices in markets_trading.Rnw
+# https://www.interactivebrokers.com/en/software/tws/usersguidebook/technicalanalytics/continuous.htm
 # Define function for chaining the data
+
+
 rbind_ohlc <- function(ohlc_1, ohlc_2) {
   if (end(ohlc_1) < start(ohlc_2)) {
     di_ff <- as.numeric(ohlc_2[start(ohlc_2), 1]) - as.numeric(ohlc_1[end(ohlc_1), 4])
