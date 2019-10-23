@@ -1,97 +1,411 @@
-###############
-### Importance Sampling
 
-set.seed(1121) # reset random number generator
-# Sample from Standard Normal Distribution
-n_rows <- 1000
-sam_ple <- rnorm(n_rows)
-sam_ple <- sort(sam_ple)
-# Monte Carlo estimate of quantile
-conf_level <- 0.99
-qnorm(conf_level)
-quantile(sam_ple, probs=conf_level)
-sam_ple[conf_level*n_rows]
-# Monte Carlo estimate of cumulative probability
-pnorm(-2)
-integrate(dnorm, low=2, up=6)
-sum(sam_ple > 2)/n_rows
-# Monte Carlo estimate of expected value
-integrate(function(x) x*dnorm(x), low=2, up=6)
-sum((sam_ple > 2)*sam_ple)/n_rows
+############## homework
+# Summary: Demonstrate that it's easier to forecast 
+# weekly and monthly stock returns than daily returns
 
+library(HighFreq)
 
-## Importance sample
-lamb_da <- 1.5
-# sam_ple <- rnorm(n_rows, mean=lamb_da)
-# sample_is <- (sam_ple + lamb_da)
+# Aggregate the VTI returns to monthly and run pacf()
 
-# Importance sampling estimate of quantile
-# sample_is <- sort(sample_is)
-qnorm(conf_level)
-quantile(sample_is, probs=conf_level) - lamb_da
-sample_is[conf_level*n_rows] - lamb_da
+price_s <- Cl(rutils::etf_env$VTI)
+# end_points <- rutils::calc_endpoints(price_s, inter_val=25)
+end_points <- rutils::calc_endpoints(price_s, inter_val="weeks")
+# end_points <- end_points[2*(1:(NROW(end_points) %/% 2))-1]
+data_agg <- price_s[end_points]
+data_agg <- rutils::diff_it(log(data_agg))
+p_acf <- pacf(data_agg)
 
-# Importance sampling estimate of cumulative probability
-pnorm(-2)
-integrate(dnorm, low=2, up=6)
-sum(sample_is > 2)/n_rows
-weight_s <- exp(-lamb_da*sample_is + lamb_da^2/2)
-sum((sample_is > 2)*weight_s)/n_rows
+p_acf <- sapply(3:50, function(lagg) {
+  end_points <- rutils::calc_endpoints(price_s, inter_val=lagg)
+  data_agg <- price_s[end_points]
+  data_agg <- rutils::diff_it(log(data_agg))
+  p_acf <- pacf(data_agg, plot=FALSE)
+  p_acf <- p_acf$acf
+  # s_d <- 2*sd(p_acf)
+  s_d <- 2*median(abs(p_acf))
+  sum(p_acf[abs(p_acf) > s_d])
+})  # end sapply
 
-# Importance sampling estimate of expected value
-integrate(function(x) x*dnorm(x), low=2, up=6)
-sum((sam_ple > 2)*sam_ple)/n_rows
-weight_s <- exp(-lamb_da*sample_is + lamb_da^2/2)
-sum((sample_is > 2)*sample_is*weight_s)/n_rows
+plot(x=3:50, y=p_acf, t="l")
 
-
-# Bootstrap of standard errors of quantile
-boot_strap <- sapply(1:1000, function(x) {
-  sam_ple <- rnorm(n_rows)
-  sam_ple <- sort(sam_ple)
-  c(MC=sam_ple[conf_level*n_rows],
-    IS=((sam_ple + lamb_da)[conf_level*n_rows] - lamb_da))
-}) # end sapply
+# Old
+# price_s <- Cl(rutils::etf_env$VTI)
+# end_points <- xts::endpoints(price_s, on="months")
+# end_points <- end_points[2*(1:(NROW(end_points)/2))-1]
+# price_s <- price_s[end_points]
+# price_s <- rutils::diff_it(log(price_s))
+# pacf(price_s)
+# # Or week returns
+# price_s <- Cl(rutils::etf_env$VTI)
+# end_points <- xts::endpoints(price_s, on="weeks")
+# end_points <- end_points[3*(1:(NROW(end_points) %/% 3))-1]
+# price_s <- price_s[end_points]
+# price_s <- rutils::diff_it(log(price_s))
+# pacf(price_s)
 
 
-# Bootstrap of standard errors of cumulative probability
-boot_strap <- sapply(1:1000, function(x) {
-  sam_ple <- rnorm(n_rows)
-  m_c <- sum(sam_ple > 2)/n_rows
-  sam_ple <- (sam_ple + lamb_da)
-  weight_s <- exp(-lamb_da*sam_ple + lamb_da^2/2)
-  i_s <- sum((sam_ple > 2)*weight_s)/n_rows
-  c(MC=m_c,IS=i_s)
-}) # end sapply
+
+############## homework
+# Summary: Strategy using weekly and monthly stock returns.
+# It's implemented in app_roll_portf9.R
+
+library(HighFreq)
+
+# Aggregate the VTI returns to monthly and run pacf()
+
+price_s <- Cl(rutils::etf_env$VTI)
+re_turns <- rutils::diff_it(log(price_s))
+returns_adv <- rutils::lag_it(re_turns, lagg=(-1))
+returns_adv <- as.numeric(returns_adv)
+
+# end_points <- rutils::calc_endpoints(price_s, inter_val="weeks")
+# week_ly <- price_s[end_points]
+# week_ly <- rutils::diff_it(log(week_ly))
+week_ly <- rutils::diff_it(log(price_s), lagg=5)
+week_ly <- as.numeric(week_ly)
+returns_adv <- rutils::lag_it(week_ly, lagg=(-1))
+returns_adv <- as.numeric(returns_adv)
+# end_points <- rutils::calc_endpoints(price_s, inter_val="months")
+# month_ly <- price_s[end_points]
+# month_ly <- rutils::diff_it(log(month_ly))
+month_ly <- rutils::diff_it(log(price_s), lagg=25)
+month_ly <- as.numeric(month_ly)
+returns_adv <- rutils::lag_it(month_ly, lagg=(-1))
+returns_adv <- as.numeric(returns_adv)
+
+# Objective function for simple optimization
+object_ive <- function(wei_ght) {
+  # weight_s <- c(wei_ght, 1-wei_ght)
+  sum((returns_adv - (wei_ght*week_ly + (1-wei_ght)*month_ly))^2)
+}  # end object_ive
+object_ive(0.5)
+foo <- optimize(f=object_ive, interval=c(-10, 10))
+unlist(foo)
+wei_ght <- unlist(foo)[1]
+position_s <- sign(wei_ght*week_ly + (1-wei_ght)*month_ly)
+positions_lag <- rutils::lag_it(position_s, lagg=2)
+cum_pnls <- cumsum(positions_lag*re_turns)
+x11()
+end_days <- rutils::calc_endpoints(re_turns, "days")
+plot.zoo(-cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
-# Bootstrap of standard errors of expected value
-boot_strap <- sapply(1:1000, function(x) {
-  sam_ple <- rnorm(n_rows)
-  m_c <- sum((sam_ple > 2)*sam_ple)/n_rows
-  sam_ple <- (sam_ple + lamb_da)
-  weight_s <- exp(-lamb_da*sam_ple + lamb_da^2/2)
-  i_s <- sum((sam_ple > 2)*sam_ple*weight_s)/n_rows
-  c(MC=m_c,IS=i_s)
-}) # end sapply
+
+############## test
+# Summary: Calculate drawdown in a single loop
+
+n_rows <- NROW(price_s)
+prices_n <- as.numeric(price_s)
+draw_down <- numeric(n_rows)
+cum_max <- numeric(n_rows)
+which_min <- 1
+max_draw <- 0
+in_dex <- 1
+
+for (it in 2:n_rows) {
+  cum_max[it] <- max(cum_max[it-1], prices_n[it])
+  draw_down[it] <- (prices_n[it] - cum_max[it])
+  in_dex <- if (draw_down[it] < max_draw) 
+    it
+  else in_dex
+  max_draw <- min(max_draw, draw_down[it])
+}
 
 
-apply(boot_strap, MARGIN=1, 
-      function(x) c(mean=mean(x), sd=sd(x)))
+draw_down <- (price_s - cummax(price_s))
+
+in_dex <- index(price_s)
+date_trough <- in_dex[which.min(draw_down)]
+max_drawdown <- draw_down[date_trough]
 
 
-boot_strap[, 1:3]
-# standard error from formula
-sd(sam_ple)/sqrt(n_rows)
-# standard error of mean from bootstrap
-sd(boot_strap["mean", ])
-# standard error of median from bootstrap
-sd(boot_strap["median", ])
 
 
-foo*exp(-2*lamb_da*foo + lamb_da^2)
-bar <- conf_level*(1-exp(-2*lamb_da*qnorm(conf_level) + lamb_da^2))
-foo <- sam_ple[bar*n_rows]
+############## homework
+# Summary: Create a contrarian strategy using 
+# the Hampel filter.  
+# It's implemented in app_roll_portf10.R
+
+library(HighFreq)
+
+
+# 1. (10pts) 
+# Define a rolling look-back window and a half window:
+# Use the %/% operator. 
+
+win_dow <- 11
+half_window <- win_dow %/% 2
+
+# Calculate a time series of rolling z-scores 
+# (called z_scores), using the Hampel filter code 
+# from the lecture slides.
+
+price_s <- Cl(HighFreq::SPY)["T09:31:00/T15:59:00"]
+re_turns <- rutils::diff_it(log(price_s))
+
+medi_an <- TTR::runMedian(price_s, n=win_dow)
+medi_an[1:win_dow, ] <- 1
+sum(is.na(medi_an))
+ma_d <- TTR::runMAD(price_s, n=win_dow)
+ma_d[1:win_dow, ] <- 1
+sum(is.na(ma_d))
+z_scores <- ifelse(ma_d!=0, (price_s-medi_an)/ma_d, 0)
+z_scores[1:win_dow, ] <- 0
+ma_d <- na.locf(z_scores)
+sum(is.na(z_scores))
+mad_zscores <- TTR::runMAD(z_scores, n=win_dow)
+mad_zscores[1:win_dow, ] <- 0
+
+# You should get the following output:
+tail(z_scores)
+mad(z_scores)
+range(z_scores)
+hist(z_scores, breaks=30, xlim=c(-10, 10))
+
+# Calculate position_s and pnls from z-scores and vol_at
+position_s <- rep(NA_real_, NROW(price_s))
+position_s[1] <- 0
+# thresh_old <- 3*mad(z_scores)
+# position_s <- ifelse(z_scores > thresh_old, -1, position_s)
+# position_s <- ifelse(z_scores < (-thresh_old), 1, position_s)
+position_s <- ifelse(z_scores > 2*mad_zscores, -1, position_s)
+position_s <- ifelse(z_scores < (-2*mad_zscores), 1, position_s)
+position_s <- na.locf(position_s)
+positions_lag <- rutils::lag_it(position_s, lagg=2)
+cum_pnls <- cumsum(positions_lag*re_turns)
+x11()
+end_days <- rutils::calc_endpoints(price_s, "days")
+plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
+
+
+
+############## homework - Hurst exponents almost random
+# Summary: Calculate a time series of monthly Hurst 
+# exponents and the volatility for the SPY series.
+# Demonstrate that the changes of the Hurst exponent 
+# have negative autocorrelations, that Hurst exponent 
+# is anti-persistent over time.
+# Calculate the correlation between the SPY Hurst 
+# exponent and the level of volatility.
+# 
+# Regress the Hurst exponent versus the standard 
+# deviation, and create plots and perform a regression 
+# of the two.
+
+# Observation: 
+# The Hurst exponent is low when the volatility is high. 
+# When the volatility is low then the Hurst exponent 
+# can be both high and low.
+
+
+library(HighFreq)
+
+# This is best version
+# Calculate Hurst exponent using median of range ratios
+calc_hurst <- function(hi_price, lo_price, end_points) {
+  range_ratio <- sapply(seq_along(end_points)[-1], function(it) {
+    start_point <- end_points[it-1]
+    end_point <- end_points[it]
+    hi_price <- hi_price[start_point:end_point]
+    lo_price <- lo_price[start_point:end_point]
+    log((max(hi_price) - min(lo_price))/mean(hi_price - lo_price))/log(end_point-start_point)
+  })  # end sapply
+  median(range_ratio)
+}  # end calc_hurst
+
+# Calculate Hurst exponent using median of range ratios
+calc_hursto <- function(hi_price, lo_price, end_points) {
+  range_ratio <- sapply(seq_along(end_points)[-1], function(it) {
+    hi_price <- hi_price[end_points[it-1]:end_points[it]]
+    lo_price <- lo_price[end_points[it-1]:end_points[it]]
+    (max(hi_price) - min(lo_price))/mean(hi_price - lo_price)
+  })  # end sapply
+  log(median(range_ratio))/log(median(rutils::diff_it(end_points)))
+}  # end calc_hursto
+
+oh_lc <- log(HighFreq::SPY)
+hi_price <- quantmod::Hi(oh_lc)
+lo_price <- quantmod::Lo(oh_lc)
+calc_hurst(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="days"))
+
+library(microbenchmark)
+summary(microbenchmark(
+  calc_hurst=calc_hurst(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="days")),
+  calc_hursto=calc_hursto(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="days")),
+  times=10))[, c(1, 4, 5)]  # end microbenchmark summary
+
+
+
+# 2. (20pts) 
+# Calculate a vector of monthly end points from
+# the oh_lc, and call it end_points.
+# use the function rutils::calc_endpoints().
+
+end_points <- rutils::calc_endpoints(oh_lc, inter_val="months")
+
+# Perform an sapply() loop over the length of end_points.
+# Inside the loop calculate the standard deviation of 
+# returns and the cumulative trading volumes.
+# The output should be a matrix called volat_hurst.
+
+volat_hurst <- sapply(seq_along(end_points)[-1], 
+  function(it) {
+    oh_lc <- oh_lc[end_points[it-1]:end_points[it]]
+    hi_price <- quantmod::Hi(oh_lc)
+    lo_price <- quantmod::Lo(oh_lc)
+    c(volatility=HighFreq::calc_var_ohlc(oh_lc), 
+      hurst=calc_hurst(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="days")))
+  })  # end sapply
+# rbind list into single xts or matrix
+volat_hurst <- t(volat_hurst)
+
+x11()
+plot(volat_hurst)
+plot.zoo(volat_hurst)
+foo <- rutils::diff_it(volat_hurst)
+plot(foo)
+pacf(foo[, 1])
+
+
+# wippp
+############## homework
+# Summary: Calculate a time series of annual Hurst 
+# exponents for S&P500 stocks.
+# Plot a scatterplot of Hurst for the years 2008 and 2009.
+
+# Set up the data as follows:
+library(HighFreq)
+
+# Load S&P500 constituent stock prices
+load("C:/Develop/R/lecture_slides/data/sp500.RData")
+
+oh_lc <- log(env_sp500$SIG)
+quantmod::chart_Series(Cl(oh_lc))
+hi_price <- quantmod::Hi(oh_lc)
+lo_price <- quantmod::Lo(oh_lc)
+calc_hurst(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="months"))
+
+end_points <- rutils::calc_endpoints(oh_lc, inter_val="years")
+volat_hurst <- sapply(seq_along(end_points)[-1], 
+                      function(it) {
+                        oh_lc <- oh_lc[end_points[it-1]:end_points[it]]
+                        hi_price <- quantmod::Hi(oh_lc)
+                        lo_price <- quantmod::Lo(oh_lc)
+                        c(volatility=HighFreq::calc_var_ohlc(oh_lc), 
+                          hurst=calc_hurst(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="months")))
+                      })  # end sapply
+# Transpose the matrix
+volat_hurst <- t(volat_hurst)
+
+plot(volat_hurst)
+plot.zoo(volat_hurst)
+foo <- rutils::diff_it(volat_hurst)
+plot(foo)
+plot(cbind(foo[, 1], volat_hurst[, 2]))
+pacf(foo[, 1])
+
+mod_el <- lm(volat_hurst[, 2] ~ volat_hurst[, 1])
+model_sum <- summary(mod_el)
+model_sum$coefficients[2, 3]
+plot(volat_hurst[, 2] ~ volat_hurst[, 1])
+abline(mod_el)
+
+###
+
+# Scrub data in env_sp500
+
+x[is.infinite(x)] <- NA
+x <- na.locf(x)
+x <- na.locf(x, fromLast=TRUE)
+
+
+###
+
+
+hurst_prof <- eapply(env_sp500, function(oh_lc) {
+  end_points <- rutils::calc_endpoints(oh_lc, inter_val="years")
+  if (NROW(end_points) > 3) {
+    oh_lc <- log(oh_lc)
+    volat_hurst <- sapply(seq_along(end_points)[-1], 
+                          function(it) {
+                            oh_lc <- oh_lc[end_points[it-1]:end_points[it]]
+                            hi_price <- quantmod::Hi(oh_lc)
+                            lo_price <- quantmod::Lo(oh_lc)
+                            c(volatility=HighFreq::calc_var_ohlc(oh_lc), 
+                              hurst=calc_hurst(hi_price, lo_price, rutils::calc_endpoints(oh_lc, inter_val="months")))
+                          })  # end sapply
+    # Transpose the matrix
+    volat_hurst <- t(volat_hurst)
+    # Scrub the data
+    volat_hurst <- na.locf(volat_hurst)
+    na.locf(volat_hurst, fromLast=TRUE)
+  } else {
+    c("Not enough years for Hurst\n")
+    cbind(volatility=rep(1, NROW(end_points)), hurst=rep(0.5, NROW(end_points)))
+  }
+})  # end eapply
+
+hurst_prof <- lapply(hurst_prof, function(volat_hurst) {
+  # Scrub the data
+  volat_hurst[is.infinite(volat_hurst)] <- NA
+  volat_hurst <- na.locf(volat_hurst)
+  na.locf(volat_hurst, fromLast=TRUE)
+})  # end lapply
+
+save(hurst_prof, file="C:/Develop/R/lecture_slides/data/sp500_perf.RData")
+
+bar <- sapply(hurst_prof, function(x) sum(is.na(x) | is.infinite(x)))
+max(bar)
+which.max(bar)
+hurst_prof[[names(which.max(bar))]]
+
+get_tval <- function(x) {
+  cat("NROW(x) = ", NROW(x), "\n")
+  x <- na.omit(x)
+  if ((NROW(x) > 3) & (sum(is.na(x))==0)) {
+    mod_el <- lm(x[, 2] ~ x[, 1])
+    summary(mod_el)$coefficients[2, 3]
+  } else 1
+}  # end get_tval
+bar <- sapply(hurst_prof, get_tval)
+
+bar <- sapply(hurst_prof, function(x) {
+  # cat("dim(x) = ", dim(x), "\n")
+  if (NROW(x) > 3) {
+    mod_el <- lm(x[, 2] ~ x[, 1])
+    summary(mod_el)$coefficients[2, 3]
+  } else 0
+})  # end sapply
+
+bar <- sort(bar)
+hist(bar)
+which.max(bar)
+bar[[names(which.max(bar))]]
+hurst_prof[[names(which.max(bar))]]
+which.min(bar)
+bar[[names(which.min(bar))]]
+hurst_prof[[names(which.min(bar))]]
+plot(hurst_prof[[names(which.min(bar))]])
+
+bar <- sapply(hurst_prof, function(x) {
+  max(x[, 2])
+})  # end sapply
+re_turns <- price_s[, names(tail(bar, 100))]
+re_turns <- rutils::diff_it(log(re_turns))
+save(re_turns, file="C:/Develop/R/lecture_slides/data/sp100_rets.RData")
+
+col_names <- colnames(hurst_prof$AAPL)
+bar <- lapply(hurst_prof, function(x) {
+  x <- cbind((x[, 1]-min(x[, 1]))/(max(x[, 1]-min(x[, 1]))), (x[, 2]-min(x[, 2]))/(max(x[, 2])-min(x[, 2])))
+  colnames(x) <- col_names
+  x
+})  # end lapply
+foo <- NULL
+unlist(sapply(hurst_prof, function(x) {
+  foo <<- rbind(foo, x)
+  NULL
+}))  # end sapply
+plot(foo)
 
 
 
@@ -154,10 +468,11 @@ library(HighFreq)
 # Compile Rcpp functions
 Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/temp.cpp")
 
-
 re_turns <- na.omit(rutils::etf_env$re_turns[, 1:9])
 
 foo <- drop(HighFreq::calc_weights(re_turns, typ_e="rank"))
+
+
 
 
 ###############
@@ -622,7 +937,7 @@ summary(microbenchmark(
 
 
 ###############
-### strategy using static betas over OHLC technical indicators
+### Strategy using static betas over OHLC technical indicators
 # with regression and dimensionality reduction
 
 # Load OHLC futures data
@@ -1257,7 +1572,7 @@ eigen_vec <- ei_gen$vectors
 # check for zero singular values
 # set tolerance for determining zero singular values
 to_l <- sqrt(.Machine$double.eps)
-not_zero <- (eigen_values > (to_l * eigen_values[1]))
+not_zero <- (eigen_values > (to_l*eigen_values[1]))
 
 # calculate generalized inverse from eigen decomposition
 eigen_inverse <- eigen_vec[, not_zero] %*%
@@ -1563,13 +1878,13 @@ summary(microbenchmark(
 # Rcpp::sourceCpp(file="C:/Develop/R/lecture_slides/assignments/roll_wsum.cpp")
 library(HighFreq)
 
-wei_ghts <- c(1, rep(1e-5, 10))
+weight_s <- c(1, rep(1e-5, 10))
 
-wei_ghts <- exp(-0.2*1:11)
-wei_ghts <- wei_ghts/sum(wei_ghts)
+weight_s <- exp(-0.2*1:11)
+weight_s <- weight_s/sum(weight_s)
 vec_tor <- as.numeric(rutils::etf_env$VTI[, 6])
-weight_ed <- HighFreq::roll_wsum(vec_tor=vec_tor, wei_ghts=rev(wei_ghts))
-filter_ed <- filter(x=vec_tor, filter=wei_ghts, method="convolution", sides=1)
+weight_ed <- HighFreq::roll_wsum(vec_tor=vec_tor, weight_s=rev(weight_s))
+filter_ed <- filter(x=vec_tor, filter=weight_s, method="convolution", sides=1)
 
 all.equal(as.numeric(vec_tor), as.numeric(weight_ed))
 
@@ -1578,18 +1893,18 @@ all.equal(as.numeric(filter_ed[-(1:10)]), as.numeric(weight_ed))
 
 library(microbenchmark)
 summary(microbenchmark(
-  rcpp=HighFreq::roll_wsum(vec_tor=vec_tor, wei_ghts=wei_ghts),
-  pure_r=filter(x=vec_tor, filter=wei_ghts, method="convolution", sides=1, circular=TRUE),
+  rcpp=HighFreq::roll_wsum(vec_tor=vec_tor, weight_s=weight_s),
+  pure_r=filter(x=vec_tor, filter=weight_s, method="convolution", sides=1, circular=TRUE),
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
 
-filter_ed <- roll_wsum_arma(vec_tor, rev(wei_ghts))
+filter_ed <- roll_wsum_arma(vec_tor, rev(weight_s))
 all.equal(as.numeric(filter_ed[-(1:10)]), as.numeric(weight_ed))
 
 library(microbenchmark)
 summary(microbenchmark(
-  rcpp=HighFreq::roll_wsum(vec_tor=vec_tor, wei_ghts=wei_ghts),
-  arma=roll_wsum_arma(vec_tor, rev(wei_ghts)),
+  rcpp=HighFreq::roll_wsum(vec_tor=vec_tor, weight_s=weight_s),
+  arma=roll_wsum_arma(vec_tor, rev(weight_s)),
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
 
@@ -1742,11 +2057,11 @@ var(re_turns %*% weight_s)
 
 
 object_ive <- function(weight_s, re_turns, conf_level, portfolio_sub) {
-  # portf_rets <- re_turns %*% weight_s
-  # var(portf_rets) +
+  # pnl_s <- re_turns %*% weight_s
+  # var(pnl_s) +
   t(weight_s) %*% cov_mat %*% weight_s +
     1000*(sum(weight_s) - 1)^2 +
-    1000*(sum(weight_s * portfolio_sub[-1]) - portfolio_sub[1])^2
+    1000*(sum(weight_s*portfolio_sub[-1]) - portfolio_sub[1])^2
 }  # end object_ive
 
 
@@ -2504,8 +2819,8 @@ cum_pnl <- function(beta_s, la_g=15, de_sign=de_sign, re_turns=returns_running, 
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- c(0, position_s[-NROW(position_s)])
   # pnl_s <- position_s*re_turns
-  # be_ta <- (sum(pnl_s * re_turns) - sum(pnl_s) * sum(re_turns)) / (sum(pnl_s * pnl_s) - sum(pnl_s)^2 )
-  # -(exp(sum(pnl_s) - be_ta * sum(re_turns)) - 1)
+  # be_ta <- (sum(pnl_s*re_turns) - sum(pnl_s)*sum(re_turns)) / (sum(pnl_s*pnl_s) - sum(pnl_s)^2 )
+  # -(exp(sum(pnl_s) - be_ta*sum(re_turns)) - 1)
   # -(exp(sum(position_s*re_turns))-1) # / (sum(abs(rutils::diff_it(position_s))) / 2/ 1e5) / abs(sum(position_s>0) - sum(position_s<0))
   -((exp(sum(position_s*re_turns))-1) - lamb_da*sum(abs(beta_s)))
 }  # end cum_pnl
@@ -2540,7 +2855,7 @@ cum_pnl <- function(inter_val) {
   position_s[bu_y] <- 1.0
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- c(0, position_s[-NROW(position_s)])
-  exp(sum((position_s * returns_running)))-1
+  exp(sum((position_s*returns_running)))-1
 }  # end cum_pnl
 
 cum_pnl(200)
@@ -2644,12 +2959,12 @@ wors_t <- apply(weight_s, 1, function(x) {which.min(x)})
 bes_t <- apply(weight_s, 1, which.max)
 wors_t <- apply(weight_s, 1, which.min)
 
-back_test <- rowSums(weight_s * bar)
+back_test <- rowSums(weight_s*bar)
 x11()
 plot(cumsum(back_test), t="l")
 
 # back_test <- t(weight_s) %*% bar
-back_test <- rowSums(weight_s * bar)
+back_test <- rowSums(weight_s*bar)
 back_test <- xts(back_test, order.by=index(fwd_rets))
 x11()
 chart_Series(x=cumsum(back_test), name="Back-test of EWMA strategies")
@@ -2819,8 +3134,8 @@ abline(a=0, b=10, col="blue")
 heatmap(sharpe_ratios, col=colorRampPalette(c("blue", "red"))(22))
 
 summary(microbenchmark(
-  tee=-t(portf_rets) %*% portf_rets,
-  s_um=-sum(portf_rets*portf_rets),
+  tee=-t(pnl_s) %*% pnl_s,
+  s_um=-sum(pnl_s*pnl_s),
   times=10))[, c(1, 4, 5)]
 
 
@@ -2891,8 +3206,8 @@ df <- data.frame(Date=seq(as.Date("2016-01-01"), as.Date("2016-08-31"), by="days
 
 plot_ly(data=df, x=df$Date, y=df$Value, type="scatter", mode="lines") %>%
   add_trace(x=~df$Date, y=~df$Value, name="20yr Treasury rate") %>%
-  layout(xaxis=list(range=c( as.numeric(max(df$Date)-30) *86400000,
-                                 as.numeric(max(df$Date)) * 86400000   ),
+  layout(xaxis=list(range=c( as.numeric(max(df$Date)-30)*86400000,
+                                 as.numeric(max(df$Date))*86400000   ),
                       rangeslider=list(type="date")  ))
 
 ###

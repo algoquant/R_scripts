@@ -1,7 +1,7 @@
 ################################################
 ###
-### experimental alpha scripts
-### load data
+### Experimental alpha scripts
+### Load data
 ### explore skew, Hurst
 ### simple trading strategies
 ###
@@ -11,7 +11,7 @@
 rm(list=ls())
 options(max.print=80)
 
-# suppress spurious timezone warning messages
+# Suppress spurious timezone warning messages
 options(xts_check_TZ=FALSE)
 
 library(HighFreq)
@@ -25,7 +25,7 @@ library(TTR)
 # the design matrix and perform a backtest to find the 
 # optimal shrinkage parameter.
 
-# strategy using rolling zscores over OHLC technical indicators
+# Strategy using rolling zscores over OHLC technical indicators
 
 # Find the optimal meta-parameters (the length of look-back interval 
 # look_back and the order of the AR(p) process p) by minimizing the 
@@ -63,7 +63,7 @@ sig_nal[1:look_back] <- 0
 
 roll_sharpe
 
-# residuals of the regression of the time series of clo_se prices
+# Residuals of the regression of the time series of clo_se prices
 date_s <- xts::.index(oh_lc)
 # foo <- unique(date_s)
 de_sign <- matrix(date_s, nc=1)
@@ -102,13 +102,13 @@ weight_s <- sapply(lambda_s, function(lamb_da) {
 # You must perform a regression on lagged vol_ume using matrix 
 # algebra, not arima().
 
-# define design matrix
+# Define design matrix
 de_sign <- sapply(1:11, function(lagg) {
   rutils::lag_it(vol_ume, lagg=lagg)
 })  # end sapply
 # generalized inverse of design matrix
 design_inv <- MASS::ginv(de_sign)
-# regression coefficients with response equal to ari_ma
+# Regression coefficients with response equal to ari_ma
 co_eff <- drop(design_inv %*% vol_ume)
 
 # You should get the following output:
@@ -140,7 +140,7 @@ back_test <- function(se_ries, look_back=100, or_der=5, end_points=end_points, n
   # Perform rolling forecasting
   fore_casts <- sapply(end_points[-(1:(or_der-1))], function(it) {
     de_sign <- de_sign[start_points[it]:end_points[it], ]
-    # calculate AR(p) coefficients
+    # Calculate AR(p) coefficients
     design_inv <- MASS::ginv(de_sign[, -1])
     co_eff <- drop(design_inv %*% de_sign[, 1])
     de_sign[(NROW(de_sign)-or_der+1):NROW(de_sign), 1] %*% co_eff
@@ -209,15 +209,13 @@ plot(x=look_backs, y=mse_s, t="l", lwd=2, xlab="Lookback length", ylab="",
 
 
 
-
-
 ###########
-# perform aggregations by applying a function over a vector of endpoints
+# Perform aggregations by applying a function over a vector of endpoints
 
-## load minutely price data
+## Load minutely price data
 sym_bol <- load("C:/Develop/data/SPY.RData")
 
-# plot average hourly trading volumes
+# Plot average hourly trading volumes
 price_s <- Vo(SPY["2010-05-05/2010-05-07"])
 var_running <- period.apply(
   x=price_s,
@@ -227,7 +225,7 @@ chart_Series(vol_ume, name="hourly volumes")
 in_dex <- format(index(vol_ume), "%H:%M")
 vol_ume <- tapply(X=vol_ume, INDEX=in_dex, FUN=mean)
 vol_ume <- xts(as.vector(vol_ume), order.by=as.POSIXct(names(vol_ume), format="%H:%M"))
-# normalize and plot vol_ume
+# Normalize and plot vol_ume
 in_dex <- c(30, diff(index(vol_ume)))
 chart_Series(vol_ume/in_dex, name="hourly volumes")
 
@@ -241,10 +239,10 @@ agg_regate <- function(da_ta) {
 agg_regate(price_s)
 
 
-## perform aggregations using period.apply(), apply_rolling() and apply_xts()
+## Perform aggregations using period.apply(), apply_rolling() and apply_xts()
 # apply_rolling() and apply_xts() are legacy functions from utilLib.R
 
-# extract closing prices for a single day of data
+# Extract closing prices for a single day of data
 price_s <- Cl(SPY["2010-05-06"])
 
 end_points <- xts::endpoints(price_s, "hours")
@@ -258,10 +256,10 @@ agg_regations <- apply_xts(x_ts=price_s,
                          end_points=end_points,
                          func_tion=agg_regate)
 
-# verify that apply_rolling() and apply_xts() produce identical output
+# Verify that apply_rolling() and apply_xts() produce identical output
 all.equal(agg_regations, foo_bar)
 
-# compare speed of apply_rolling() versus apply_xts()
+# Compare speed of apply_rolling() versus apply_xts()
 library(microbenchmark)
 summary(microbenchmark(
   agg_sapply=apply_rolling(x_ts=price_s,
@@ -276,7 +274,7 @@ agg_regations <- apply_rolling(x_ts=price_s,
                                end_points=end_points,
                                look_back=3,
                                func_tion=agg_regate)
-# plot aggregations with custom line colors
+# Plot aggregations with custom line colors
 plot_theme <- chart_theme()
 plot_theme$col$line.col <- c("red", "green")
 chart_Series(agg_regations, theme=plot_theme,
@@ -288,9 +286,9 @@ legend("bottomright", legend=colnames(agg_regations),
 
 
 ###########
-### plot histograms of returns data
+### Plot histograms of returns data
 
-## calculate stddev, skewness, and quantiles of returns data
+## Calculate stddev, skewness, and quantiles of returns data
 
 re_turns <- 86400*diff(Cl(SPY))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
@@ -304,7 +302,7 @@ quantile(x=re_turns, probs=c(0.05, 0.95))
 quantile(x=re_turns, probs=c(0.1, 0.9))
 
 
-# plot histograms of daily returns
+# Plot histograms of daily returns
 hist(re_turns, breaks=200, main="returns", xlab="", ylab="", freq=FALSE)
 lines(density(re_turns), col="red", lwd=1)  # draw density
 
@@ -317,7 +315,7 @@ lines(density(re_turns), col="red", lwd=1)  # draw density
 hist(daily_returns, breaks=100, main="returns", xlim=c(-2.0e-4, 2.0e-4), ylim=c(0, 10000), xlab="", ylab="", freq=FALSE)
 lines(density(daily_returns), col="red", lwd=1)  # draw density
 
-# title(main=ch.title, line=-1)  # add title
+# title(main=ch.title, line=-1)  # Add title
 
 
 
@@ -345,39 +343,39 @@ assign(sym_bol_rets, da_ta)
 ################
 ### managing high frequency data using package HighFreq
 
-# load a single day of seconds TAQ data
+# Load a single day of seconds TAQ data
 sym_bol <- load("C:/Develop/data/hfreq/src/SPY/2012.02.16.SPY.RData")
-# extract one day of TAQ data from list, and subset to NYSE trading hours using "T notation"
+# Extract one day of TAQ data from list, and subset to NYSE trading hours using "T notation"
 price_s <- (get(sym_bol)[[6]])["T09:30:00/T16:00:00", ]
-# extract trade price and volume
+# Extract trade price and volume
 price_s <- price_s[, c("Trade.Price", "Volume")]
 
-# calculate mid bid-offer prices and remove NAs
+# Calculate mid bid-offer prices and remove NAs
 mid_prices <- 0.5 * (price_s[, "Bid.Price"] + price_s[, "Ask.Price"])
 mid_prices <- na.omit(mid_prices)
 colnames(mid_prices) <- "Mid.Price"
 
-# calculate log returns
+# Calculate log returns
 re_turns <- diff(log(mid_prices))/c(1, diff(.index(mid_prices)))
 re_turns[1, ] <- 0
 chart_Series(exp(cumsum(re_turns)), name=sym_bol)
 
-# load minutely OHLC data
+# Load minutely OHLC data
 sym_bol <- load("C:/Develop/data/SPY.RData")
 # or
 sym_bol <- load(file.path(output_dir, paste0(sym_bol, ".RData")))
-# calculate log returns
+# Calculate log returns
 re_turns <- diff(log(Cl(SPY)))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
 chart_Series(exp(cumsum(re_turns)), name=sym_bol)
 
-# plot histograms of returns
+# Plot histograms of returns
 hist(re_turns, breaks=30, main="returns", xlab="", ylab="", freq=FALSE)
 hist(re_turns, breaks=100, main="returns", xlim=c(-2.0e-4, 2.0e-4), ylim=c(0, 10000), xlab="", ylab="", freq=FALSE)
 lines(density(re_turns), col='red', lwd=1)  # draw density
 
 
-## calculate daily Open and Close prices from daily OHLC data
+## Calculate daily Open and Close prices from daily OHLC data
 # quantmod::getSymbols("SPY", adjust=TRUE)
 op_en <- SPY[, 1]
 tail(op_en)
@@ -385,9 +383,9 @@ cl_ose <- SPY[, 4]
 tail(cl_ose)
 
 
-## calculate daily price profiles after overnight gaps
+## Calculate daily price profiles after overnight gaps
 
-# calculate daily Open and Close prices from high frequency data
+# Calculate daily Open and Close prices from high frequency data
 end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
 start_days <- rutils::lag_it(end_days)+1
 cl_ose <- HighFreq::SPY[end_days, 4]
@@ -398,7 +396,7 @@ tail(cl_ose)
 op_en <- HighFreq::SPY[start_days, 4]
 index(op_en) <- lubridate::floor_date(index(op_en), "day")
 tail(op_en)
-# calculate daily overnight and intraday returns
+# Calculate daily overnight and intraday returns
 close_rets <- (cl_ose - rutils::lag_it(op_en)) / rutils::lag_it(op_en)
 open_rets <- (op_en - rutils::lag_it(op_en)) / rutils::lag_it(op_en)
 over_night <- (op_en - rutils::lag_it(cl_ose)) / rutils::lag_it(cl_ose)
@@ -412,20 +410,20 @@ plot.zoo(exp(cumsum(over_night)), t="l", main="over_night", ylab="")
 plot.zoo(exp(cumsum(over_night-intra_day)), t="l")
 hist(over_night, breaks=30, main="over_night", xlab="", ylab="", xlim=c(-0.02, 0.02), freq=TRUE)
 
-# calculate daily intraday volatilities
+# Calculate daily intraday volatilities
 var_daily <- (6.5*60*60^2)*period.apply(x=HighFreq::SPY, INDEX=end_days, HighFreq::calc_variance)
 index(var_daily) <- lubridate::floor_date(index(var_daily), "day")
 chart_Series(var_daily["2013/"], name="daily intraday volatilities")
 
-# calculate ratio of overnight return divided by yesterday's intraday volatily
+# Calculate ratio of overnight return divided by yesterday's intraday volatily
 over_night <- over_night/rutils::lag_it(var_daily)
 
-# calculate a list of daily endpoints
+# Calculate a list of daily endpoints
 end_points <- lapply(seq_along(end_days), function(da_y) {
   start_days[da_y]:end_days[da_y]
 })  # end lapply
 names(end_points) <- index(cl_ose)
-# calculate daily price profiles
+# Calculate daily price profiles
 price_profiles <- lapply(end_points, function(end_point) {
   da_ta <- as.numeric(HighFreq::SPY[end_point, 4])
   da_ta / da_ta[1]
@@ -449,20 +447,20 @@ plot.zoo(foo, t="l", main="simple contrarian strategy", ylab="")
 # plot(price_profiles, t="l")
 
 
-# calculate daily price profiles after overnight gaps
+# Calculate daily price profiles after overnight gaps
 
 
 
-## calculate intraday seasonality of returns
+## Calculate intraday seasonality of returns
 re_turns <- diff(log(Cl(SPY)))/c(1, diff(.index(SPY)))
 re_turns <- diff(Cl(SPY))/c(1, diff(.index(SPY)))
 re_turns[1, ] <- 0
 re_turns <- na.locf(re_turns, na.rm=FALSE)
 sum(is.na(re_turns))
-# remove overnight return spikes at "09:31"
+# Remove overnight return spikes at "09:31"
 in_dex <- format(index(re_turns), "%H:%M")
 re_turns <- re_turns[!in_dex=="09:31", ]
-# calculate intraday seasonality of returns
+# Calculate intraday seasonality of returns
 season_rets <- HighFreq::season_ality(x_ts=re_turns)
 chart_Series(x=season_rets,
              name=paste(colnames(season_rets), "intraday seasonality"))
@@ -483,15 +481,15 @@ tail(var_rolling)
 plot(coredata(var_rolling), t="l")
 
 
-# plot histogram of volatility - similar to Chi-squared distribution
+# Plot histogram of volatility - similar to Chi-squared distribution
 library(PerformanceAnalytics)
 PerformanceAnalytics::chart.Histogram(var_running,
   main="Distribution of running variance",
   xlab=colnames(var_running), xlim=range(var_running)/2,
   methods=c("add.density"))
-# add title
+# Add title
 # title(main=paste(sym_bol, "vol"), line=-1)
-# add Chi-squared fit
+# Add Chi-squared fit
 x_var <- seq(from=0, to=range(var_rolling)[2]/5, length.out=100)
 lines(x=x_var, y=50*NROW(var_rolling)*dchisq(11*x_var/mean(var_rolling), df=11),
       xlab="", ylab="", lwd=1, col="blue")
@@ -529,7 +527,7 @@ abline(v=ma_tch, col="red", lwd=1)
 # plot(coredata(var_rolling[(blah-10):(blah+30), ])/max(vol_spike), t="l")
 
 # legacy scripts - which I don't understand
-# aggregate over periods around volatility spikes
+# Aggregate over periods around volatility spikes
 # vol_peaks <- lapply(1:(NROW(foo)-1), function(i_ter) {
 #   vol_spike <- vol_spikes[foo[i_ter]:(foo[i_ter+1]-1), ]
 #   vol_spike[which.max(vol_spike)]
@@ -552,7 +550,7 @@ abline(v=ma_tch, col="red", lwd=1)
 # vol_profiles <- sapply(1:3, function(i_ter) get_vol_peak_data(vol_peaks[i_ter, ]))
 # end legacy scripts
 
-# calculate volatility profiles around volatility peaks
+# Calculate volatility profiles around volatility peaks
 # old version
 # vol_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
 #   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
@@ -566,7 +564,7 @@ vol_profiles <- sapply(ma_tch[-((NROW(ma_tch)-40):NROW(ma_tch))], function(pea_k
 vol_profiles <- rowMeans(vol_profiles)
 plot(vol_profiles, t="l")
 
-# calculate price profiles around peak volatility
+# Calculate price profiles around peak volatility
 # old version
 # price_profiles <- sapply(seq_along(vol_peaks), function(i_ter) {
 #   which_peak <- which(in_dex==index(vol_peaks[i_ter, ]))
@@ -587,7 +585,7 @@ dim(foo_bar)
 head(foo_bar, 33)
 
 
-## calculate Hurst exponent using range for xts
+## Calculate Hurst exponent using range for xts
 hurst_exp <- function(re_turns) {
   cum_sum <- cumsum(re_turns)
   (max(cum_sum) - min(cum_sum))/sd(re_turns)/sqrt(NROW(re_turns))
@@ -595,15 +593,15 @@ hurst_exp <- function(re_turns) {
 hurst_exp <- function(da_ta) {
   (max(da_ta) - min(da_ta))/sd(diff(da_ta)[-1])/sqrt(NROW(da_ta))
 }  # end hurst_exp
-# calculate Hurst exponent using range for xts ohlc
+# Calculate Hurst exponent using range for xts ohlc
 hurst_exp <- function(da_ta) {
   (max(Hi(da_ta)) - min(Lo(da_ta)))/(max(Hi(da_ta)) + min(Lo(da_ta)))/sum(6.5*60^3*HighFreq::run_variance(oh_lc=da_ta[, 1:4]))/sqrt(NROW(da_ta))/2
 }  # end hurst_exp
-# calculate Hurst exponent using range for non-xts
+# Calculate Hurst exponent using range for non-xts
 hurst_exp <- function(da_ta) {
   log((max(da_ta) - min(da_ta))/sd(da_ta[-1]-da_ta[-NROW(da_ta)]))/log(NROW(da_ta))
 }  # end hurst_exp
-# calculate Hurst exponent using variance ratios for non-xts
+# Calculate Hurst exponent using variance ratios for non-xts
 hurst_exp <- function(da_ta, l_ag=4) {
   len_gth <- NROW(da_ta)
   var(da_ta[-(1:l_ag)]-da_ta[-((len_gth-l_ag+1):len_gth)])/var(da_ta[-1]-da_ta[-len_gth])/l_ag
@@ -618,18 +616,18 @@ hurst_exp(cumsum(blah+c(0, 0.5*blah[-NROW(blah)])))
 
 ## yearly aggregations of volume, skew, and volat
 
-# extract vector of ye_ars
+# Extract vector of ye_ars
 ye_ars <- format(
   index(sk_ew[xts::endpoints(sk_ew, on="years"), ]),
   format="%Y")
-# sum up volumes for each year
+# Sum up volumes for each year
 volumes_yearly <- sapply(ye_ars, function(ye_ar) sum(Vo(SPY)[ye_ar]))
 # first plot without "x" axis
 plot(volumes_yearly, t="l", xaxt="n", xlab=NA, ylab=NA)
-# add "x" axis with monthly ticks
+# Add "x" axis with monthly ticks
 axis(side=1, at=seq_along(volumes_yearly),
      labels=names(volumes_yearly))
-# sum up skew and volat for each year
+# Sum up skew and volat for each year
 sapply(ye_ars, function(ye_ar) sum(var_running[ye_ar]))
 sapply(ye_ars, function(ye_ar) sum(sk_ew[ye_ar]))
 foo <- sapply(ye_ars, function(ye_ar) sum(Vo(SPY)[ye_ar]))
@@ -707,7 +705,7 @@ colnames(mad_volu) <- names(quan_tiles)
 mad_volu <- xts(mad_volu, order.by=index(SPY))
 # plot(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], t="l", xlab="", ylab="", main="mad_volu")
 chart_Series(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], name=paste(sym_bol, "mad_volu"))
-# plot volume spikes above 85% quantile
+# Plot volume spikes above 85% quantile
 date_s <- (NROW(mad_volu)-4*win_dow):NROW(mad_volu[,])
 chart_Series(mad_volu[date_s, 3], name=paste(sym_bol, "mad_volu"))
 chart_Series(Vo(SPY[date_s]) - mad_volu[date_s, 4], name=paste(sym_bol, "volume spikes"))
@@ -776,7 +774,7 @@ for_mula <- as.formula(paste(colnames(de_sign)[1], paste(paste(colnames(de_sign)
 for_mula <- as.formula(paste(colnames(de_sign)[1], paste(colnames(de_sign)[2], "- 1"), sep="~"))
 
 l_m <- lm(for_mula, data=as.data.frame(de_sign))
-# perform regressions over different calendar periods
+# Perform regressions over different calendar periods
 l_m <- lm(for_mula, data=as.data.frame(de_sign["2011-01-01/"]))
 l_m <- lm(for_mula, data=as.data.frame(de_sign["/2011-01-01"]))
 lm_summ <- summary(l_m)
@@ -918,7 +916,7 @@ foo <- rutils::roll_sum(abs(sign(sk_ew)-sign(lag_skew)), win_dow=1000)
 chart_Series(
   foo[xts::endpoints(foo, on="days"), ],
   name=paste(sym_bol, "contrarian skew strategy frequency of trades"))
-# calculate transaction costs
+# Calculate transaction costs
 bid_offer <- 0.001  # 10 bps for liquid ETFs
 cost_s <- bid_offer*abs(position_s-lag_positions)
 pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - co_sts
@@ -950,7 +948,7 @@ mat_rix <- sapply(short_windows,
                            win_short=win_short, ...),
                   price_s=SPY, re_turns=re_turns)
 
-# load rgl
+# Load rgl
 library(rgl)
 persp3d(z=mat_rix, col="green", x=short_windows, y=long_windows)
 
@@ -966,11 +964,11 @@ head(in_dex)
 tail(in_dex)
 NROW(in_dex)
 
-# simulate lognormal prices
+# Simulate lognormal prices
 foo <- xts(exp(cumsum(rnorm(NROW(in_dex)))/100), order.by=in_dex)
 dim(foo)
 
-# aggregate minutes OHLC bars
+# Aggregate minutes OHLC bars
 oh_lc <- to.period(x=foo, period="minutes", name="synth")
 tail(oh_lc)
 # OHLC candlechart
@@ -1037,7 +1035,7 @@ plot(cumsum(bar), t="l")
 
 sprintf(fmt="%f", foo[1])
 
-# use a literal % :
+# Use a literal % :
 sprintf("%.0f%% said yes (out of a sample of size %.0f)", 66.666, 3)
 
 # various formats of pi :
@@ -1067,7 +1065,7 @@ sprintf("precision %.*f, width '%*.3f'", 3, pi, 8, pi)
 # Asterisk and argument re-use, 'e' example reiterated:
 sprintf("e with %1$2d digits = %2$.*1$g", n, exp(1))
 
-# re-cycle arguments
+# Recycle arguments
 sprintf("%s %d", "test", 1:3)
 
 # binary output showing rounding/representation errors
@@ -1103,23 +1101,23 @@ library(roll)
 # example of rolling beta regressions
 # specify regression formula
 reg_formula <- XLP ~ VTI
-# perform rolling beta regressions every month
+# Perform rolling beta regressions every month
 beta_s <- rollapply(etf_env$re_turns, width=252,
                     FUN=function(design_matrix)
                       coef(lm(reg_formula, data=design_matrix))[2],
                     by=22, by.column=FALSE, align="right")
 beta_s <- na.omit(beta_s)
-# plot beta_s in x11() window
+# Plot beta_s in x11() window
 x11()
 chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
 
-# perform daily rolling beta regressions in parallel
+# Perform daily rolling beta regressions in parallel
 beta_s <- roll::roll_lm(x=etf_env$re_turns[, "VTI"],
                   y=etf_env$re_turns[, "XLP"],
                   width=252)$coefficients
 chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
 
-# compare speed of rollapply() versus roll_lm()
+# Compare speed of rollapply() versus roll_lm()
 library(microbenchmark)
 da_ta <- etf_env$re_turns["2012", c("VTI", "XLP")]
 summary(microbenchmark(
@@ -1211,7 +1209,7 @@ sapply(seq(0, 1, 0.1), function(x) {
 ### Rolling Portfolio Optimization Strategy for ETFs
 
 library(rutils)
-# load data
+# Load data
 # sym_bols contains all the symbols in rutils::etf_env$re_turns except for "VXX"
 sym_bols <- colnames(rutils::etf_env$re_turns)
 sym_bols <- sym_bols[!(sym_bols=="VXX")]
@@ -1242,7 +1240,7 @@ ex_cess <- re_turns - risk_free
 #                      # subset the ex_cess returns
 #                      ex_cess <- ex_cess[start_points[i]:end_points[i], ]
 #                      in_verse <- solve(cov(ex_cess))
-#                      # calculate the maximum Sharpe ratio portfolio weights
+#                      # Calculate the maximum Sharpe ratio portfolio weights
 #                      weight_s <- in_verse %*% colMeans(ex_cess)
 #                      weight_s <- drop(weight_s/sum(weight_s))
 #                    }  # end anonymous function
@@ -1250,18 +1248,18 @@ ex_cess <- re_turns - risk_free
 # round(weight_s, 2)
 # dim(weight_s)
 
-# regular inverse
+# Regular inverse
 portf_rets <- lapply(2:NROW(end_points),
                      function(i) {
                        # subset the ex_cess returns
                        ex_cess <- ex_cess[start_points[i-1]:end_points[i-1], ]
                        in_verse <- solve(cov(ex_cess))
-                       # calculate the maximum Sharpe ratio portfolio weights
+                       # Calculate the maximum Sharpe ratio portfolio weights
                        weight_s <- in_verse %*% colMeans(ex_cess)
                        weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
                        # subset the re_turns
                        re_turns <- re_turns[(end_points[i-1]+1):end_points[i], ]
-                       # calculate the out-of-sample portfolio returns
+                       # Calculate the out-of-sample portfolio returns
                        xts(re_turns %*% weight_s, index(re_turns))
                      }  # end anonymous function
 )  # end lapply
@@ -1273,12 +1271,12 @@ portf_rets <- lapply(2:NROW(end_points),
                        # subset the ex_cess returns
                        ex_cess <- ex_cess[start_points[i-1]:end_points[i-1], ]
                        cov_mat <- cov(ex_cess)
-                       # perform eigen decomposition and calculate eigenvectors and eigenvalues
+                       # Perform eigen decomposition and calculate eigenvectors and eigenvalues
                        ei_gen <- eigen(cov_mat)
                        eigen_vec <- ei_gen$vectors
-                       # calculate regularized inverse
+                       # Calculate regularized inverse
                        in_verse <- eigen_vec[, 1:max_eigen] %*% (t(eigen_vec[, 1:max_eigen]) / ei_gen$values[1:max_eigen])
-                       # calculate the maximum Sharpe ratio portfolio weights
+                       # Calculate the maximum Sharpe ratio portfolio weights
                        # weight_s <- in_verse %*% colMeans(ex_cess)
                        # weight_s <- rep(mean(colMeans(ex_cess)), NCOL(ex_cess))
                        weight_s <- colMeans(ex_cess)
@@ -1288,7 +1286,7 @@ portf_rets <- lapply(2:NROW(end_points),
                        weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
                        # subset the re_turns
                        re_turns <- re_turns[(end_points[i-1]+1):end_points[i], ]
-                       # calculate the out-of-sample portfolio returns
+                       # Calculate the out-of-sample portfolio returns
                        xts(re_turns %*% weight_s, index(re_turns))
                      }  # end anonymous function
 )  # end lapply
@@ -1303,20 +1301,20 @@ portf_rets <- lapply(2:NROW(end_points),
                        cov_mat <- cov(ex_cess)
                        cor_mat <- cor(ex_cess)
                        std_dev <- sqrt(diag(cov_mat))
-                       # calculate target matrix
+                       # Calculate target matrix
                        cor_mean <- mean(cor_mat[upper.tri(cor_mat)])
                        tar_get <- matrix(cor_mean, nr=NROW(cov_mat), nc=NCOL(cov_mat))
                        diag(tar_get) <- 1
                        tar_get <- t(t(tar_get * std_dev) * std_dev)
-                       # calculate shrinkage covariance matrix
+                       # Calculate shrinkage covariance matrix
                        cov_mat <- (1-al_pha)*cov_mat + al_pha*tar_get
                        in_verse <- solve(cov_mat)
-                       # calculate the maximum Sharpe ratio portfolio weights
+                       # Calculate the maximum Sharpe ratio portfolio weights
                        weight_s <- in_verse %*% colMeans(ex_cess)
                        weight_s <- drop(weight_s/sqrt(sum(weight_s^2)))
                        # subset the re_turns
                        re_turns <- re_turns[(end_points[i-1]+1):end_points[i], ]
-                       # calculate the out-of-sample portfolio returns
+                       # Calculate the out-of-sample portfolio returns
                        xts(re_turns %*% weight_s, index(re_turns))
                      }  # end anonymous function
 )  # end lapply
@@ -1348,20 +1346,20 @@ coredata(portf_rets) <- cumsum(foo)
 ###############
 ### Rolling S&P500 portfolio strategies
 
-# load HighFreq
+# Load HighFreq
 library(rutils)
 library(roll)
 
 # sharp_e <- function(x) (as.numeric(x[NROW(x)])-as.numeric(x[1]))/sd(rutils::diff_it(x))/sqrt(252)
 
-# load S&P500 constituent stock prices
+# Load S&P500 constituent stock prices
 load("C:/Develop/R/lecture_slides/data/sp500.RData")
 price_s <- eapply(env_sp500, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
-# remove NA values
+# Remove NA values
 price_s <- zoo::na.locf(price_s, na.rm=FALSE)
 price_s <- zoo::na.locf(price_s, na.rm=FALSE, fromLast=TRUE)
-# normalize the price_s
+# Normalize the price_s
 colnames(price_s) <- sapply(colnames(price_s),
                             function(col_name) strsplit(col_name, split="[.]")[[1]][1])
 
@@ -1423,7 +1421,7 @@ weight_s <- weight_s/rowSums(abs(weight_s))
 # sum(is.na(weight_s))
 # sum(rowSums(weight_s^2)==0)
 
-# calculate portfolio profits and losses
+# Calculate portfolio profits and losses
 pnl_s <- rowSums(rutils::lag_it(weight_s)*re_turns)
 sd_moment <- sd(pnl_s)
 pnl_s <- sd_index*pnl_s/sd_moment
@@ -1545,7 +1543,7 @@ legend("topleft", legend=colnames(pnl_s),
 ## GARCH variance
 garch_fit <- fGarch::garchFit(data=rutils::diff_it(log(in_dex)))
 garch_fit@fit$par
-# plot GARCH fitted standard deviation
+# Plot GARCH fitted standard deviation
 fGarch::plot(garch_fit)
 garch_sdev <- xts::xts(sqrt(garch_fit@fit$series$h), order.by=index(re_turns))
 chart_Series(garch_sdev, name="GARCH fitted standard deviation")
@@ -1597,8 +1595,8 @@ chart_Series(cumsum(rets_ewma[, 1]), name="EWMA trend-following strategy")
 
 
 
-## volatility switching weights strategy
-# adjust weights depending on volatility
+## Volatility switching weights strategy
+# Adjust weights depending on volatility
 
 oh_lc <- rutils::etf_env$VTI
 re_turns <- rutils::diff_it(log(Cl(oh_lc)))
@@ -1613,13 +1611,13 @@ sd_diff2 <- rutils::diff_it(sd_diff)
 # chart_Series(sd_diff2, name="GARCH fitted standard deviation")
 rets_mean <- rutils::lag_it(rets_mean, lagg=(-20))
 
-# regression of future returns versus past volatility
+# Regression of future returns versus past volatility
 reg_model <- lm(rets_mean ~ s_d + sd_diff + sd_diff2)
 summary(reg_model)
 plot(as.numeric(rets_mean) ~ as.numeric(sd_diff))
 abline(lm(rets_mean ~ sd_diff))
 
-# use first derivative of volatility as predictor
+# Use first derivative of volatility as predictor
 foo <- NA*re_turns
 foo[1] <- 0
 foo[sd_diff > 0.001] <- (-1)
@@ -1748,11 +1746,11 @@ in_dicator <- sign(in_dicator)
 reg_model <- lm(returns_adv ~ in_dicator)
 summary(reg_model)
 
-# simulate strategy
+# Simulate strategy
 pnl_s <- cumsum(rutils::lag_it(in_dicator)*re_turns)
 colnames(pnl_s) <- "strategy"
 
-# plot
+# Plot
 library(dygraphs)
 dygraphs::dygraph(cbind(clo_se, pnl_s)) %>%
   dyAxis("y", label="VTI", independentTicks=TRUE) %>%
@@ -1818,10 +1816,10 @@ SPY_design <- cbind(rets_lag2, sharpe_rolling)
 # colnames(SPY_design) <- c("returns", "variance", "skew", "hurst")
 end_days <- xts::endpoints(SPY_design, "days")
 
-## apply rolling centering and scaling to the design matrix
+## Apply rolling centering and scaling to the design matrix
 # library(roll)
 SPY_design <- roll::roll_scale(data=SPY_design, width=100*look_back, min_obs=1)
-# remove NAs
+# Remove NAs
 SPY_design[is.na(SPY_design)] <- 0
 sum(is.na(SPY_design))
 
@@ -1832,21 +1830,21 @@ coef(summary(mo_del))
 beta_s <- -coef(summary(mo_del))[-1, 1]
 
 
-## calculate indicator from static betas and apply its rolling z-scores
+## Calculate indicator from static betas and apply its rolling z-scores
 
 in_dic <- matrix(rowSums(SPY_design %*% beta_s), ncol=1)
 # in_dic <- roll::roll_scale(data=in_dic, width=6, min_obs=1)
 # in_dic[is.na(in_dic)] <- 0
-# regress future returns against z-scores
+# Regress future returns against z-scores
 mo_del <- lm(rets_adv2 ~ in_dic)
 summary(mo_del)
-# calculate rolling range of z-scores
+# Calculate rolling range of z-scores
 look_back <- 21
 ran_ge <- cbind(min=-runMax(-in_dic, n=look_back),
                 max=runMax(in_dic, n=look_back))
 ran_ge[1:(look_back-1), ] <- ran_ge[look_back, ]
 ran_ge <- rutils::lag_it(ran_ge)
-# calculate position_s and pnls from z-scores and ran_ge
+# Calculate position_s and pnls from z-scores and ran_ge
 position_s <- ifelse(in_dic > 0.96*ran_ge[, "max"], -1,
                      ifelse(in_dic < 0.96*ran_ge[, "min"], 1, NA))
 position_s[1] <- 0
@@ -1860,7 +1858,7 @@ x11()
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
-## calculate the strategy success rate as the pnl divided by asset return volatility (to normalize the asset returns)
+## Calculate the strategy success rate as the pnl divided by asset return volatility (to normalize the asset returns)
 # result: the plot of the strategy success rate doesn't show any time variation or dependence on volatility
 vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, scal_e=TRUE)
 vari_ance <- sqrt(vari_ance)
@@ -1873,7 +1871,7 @@ foo <- apply.daily(abs(bar), FUN=sum)
 plot.zoo(foo, main="foo", xlab=NA, ylab=NA)
 
 
-# calculate correlation between strategy pnl_s and vari_ance: there is no correlation
+# Calculate correlation between strategy pnl_s and vari_ance: there is no correlation
 vari_ance <- 6.5*60^3*HighFreq::run_variance(oh_lc=HighFreq::SPY, scal_e=TRUE)
 vari_ance <- sqrt(vari_ance)
 range(vari_ance)
@@ -1884,7 +1882,7 @@ summary(mo_del)
 plot(x=as.numeric(vari_ance[vari_ance > 1e-03]), y=as.numeric(pnl_s[vari_ance > 1e-03]))
 
 
-## calculate the strategy success rate as the product of the forecast position_s times the actual position (return direction)
+## Calculate the strategy success rate as the product of the forecast position_s times the actual position (return direction)
 # result: there is no significant correlation between the daily average success rate and the level of vari_ance
 bar <- apply.daily(position_s*sign(re_turns), FUN=sum)
 foo <- apply.daily(vari_ance, FUN=sum)
@@ -1895,7 +1893,7 @@ plot.zoo(cbind(foo, cumsum(bar)))
 
 
 
-## calculate z-scores and apply them to regression of future returns
+## Calculate z-scores and apply them to regression of future returns
 
 # function for calculating z-scores
 z_score <- function(width) {
@@ -1905,7 +1903,7 @@ z_score <- function(width) {
   z_score
 }  # end z_score
 
-# calculate z-scores for different widths (lookbacks)
+# Calculate z-scores for different widths (lookbacks)
 width_s <- 4:20
 z_scores <- lapply(width_s, z_score)
 names(z_scores) <- paste0("z_width_", width_s)
@@ -1915,7 +1913,7 @@ names(z_scores) <- paste0("z_width_", width_s)
 # })  # end lapply
 
 
-# regress future returns against z-scores
+# Regress future returns against z-scores
 t_val <- function(z_scores) {
   mo_del <- lm(rets_adv2 ~ z_scores)
   coef(summary(mo_del))[2, 3]
@@ -1926,7 +1924,7 @@ t_vals <- sapply(z_scores, t_val)
 t(sapply(z_scores, range))
 
 
-# calculate rolling range of z-scores
+# Calculate rolling range of z-scores
 
 range(z_scores[[3]])
 ran_ge <- cbind(min=-runMax(-z_scores[[3]], n=look_back),
@@ -1937,7 +1935,7 @@ ran_ge <- rutils::lag_it(ran_ge)
 # plot.zoo(ran_ge[end_days, 1], main="rolling min of z-scores", xlab=NA, ylab=NA)
 
 
-# calculate position_s and pnls from z-scores and ran_ge
+# Calculate position_s and pnls from z-scores and ran_ge
 
 position_s <- ifelse(z_scores[[3]] > 0.96*ran_ge[, "max"], -1,
                      ifelse(z_scores[[3]] < 0.96*ran_ge[, "min"], 1, NA))
@@ -1950,13 +1948,13 @@ position_s <- -rowSums(position_s)/NCOL(position_s)
 cum_pnls <- cumsum(position_s*re_turns)
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
-# average number of trades per day
+# Average number of trades per day
 sum(abs(rutils::diff_it(position_s))) / mean(abs(position_s)) / 2 / NROW(end_days)
-# average holding period (minutes)
+# Average holding period (minutes)
 2*NROW(position_s) / sum(abs(rutils::diff_it(position_s))) * mean(abs(position_s))
 
 
-# calculate total pnls from z-scores (dynamic thresh_old)
+# Calculate total pnls from z-scores (dynamic thresh_old)
 cum_pnl <- function(z_scores, thresh_old=1.0, look_back=21, lag=3) {
   ran_ge <- cbind(min=-runMax(-z_scores, n=look_back),
                   max=runMax(z_scores, n=look_back))
@@ -1975,7 +1973,7 @@ cum_pnl <- function(z_scores, thresh_old=1.0, look_back=21, lag=3) {
 bar <- cum_pnl(z_scores=z_scores[[3]], thresh_old=0.96, look_back=21, lag=3)
 plot.zoo(bar[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
-# calculate total pnls for different thresh_olds
+# Calculate total pnls for different thresh_olds
 thresh_olds <- seq(from=0.9, to=1.1, by=0.01)
 bar <- lapply(thresh_olds, cum_pnl,
               z_scores=z_scores[[3]],
@@ -1984,7 +1982,7 @@ bar <- lapply(thresh_olds, cum_pnl,
 names(bar) <- paste0("threshold_", thresh_olds)
 unlist(lapply(bar, last))
 
-# calculate total pnls for different look_backs
+# Calculate total pnls for different look_backs
 look_backs <- seq(from=11, to=31, by=2)
 bar <- lapply(look_backs, cum_pnl,
               z_scores=z_scores[[3]],
@@ -2002,7 +2000,7 @@ z_pos <- function(z_scores, thresh_old=2.0) {
   na.locf(position_s, na.rm=FALSE)
 }  # end z_pos
 
-# calculate time series of pnls from z-scores
+# Calculate time series of pnls from z-scores
 position_s <- z_pos(z_scores[[3]], thresh_old=1.4)
 position_s <- lapply(1:3, rutils::lag_it, x_ts=position_s)
 position_s <- rutils::do_call(cbind, position_s)
@@ -2011,7 +2009,7 @@ cum_pnls <- -cumsum(position_s*re_turns)
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
-# calculate total pnls from z-scores
+# Calculate total pnls from z-scores
 cum_pnl <- function(z_scores, thresh_old=2.0, lag=3) {
   position_s <- z_pos(z_scores, thresh_old=thresh_old)
   position_s <- lapply(1:lag, rutils::lag_it, x_ts=position_s)
@@ -2022,7 +2020,7 @@ cum_pnl <- function(z_scores, thresh_old=2.0, lag=3) {
 
 cum_pnl(z_scores[[3]], thresh_old=1.4, lag=3)
 
-# calculate total pnls for different thresh_olds
+# Calculate total pnls for different thresh_olds
 thresh_olds <- seq(from=1.0, to=3.0, by=0.1)
 bar <- sapply(thresh_olds, cum_pnl,
               z_scores=z_scores[[3]],
@@ -2050,7 +2048,7 @@ cum_pnls <- rowSums(cum_pnls)
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
-## simulate weighting the best performing strategies
+## Simulate weighting the best performing strategies
 
 weight_s <- rutils::diff_it(cum_pnls, lag=1000)
 row_sums <- rowSums(abs(weight_s))
@@ -2063,7 +2061,7 @@ plot.zoo(barr[end_days], main="cum_pnls")
 
 
 
-## perform rolling beta regressions in parallel
+## Perform rolling beta regressions in parallel
 lm_roll <- roll::roll_lm(x=SPY_design,
                          y=rets_adv2,
                          width=3000*look_back)
@@ -2075,18 +2073,18 @@ beta_s <- rutils::lag_it(beta_s, lag=2*look_back)
 chart_Series(x=beta_s[end_days, "rets_lag2"], name="rolling betas")
 
 
-## perform rolling daily beta regressions
-# calculate daily endpoints
+## Perform rolling daily beta regressions
+# Calculate daily endpoints
 end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
 # length of lookback window
 look_back <- 3000*look_back
 
-# initialize compute cluster under Windows
+# Initialize compute cluster under Windows
 library(parallel)
 clus_ter <- makeCluster(detectCores()-1)
 clusterExport(clus_ter, varlist=c("look_back", "rets_adv2", "SPY_design"))
 
-# perform parallel loop over daily endpoints - strange results independent of look_back
+# Perform parallel loop over daily endpoints - strange results independent of look_back
 lm_roll <- parLapply(clus_ter, end_days, function(end_day) {
   in_dex <- max(1, end_day-look_back):end_day
   summary(lm(rets_adv2[in_dex, ] ~ SPY_design[in_dex, ]))
@@ -2095,7 +2093,7 @@ lm_roll <- parLapply(clus_ter, end_days, function(end_day) {
 # stop R processes over cluster under Windows
 stopCluster(clus_ter)
 
-# perform loop over daily endpoints
+# Perform loop over daily endpoints
 lm_roll <- lapply(end_days, function(end_day) {
   in_dex <- max(1, end_day-look_back):end_day
   summary(lm(rets_adv2[in_dex, ] ~ SPY_design[in_dex, ]))
@@ -2117,7 +2115,7 @@ beta_s[1, ] <- 0
 beta_s[end_days, ] <- co_ef
 beta_s <- na.locf(beta_s, na.rm=FALSE)
 
-# calculate position_s and pnl_s
+# Calculate position_s and pnl_s
 position_s <- rowSums(SPY_design * beta_s)
 # static beta_s work better than rolling regression
 # beta_s <- c(rep(-1.0, 5), 0.00)
@@ -2128,9 +2126,9 @@ position_s <- rowSums(SPY_design %*% beta_s)
 position_s <- rutils::lag_it(position_s)
 position_s <- rutils::roll_sum(position_s, look_back=5) / 5
 # histo_gram <- hist(position_s, breaks=200, xlim=c(-0.05, 0.05))
-# average number of trades per day
+# Average number of trades per day
 sum(abs(rutils::diff_it(position_s))) / mean(abs(position_s)) / 2 / NROW(end_days)
-# average holding period (minutes)
+# Average holding period (minutes)
 2*NROW(position_s) / sum(abs(rutils::diff_it(position_s))) * mean(abs(position_s))
 # colnames(position_s) <- "position_s"
 # plot.zoo(cbind(position_s[end_days], HighFreq::SPY[end_days, 4])["2010", ])
@@ -2139,33 +2137,33 @@ colnames(pnl_s) <- "SPY contrarian"
 chart_Series(x=pnl_s["2008-01-29/2008-01-31"], name="pnl_s")
 chart_Series(x=pnl_s[end_days, ], name="pnl_s")
 
-# apply moving average crossover strategy to resulting pnl_s
-# define aggregation window, decay parameter, and calculate VWAP
+# Apply moving average crossover strategy to resulting pnl_s
+# Define aggregation window, decay parameter, and calculate VWAP
 lamb_da <- 0.01
-# calculate EWMA prices
+# Calculate EWMA prices
 weight_s <- exp(-lamb_da*1:(10*look_back+1))
 weight_s <- weight_s/sum(weight_s)
 ew_ma <- stats::filter(pnl_s, filter=weight_s, sides=1)
 ew_ma <- as.numeric(ew_ma)
 ew_ma[1:(10*look_back)] <- ew_ma[10*look_back+1]
-# calculate VWAP indicator
+# Calculate VWAP indicator
 in_dic <- sign(pnl_s - ew_ma)
-# determine dates right after VWAP has crossed prices
+# Determine dates right after VWAP has crossed prices
 trade_dates <- (rutils::diff_it(in_dic) != 0)
 trade_dates <- which(trade_dates) + 1
 
-# calculate positions, either: -1, 0, or 1
+# Calculate positions, either: -1, 0, or 1
 pos_vwap <- rep(NA_integer_, NROW(pnl_s))
 pos_vwap[1] <- 0
 pos_vwap[trade_dates] <- in_dic[trade_dates]
 pos_vwap <- na.locf(pos_vwap, na.rm=FALSE)
 pos_vwap <- xts(pos_vwap, order.by=index(pnl_s))
 
-# calculate daily profits and losses
+# Calculate daily profits and losses
 pnl_vwap <- cumsum(pos_vwap*rutils::diff_it(pnl_s))
 colnames(pnl_vwap) <- "SPY contrarian plus vwap"
 
-# plot
+# Plot
 date_s <- "2010-05-05/2010-05-07"
 back_test <- cbind(HighFreq::SPY[, 4], cum_pnls)[date_s, ]
 # back_test <- cbind(HighFreq::SPY[, 4], sharpe_rolling)[date_s, ]
@@ -2190,20 +2188,20 @@ legend("topleft", legend=c("pnl_s", "pnl_vwap"),
 ## Simulating minutely EWMA strategies
 
 
-# define function for simulating minutely EWMA crossover strategy
+# Define function for simulating minutely EWMA crossover strategy
 simu_ewma <- function(x_ts, lamb_da=0.05, look_back=51) {
-  # calculate EWMA prices
+  # Calculate EWMA prices
   # weight_s <- exp(-lamb_da*(1:look_back))
   # weight_s <- weight_s/sum(weight_s)
   # ew_ma <- as.numeric(stats::filter(x_ts, filter=weight_s, sides=1))
   # ew_ma[1:(look_back-1)] <- ew_ma[look_back]
   ew_ma <- HighFreq::roll_vwap(x_ts, look_back=look_back)
-  # determine dates right after EWMA has crossed prices
+  # Determine dates right after EWMA has crossed prices
   in_dic <- sign(as.numeric(x_ts[, 4] - ew_ma))
   trade_dates <- (rutils::diff_it(in_dic) != 0)
   trade_dates <- which(trade_dates) + 1
   trade_dates <- trade_dates[trade_dates<NROW(x_ts)]
-  # calculate positions, either: -1, 0, or 1
+  # Calculate positions, either: -1, 0, or 1
   position_s <- rep(NA_integer_, NROW(x_ts))
   position_s[1] <- 0
   position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
@@ -2226,18 +2224,18 @@ add_TA(position_s < 0, on=-1,
 
 
 
-# perform parallel loop over lamb_das
+# Perform parallel loop over lamb_das
 lamb_das <- seq(0.001, 0.03, 0.001)
 window_s <- seq(500, 1500, 100)
 
-# initialize compute cluster under Windows
+# Initialize compute cluster under Windows
 library(parallel)
 clus_ter <- makeCluster(detectCores()-1)
 clusterExport(clus_ter, varlist=c("oh_lc", "look_back", "simu_ewma"))
-# perform parallel loop over lamb_das under Windows
+# Perform parallel loop over lamb_das under Windows
 re_turns <- parLapply(clus_ter, lamb_das, function(lamb_da) {
   library(quantmod)
-  # simulate EWMA strategy and calculate re_turns
+  # Simulate EWMA strategy and calculate re_turns
   simu_ewma(oh_lc=oh_lc, lamb_da=lamb_da, look_back=look_back)[, "re_turns"]
 })  # end parLapply
 
@@ -2295,7 +2293,7 @@ cum_pnl <- function(sharpe_ratios, re_turns, end_points) {
 
 cum_pnl(sharpe_ratios, re_turns, end_points)
 
-# switch to best asset with biggest SR
+# Switch to best asset with biggest SR
 be_st <- apply(sharpe_ratios, 1, which.max)
 be_st <- rutils::lag_it(be_st)
 be_st[1] <- 1
@@ -2314,14 +2312,14 @@ oh_lc <- HighFreq::SPY["/2008-03"]
 in_dex <- index(oh_lc)
 n_row <- NROW(oh_lc)
 
-# calculate close to close percentage returns
+# Calculate close to close percentage returns
 cl_ose <- Cl(oh_lc)
 re_turns <- 60*HighFreq::run_returns(x_ts=HighFreq::SPY)
 
-# define aggregation window and decay parameter
+# Define aggregation window and decay parameter
 look_back <- 51
 lamb_da <- 0.05
-# calculate EWMA prices
+# Calculate EWMA prices
 weight_s <- exp(-lamb_da*1:look_back)
 weight_s <- weight_s/sum(weight_s)
 ew_ma <- stats::filter(cl_ose, filter=weight_s, sides=1)
@@ -2329,11 +2327,11 @@ ew_ma[1:(look_back-1)] <- ew_ma[look_back]
 ew_ma <- xts(ew_ma, order.by=index(oh_lc))
 colnames(ew_ma) <- "VTI EWMA"
 
-# determine dates right after EWMA has crossed prices
+# Determine dates right after EWMA has crossed prices
 in_dic <- sign(cl_ose - ew_ma[, 2])
 trade_dates <- (rutils::diff_it(in_dic) != 0)
 trade_dates <- which(trade_dates) + 1
-# calculate positions, either: -1, 0, or 1
+# Calculate positions, either: -1, 0, or 1
 position_s <- rep(NA_integer_, NROW(cl_ose))
 position_s[1] <- 0
 position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
@@ -2342,34 +2340,34 @@ position_s <- xts(position_s, order.by=index(oh_lc))
 
 prices_lag <- rutils::lag_it(cl_ose)
 position_lagged <- rutils::lag_it(position_s)
-# calculate daily profits and losses
+# Calculate daily profits and losses
 re_turns <- position_lagged*(cl_ose - prices_lag)
 re_turns[trade_dates] <-
   position_lagged[trade_dates] *
   (op_en[trade_dates] - prices_lag[trade_dates]) +
   position_s[trade_dates] *
   (cl_ose[trade_dates] - op_en[trade_dates])
-# calculate annualized Sharpe ratio of strategy returns
+# Calculate annualized Sharpe ratio of strategy returns
 sqrt(260)*sum(re_turns)/sd(re_turns)/NROW(re_turns)
 pnl_s <- cumsum(re_turns)
 pnl_s <- cbind(cl_ose-as.numeric(cl_ose[1, ]), pnl_s)
 colnames(pnl_s) <- c("VTI", "EWMA PnL")
 
 
-# define function for simulating daily EWMA crossover strategy
+# Define function for simulating daily EWMA crossover strategy
 simu_ewma <- function(oh_lc, lamb_da=0.05, look_back=51) {
-  # calculate EWMA prices
+  # Calculate EWMA prices
   weight_s <- exp(-lamb_da*1:look_back)
   weight_s <- weight_s/sum(weight_s)
   cl_ose <- Cl(oh_lc)
   ew_ma <- stats::filter(as.numeric(cl_ose), filter=weight_s, sides=1)
   ew_ma[1:(look_back-1)] <- ew_ma[look_back]
-  # determine dates right after EWMA has crossed prices
+  # Determine dates right after EWMA has crossed prices
   in_dic <- xts(sign(as.numeric(cl_ose) - ew_ma), order.by=index(oh_lc))
   trade_dates <- (rutils::diff_it(in_dic) != 0)
   trade_dates <- which(trade_dates) + 1
   trade_dates <- trade_dates[trade_dates<NROW(oh_lc)]
-  # calculate positions, either: -1, 0, or 1
+  # Calculate positions, either: -1, 0, or 1
   position_s <- rep(NA_integer_, NROW(cl_ose))
   position_s[1] <- 0
   position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
@@ -2377,7 +2375,7 @@ simu_ewma <- function(oh_lc, lamb_da=0.05, look_back=51) {
   op_en <- Op(oh_lc)
   prices_lag <- rutils::lag_it(cl_ose)
   position_lagged <- rutils::lag_it(position_s)
-  # calculate daily profits and losses
+  # Calculate daily profits and losses
   re_turns <- position_lagged*(cl_ose - prices_lag)
   re_turns[trade_dates] <-
     position_lagged[trade_dates] *
@@ -2390,18 +2388,18 @@ simu_ewma <- function(oh_lc, lamb_da=0.05, look_back=51) {
 }  # end simu_ewma
 
 
-# perform parallel loop over lamb_das
+# Perform parallel loop over lamb_das
 lamb_das <- seq(0.001, 0.03, 0.001)
 lamb_das <- seq(0.01, 1.0, 0.1)
 
-# initialize compute cluster under Windows
+# Initialize compute cluster under Windows
 library(parallel)
 clus_ter <- makeCluster(detectCores()-1)
 clusterExport(clus_ter, varlist=c("oh_lc", "look_back", "simu_ewma"))
-# perform parallel loop over lamb_das under Windows
+# Perform parallel loop over lamb_das under Windows
 re_turns <- parLapply(clus_ter, lamb_das, function(lamb_da) {
   library(quantmod)
-  # simulate EWMA strategy and calculate re_turns
+  # Simulate EWMA strategy and calculate re_turns
   simu_ewma(oh_lc=oh_lc, lamb_da=lamb_da, look_back=look_back)[, "re_turns"]
 })  # end parLapply
 
@@ -2409,7 +2407,7 @@ re_turns <- parLapply(clus_ter, lamb_das, function(lamb_da) {
 # set up loop over lookback windows
 # length of lookback window
 # look_back <- 11
-# define end_points at end of every day
+# Define end_points at end of every day
 end_points <- xts::endpoints(oh_lc, on="days")
 # num_agg <- n_row %/% look_back
 # end_points <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
@@ -2419,42 +2417,42 @@ start_points <- end_points[c(1, 1:(len_gth-1))] + 1
 # redefine end_points
 end_points <- cbind(start_points, end_points)
 
-# perform parallel loop over re_turns
+# Perform parallel loop over re_turns
 clusterExport(clus_ter, varlist=c("len_gth", "end_points"))
 sharpe_ratios <- parLapply(clus_ter, re_turns, function(re_turns) {
   sapply(2:len_gth, function(in_dex) {
     x_ts <- re_turns[end_points[in_dex, 1]:end_points[in_dex, 2]]
-    # calculate annualized Sharpe ratio of returns
+    # Calculate annualized Sharpe ratio of returns
     sqrt(260)*sum(x_ts)/sd(x_ts)/NROW(x_ts)
   })  # end sapply
 })  # end parLapply
 
 sharpe_ratios <- rutils::do_call(cbind, sharpe_ratios)
 
-# calculate dispersion of SRs of individual strategies over time periods
+# Calculate dispersion of SRs of individual strategies over time periods
 apply(sharpe_ratios, 2, sd)
-# calculate dispersion of SRs of strategies in each time period
+# Calculate dispersion of SRs of strategies in each time period
 foo <- apply(sharpe_ratios, 1, sd)
 mean(foo)
 
-# calculate differences of SRs over periods
+# Calculate differences of SRs over periods
 foo <- apply(sharpe_ratios, 2, rutils::diff_it)
 dim(foo)
 dim(sharpe_ratios)
 tail(foo)
 tail(sharpe_ratios)
 
-# are the sharpe_ratios autocorrelated?
+# Are the sharpe_ratios autocorrelated?
 # yes, about -50%
 bar <- foo[-NROW(foo), ]
 bar <- rbind(rep(0, NCOL(foo)), bar)
 bar <- bar*foo
 colSums(bar) / apply(foo, 2, sd) / NROW(bar)
 
-# switch to best strategy
+# Switch to best strategy
 bar <- apply(sharpe_ratios, 1, which.max)
 
-# switch to strategy with biggest differences of SRs over periods
+# Switch to strategy with biggest differences of SRs over periods
 bar <- apply(foo, 1, which.max)
 bar <- rutils::lag_it(bar)
 bar[1] <- 1
@@ -2463,19 +2461,19 @@ bar <- lapply(2:len_gth, function(in_dex) {
 })  # end lapply
 bar <- rutils::do_call(rbind, bar)
 
-# average over all strategies
+# Average over all strategies
 bar <- rutils::do_call(cbind, re_turns)
 bar <- xts(rowSums(bar), order.by=index(re_turns[[1]]))
 
 chart_Series(x=-cumsum(bar), name="Back-test of EWMA strategies")
 
 
-## perform loop over lookback windows
+## Perform loop over lookback windows
 # lengths of lookbacks windows
 look_backs <- 50*(5:30)
 
 foo <- sapply(look_backs, function(look_back) {
-  # define end_points with beginning stub
+  # Define end_points with beginning stub
   num_agg <- n_row %/% look_back
   end_points <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
   len_gth <- NROW(end_points)
@@ -2484,12 +2482,12 @@ foo <- sapply(look_backs, function(look_back) {
   # redefine end_points
   end_points <- cbind(start_points, end_points)
   
-  # perform parallel loop over re_turns
+  # Perform parallel loop over re_turns
   clusterExport(clus_ter, varlist=c("len_gth", "end_points"))
   sharpe_ratios <- parLapply(clus_ter, re_turns, function(re_turns) {
     sapply(2:len_gth, function(in_dex) {
       x_ts <- re_turns[end_points[in_dex, 1]:end_points[in_dex, 2]]
-      # calculate annualized Sharpe ratio of returns
+      # Calculate annualized Sharpe ratio of returns
       sqrt(260)*sum(x_ts)/sd(x_ts)/NROW(x_ts)
     })  # end sapply
   })  # end parLapply
@@ -2497,7 +2495,7 @@ foo <- sapply(look_backs, function(look_back) {
   sharpe_ratios <- rutils::do_call(cbind, sharpe_ratios)
   sharpe_ratios[which(is.na(sharpe_ratios), arr.ind=TRUE)] <- 1
   
-  # calculate dispersion of SRs
+  # Calculate dispersion of SRs
   c(by_strategy=mean(apply(sharpe_ratios, 2, sd)),
     by_period=mean(apply(sharpe_ratios, 1, sd)))
 })  # end sapply
