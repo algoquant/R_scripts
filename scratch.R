@@ -1,3 +1,40 @@
+##############
+# Scale the returns to make them closer to normal
+
+library(HighFreq)
+
+sym_bol <- "SPY"
+oh_lc <- HighFreq::SPY
+in_dex <- index(oh_lc)
+n_rows <- NROW(oh_lc)
+end_points <- xts::endpoints(oh_lc, on="hours")
+clo_se <- Cl(oh_lc)[end_points]
+re_turns <- rutils::diff_it(log(Cl(oh_lc)))
+re_turns <- as.numeric(re_turns)
+
+## Scale returns using volume (volume clock)
+vol_ume <- as.numeric(Vo(HighFreq::SPY))
+returns_norm <- ifelse(vol_ume>0, re_turns/vol_ume, 0)
+# Scale using volatility
+returns_norm <- re_turns/sd(re_turns)
+
+## Scale returns using price range
+rang_e <- as.numeric(log(Hi(oh_lc)) - log(Lo(oh_lc)))
+returns_norm <- ifelse(rang_e>0, re_turns/rang_e, 0)
+
+
+## Calculate moments and perform normality test
+sum(is.na(returns_norm))
+sum(is.infinite(returns_norm))
+range(returns_norm)
+sapply(3:4, moments::moment, x=returns_norm)
+tseries::jarque.bera.test(returns_norm)
+x11()
+ma_d <- mad(returns_norm)
+hist(returns_norm, breaks=1111, xlim=2*c(-ma_d, ma_d))
+tseries::jarque.bera.test(returns_norm)
+
+
 
 ############## homework
 # Summary: Demonstrate that it's easier to forecast 

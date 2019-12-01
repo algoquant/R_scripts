@@ -3,7 +3,7 @@
 ########################
 
 ###############
-### Get all file names with *.Rnw in the lecture_slides directory
+# Get all file names with *.Rnw in the lecture_slides directory
 file_names <- Sys.glob("C:/Develop/R/lecture_slides/*.Rnw")
 # Get all *.Rnw files in the lecture_slides directory, except those that contain "FRE"
 file_names <- file_names[-grep("FRE", file_names)]
@@ -11,22 +11,22 @@ file_names <- file_names[-grep("FRE", file_names)]
 
 
 ###############
-### Render *.Rnw files into *.pdf files.
-# loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
+# Render *.Rnw files into *.pdf files.
+# Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
 setwd("C:/Develop/R/lecture_slides")
 sapply(file_names, knitr::knit2pdf, bib_engine="biber")
 
 
 
 ###############
-### Extract R chunks from all *.Rnw files, except those that contain "FRE".
+# Extract R chunks from all *.Rnw files, except those that contain "FRE".
 sapply(file_names, knitr::purl, documentation=0)
 
 
 
 ###############
-### Render all the *.Rmd files in the cwd into *.md and *.html files.
-# loop over all the *.Rmd files in the cwd, and render them into *.md and *.html files.
+# Render all the *.Rmd files in the cwd into *.md and *.html files.
+# Loop over all the *.Rmd files in the cwd, and render them into *.md and *.html files.
 sapply(Sys.glob("*.Rmd"), 
        function(x) rmarkdown::render(input=file.path(getwd(), x), clean=FALSE)
 )  # end sapply
@@ -34,7 +34,8 @@ sapply(Sys.glob("*.Rmd"),
 
 
 ###############
-### Read the RData file sp500.RData, and write all the time series into separate CSV files using function data.table::fwrite()
+# Read the RData file sp500.RData, and write all the time series into 
+# separate CSV files using function data.table::fwrite()
 
 dir_name <- "C:/Develop/R/lecture_slides/data/SP500/"
 load("C:/Develop/R/lecture_slides/data/sp500.RData")
@@ -75,7 +76,7 @@ names(file_names)
 
 
 ###############
-### Compare contents of all the files in two different directories, assuming same file names
+# Compare contents of all the files in two different directories, assuming same file names
 
 dir_1 <- "C:/Develop/R/statarb/results"
 dir_2 <- "C:/Users/Jerzy/Downloads/results"
@@ -103,7 +104,7 @@ sapply(seq_along(foo), function(x) {
 
 
 ###############
-### Extract futures symbols from file names
+# Extract futures symbols from file names
 
 file_names <- Sys.glob("C:/Develop/data_def/hull_data/dec_2017/raw/*")
 
@@ -118,7 +119,7 @@ name_s <- unique(name_s)
 
 
 ###############
-### Read Excel spreadsheets
+# Read Excel spreadsheets
 
 # Install and load package readxl
 install.packages("readxl")
@@ -181,7 +182,7 @@ hist(num_na_s)
 
 
 ###############
-### Read binary data files
+# Read binary data files
 
 # Create a connection object to read the file in binary mode using "rb".
 si_ze <- file.info("C:/Users/Jerzy/Downloads/ESH7.bin")$size
@@ -242,7 +243,7 @@ close(connect_ion)
 
 
 ###############
-### install package H2O
+# install package H2O
 
 # The following two commands remove any previously installed H2O packages for R.
 if ("package:h2o" %in% search()) { detach("package:h2o", unload=TRUE) }
