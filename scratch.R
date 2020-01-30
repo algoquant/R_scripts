@@ -1,4 +1,142 @@
 ##############
+# C:/Develop/data/predictive
+
+library(rutils)
+da_ta <- read.zoo(file="C:/Develop/data/predictive/predictions_long_account.csv", header=TRUE, sep=",")
+da_ta <- as.xts(da_ta)
+in_dex <- index(da_ta)
+col_names <- colnames(da_ta)
+da_ta <- lapply(da_ta, as.numeric)
+da_ta <- rutils::do_call(cbind, da_ta)
+da_ta <- xts(da_ta, in_dex)
+colnames(da_ta) <- col_names
+
+core_data <- da_ta[, 8:9]
+colnames(core_data) <- c("actual", "predicted")
+core_data <- core_data["2020-01-10/"]
+core_data <- na.omit(core_data)
+in_dex <- index(core_data)
+date_s <- as.Date(in_dex)
+date_s <- unique(date_s)
+in_dex <- as.Date(in_dex)
+foo <- sapply(date_s, function(dat_e) {
+  foo <- core_data[(in_dex == dat_e), ]
+  sum(foo[foo[, 2] > 0.15, 1])
+})  # end sapply
+names(foo) <- date_s
+
+
+tail(core_data, 33)
+dim(core_data)
+head(core_data, 33)
+core_data <- coredata(core_data)
+core_data <- cbind(core_data[, 2, drop=FALSE], core_data[, 1, drop=FALSE])
+plot(core_data)
+
+ma_x <- max(core_data[, 1])
+sapply((1:8)*ma_x/10, function(x) {
+  sum(core_data[core_data[, 1]>x, 2])
+})  # end sapply
+sum(core_data[core_data[, 1]>0.15, 2])
+
+
+foo <- da_ta["2020-01-10/"]
+foo <- na.omit(foo)
+sum(foo[, 8])
+sum(foo[foo[, 9]>0.15, 8])
+
+
+
+
+##############
+# Compile Rcpp functions
+Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/test.cpp")
+
+
+in_dex <- rutils::etf_env$re_turns[, "VTI", drop=FALSE]
+in_dex <- na.omit(in_dex)
+indeks <- index(in_dex)
+
+re_turns <- rutils::etf_env$re_turns[, "XLF", drop=FALSE]
+re_turns <- na.omit(re_turns)
+re_turns <- re_turns[indeks]
+calc_alpha(re_turns, in_dex, typ_e="wilcoxon")
+
+sym_bols <- colnames(rutils::etf_env$re_turns)
+sym_bols <- sym_bols[-grep("VTI", sym_bols, ignore.case=TRUE)]
+
+foo <- sapply(sym_bols, function(sym_bol) {
+  cat(sym_bol, "\n")
+  re_turns <- rutils::etf_env$re_turns[, sym_bol, drop=FALSE]
+  re_turns <- na.omit(re_turns)
+  re_turns <- re_turns[indeks]
+  in_dex <- in_dex[index(re_turns)]
+  calc_alpha(re_turns, in_dex, typ_e="wilcoxon")
+})  # end sapply
+
+
+
+
+##############
+# Load S&P500 constituent stock prices and
+# calculate the percentage daily returns scaled 
+# by their intraday range.
+
+library(HighFreq)
+
+
+load("C:/Develop/R/lecture_slides/data/sp500.RData")
+
+## Calculate the percentage returns
+price_s <- eapply(env_sp500, quantmod::Cl)
+price_s <- rutils::do_call(cbind, price_s)
+# carry forward and backward non-NA prices
+price_s <- zoo::na.locf(price_s)
+price_s <- zoo::na.locf(price_s, fromLast=TRUE)
+colnames(price_s) <- unname(sapply(colnames(price_s),
+                                   function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
+# Calculate percentage returns of the S&P500 constituent stocks
+re_turns <- rutils::diff_it(log(price_s))
+set.seed(1121)
+sam_ple <- sample(1:NCOL(re_turns), 100)
+returns_100 <- re_turns[, sam_ple]
+
+
+## Calculate scaled returns using price range
+returns_scaled <- eapply(env_sp500, function(oh_lc) {
+  oh_lc <- log(oh_lc)
+  # op_en <- Op(oh_lc)
+  hi_gh <- Hi(oh_lc)
+  lo_w <- Lo(oh_lc)
+  clo_se <- Cl(oh_lc)
+  # Scale returns using price range
+  re_turns <- rutils::diff_it(clo_se)
+  rang_e <- as.numeric(hi_gh - lo_w)
+  rang_e <- ifelse(rang_e == 0, 1, rang_e)
+  # re_turns <- ifelse(rang_e>0, re_turns/rang_e, 0)
+  re_turns <- re_turns/rang_e
+  # re_turns[is.na(re_turns)] <- 0
+  zoo::na.locf(re_turns)
+})  # end eapply
+
+returns_scaled <- rutils::do_call(cbind, returns_scaled)
+returns_scaled[is.na(returns_scaled)] <- 0
+sum(is.na(returns_scaled))
+sum(!is.finite(returns_scaled))
+# returns_scaled <- zoo::na.locf(returns_scaled)
+# returns_scaled <- zoo::na.locf(returns_scaled, fromLast=TRUE)
+colnames(returns_scaled) <- unname(sapply(colnames(returns_scaled),
+                                          function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
+
+
+## Save the returns
+save(price_s, re_turns, returns_scaled, 
+     file="C:/Develop/R/lecture_slides/data/sp500_returns.RData")
+
+
+
+
+##############
 # Scale the returns to make them closer to normal
 
 library(HighFreq)
@@ -14,71 +152,25 @@ re_turns <- as.numeric(re_turns)
 
 ## Scale returns using volume (volume clock)
 vol_ume <- as.numeric(Vo(HighFreq::SPY))
-returns_norm <- ifelse(vol_ume>0, re_turns/vol_ume, 0)
+returns_scaled <- ifelse(vol_ume>0, re_turns/vol_ume, 0)
 # Scale using volatility
-returns_norm <- re_turns/sd(re_turns)
+returns_scaled <- re_turns/sd(re_turns)
 
 ## Scale returns using price range
 rang_e <- as.numeric(log(Hi(oh_lc)) - log(Lo(oh_lc)))
-returns_norm <- ifelse(rang_e>0, re_turns/rang_e, 0)
+returns_scaled <- ifelse(rang_e>0, re_turns/rang_e, 0)
 
 
 ## Calculate moments and perform normality test
-sum(is.na(returns_norm))
-sum(is.infinite(returns_norm))
-range(returns_norm)
-sapply(3:4, moments::moment, x=returns_norm)
-tseries::jarque.bera.test(returns_norm)
+sum(is.na(returns_scaled))
+sum(is.infinite(returns_scaled))
+range(returns_scaled)
+sapply(3:4, moments::moment, x=returns_scaled)
+tseries::jarque.bera.test(returns_scaled)
 x11()
-ma_d <- mad(returns_norm)
-hist(returns_norm, breaks=1111, xlim=2*c(-ma_d, ma_d))
-tseries::jarque.bera.test(returns_norm)
-
-
-
-############## homework
-# Summary: Demonstrate that it's easier to forecast 
-# weekly and monthly stock returns than daily returns
-
-library(HighFreq)
-
-# Aggregate the VTI returns to monthly and run pacf()
-
-price_s <- Cl(rutils::etf_env$VTI)
-# end_points <- rutils::calc_endpoints(price_s, inter_val=25)
-end_points <- rutils::calc_endpoints(price_s, inter_val="weeks")
-# end_points <- end_points[2*(1:(NROW(end_points) %/% 2))-1]
-data_agg <- price_s[end_points]
-data_agg <- rutils::diff_it(log(data_agg))
-p_acf <- pacf(data_agg)
-
-p_acf <- sapply(3:50, function(lagg) {
-  end_points <- rutils::calc_endpoints(price_s, inter_val=lagg)
-  data_agg <- price_s[end_points]
-  data_agg <- rutils::diff_it(log(data_agg))
-  p_acf <- pacf(data_agg, plot=FALSE)
-  p_acf <- p_acf$acf
-  # s_d <- 2*sd(p_acf)
-  s_d <- 2*median(abs(p_acf))
-  sum(p_acf[abs(p_acf) > s_d])
-})  # end sapply
-
-plot(x=3:50, y=p_acf, t="l")
-
-# Old
-# price_s <- Cl(rutils::etf_env$VTI)
-# end_points <- xts::endpoints(price_s, on="months")
-# end_points <- end_points[2*(1:(NROW(end_points)/2))-1]
-# price_s <- price_s[end_points]
-# price_s <- rutils::diff_it(log(price_s))
-# pacf(price_s)
-# # Or week returns
-# price_s <- Cl(rutils::etf_env$VTI)
-# end_points <- xts::endpoints(price_s, on="weeks")
-# end_points <- end_points[3*(1:(NROW(end_points) %/% 3))-1]
-# price_s <- price_s[end_points]
-# price_s <- rutils::diff_it(log(price_s))
-# pacf(price_s)
+ma_d <- mad(returns_scaled)
+hist(returns_scaled, breaks=1111, xlim=2*c(-ma_d, ma_d))
+tseries::jarque.bera.test(returns_scaled)
 
 
 
@@ -501,13 +593,81 @@ plot(foo, t="l")
 ### Test HighFreq functions
 
 library(HighFreq)
+detach("package:HighFreq")
+
+load(file="C:/Develop/R/lecture_slides/data/sp500_returns.RData")
+n_rows <- NROW(re_turns)
+
+# Define maximum Sharpe portfolio weights
+calc_weights <- function(re_turns) {
+  # ei_gen <- eigen(cov(re_turns))
+  # # set tolerance for determining zero eigenvalues
+  # to_l <- sqrt(.Machine$double.eps)
+  # # check for zero eigenvalues
+  # not_zero <- (ei_gen$values > (to_l * ei_gen$values[1]))
+  # in_verse <- ei_gen$vectors[, not_zero] %*% (t(ei_gen$vectors[, not_zero])/ei_gen$values[not_zero])
+  # weight_s <- in_verse %*% apply(re_turns, 2, mean)
+  # weight_s/sum(abs(weight_s))
+
+  weight_s <- sapply(re_turns[((n_rows-500):n_rows)], median)
+  # weight_s <- (order(order(weight_s)-1)-1)
+  # weight_s <- order(order(weight_s))
+  # weight_s <- order(weight_s)
+  weight_s <- (order(weight_s)-1)
+  # weight_s <- order(order(weight_s, decreasing=TRUE), decreasing=TRUE)
+  # weight_s <- or_der[or_der]
+  
+} # end calc_weights
+weight_s <- calc_weights(ret_sub)
+
 
 # Compile Rcpp functions
-Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/temp.cpp")
+Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/calc_weights.cpp")
 
-re_turns <- na.omit(rutils::etf_env$re_turns[, 1:9])
+# re_turns <- na.omit(rutils::etf_env$re_turns[, 1:9])
 
-foo <- drop(HighFreq::calc_weights(re_turns, typ_e="rank"))
+da_ta <- round(runif(7), 2)
+all.equal(da_ta, drop(sort_back(da_ta)))
+all.equal(rank(da_ta), drop(calc_ranks(da_ta)))
+drop(calc_ranks_m(da_ta))
+sum(calc_ranks_m(da_ta))
+
+
+da_ta <- xts::xts(runif(7), seq.Date(Sys.Date(), by=1, length.out=7))
+all.equal(rank(drop(coredata(da_ta))), drop(calc_ranks(da_ta)))
+
+
+foo <- drop(calc_weights(re_turns[((n_rows-500):n_rows)], typ_e="rankrob", al_pha=0, scal_e=FALSE))
+
+
+all.equal(weight_s, foo)
+foo <- cbind(weight_s, foo)
+head(foo, 11)
+tail(foo, 11)
+
+
+weight_s <- colMeans(re_turns)
+weight_s <- sapply(re_turns, function(x) mean(x)/sd(x))
+weight_s <- sapply(re_turns, moments::skewness)
+weight_s <- drop(HighFreq::calc_ranks(weight_s))
+weight_s <- (weight_s - mean(weight_s))
+names(weight_s) <- colnames(re_turns)
+
+
+weight_s <- drop(calc_weights(re_turns, typ_e="max_sharpe", al_pha=0))
+pnl_s <- (re_turns %*% weight_s)
+pnl_s <- xts(cumsum(pnl_s), order.by=index(re_turns))
+price_s <- cumsum(rowMeans(re_turns))
+pnl_s <- cbind(pnl_s, price_s)
+colnames(pnl_s) <- c("Strategy", "Index")
+
+col_names <- colnames(pnl_s)
+cap_tion <- paste("Momentum Strategy for S&P500 Stocks")
+dygraphs::dygraph(pnl_s, main=cap_tion) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="red") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="blue")
 
 
 
