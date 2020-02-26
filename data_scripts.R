@@ -23,6 +23,9 @@ file_names <- file_names[grep(sym_bol, file_names)]
 # Subset to only files createed after "2018-10-01"
 cut_off <- as.POSIXct("2018-10-01", tz="America/New_York", origin="1970-01-01")
 file_names <- file_names[file.info(file_names)$mtime > cut_off]
+# Subset to only files createed before "2019-06-30"
+cut_off <- as.POSIXct("2019-06-30", tz="America/New_York", origin="1970-01-01")
+file_names <- file_names[file.info(file_names)$mtime < cut_off]
 # Exclude "ESTSY"
 file_names <- file_names[-1]
 

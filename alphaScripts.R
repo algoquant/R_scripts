@@ -918,8 +918,8 @@ chart_Series(
   name=paste(sym_bol, "contrarian skew strategy frequency of trades"))
 # Calculate transaction costs
 bid_offer <- 0.001  # 10 bps for liquid ETFs
-cost_s <- bid_offer*abs(position_s-lag_positions)
-pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - co_sts
+cost_s <- bid_offer*abs(position_s-lag_positions)/2
+pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - cost_s
 
 
 ## optimize vwap

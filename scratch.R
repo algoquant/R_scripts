@@ -137,40 +137,126 @@ save(price_s, re_turns, returns_scaled,
 
 
 ##############
-# Scale the returns to make them closer to normal
+# Scale minutely returns to make them closer to normal or stationary
 
 library(HighFreq)
 
 sym_bol <- "SPY"
 oh_lc <- HighFreq::SPY
+
+## Calculate price range
+rang_e <- log(drop(coredata(Hi(oh_lc)/Lo(oh_lc))))
+# Around 1.8% of bars have zero range
+sum(rang_e==0)/NROW(rang_e)
+# Remove bars with zero range
+# oh_lc <- oh_lc[!(rang_e==0)]
+# Remove bars with zero returns
+# re_turns <- HighFreq::diff_vec(log(drop(Cl(oh_lc))))
+# re_turns <- c(0, re_turns)
+# zero_rets <- (re_turns==0)
+# oh_lc <- oh_lc[!zero_rets]
+
 in_dex <- index(oh_lc)
 n_rows <- NROW(oh_lc)
 end_points <- xts::endpoints(oh_lc, on="hours")
 clo_se <- Cl(oh_lc)[end_points]
-re_turns <- rutils::diff_it(log(Cl(oh_lc)))
-re_turns <- as.numeric(re_turns)
+rang_e <- log(drop(coredata(Hi(oh_lc)/Lo(oh_lc))))
+rang_e <- (rang_e + c(0, rang_e[-NROW(rang_e)]))/2
+re_turns <- HighFreq::diff_vec(log(drop(Cl(oh_lc))))
+re_turns <- c(0, re_turns)
+sum(is.na(re_turns))
+sum(is.infinite(re_turns))
 
-## Scale returns using volume (volume clock)
-vol_ume <- as.numeric(Vo(HighFreq::SPY))
-returns_scaled <- ifelse(vol_ume>0, re_turns/vol_ume, 0)
-# Scale using volatility
-returns_scaled <- re_turns/sd(re_turns)
+## Distribution of raw returns is bimodal
+x11()
+# Standardize raw returns to make later comparisons
+returns_std <- re_turns/sd(re_turns)
+ma_d <- mad(returns_std)
+range(returns_std)
+sd((returns_std/sd(returns_std))^2)
+hist(returns_std, breaks=1111, xlim=c(-3, 3), freq=FALSE)
+lines(density(returns_std, bw=0.2), col='red', lwd=2)
+
+## Calculate moments and perform normality tests
+sapply(1:4, moments::moment, x=returns_std)
+tseries::jarque.bera.test(returns_std)
+shapiro.test(returns_std)
+
 
 ## Scale returns using price range
-rang_e <- as.numeric(log(Hi(oh_lc)) - log(Lo(oh_lc)))
 returns_scaled <- ifelse(rang_e>0, re_turns/rang_e, 0)
+# returns_scaled <- re_turns/rang_e
+returns_scaled <- returns_scaled/sd(returns_scaled)
+ma_d <- mad(returns_scaled)
+hist(returns_scaled, breaks=1111, xlim=c(-3, 3), freq=FALSE)
+lines(density(returns_scaled, bw=0.2), col='blue', lwd=2)
+
+# JB statistic for different range scaling exponents
+statis_tic <- sapply((1:6)/2, function(x) {
+  returns_scaled <- ifelse(rang_e>0, re_turns/(rang_e^x), 0)
+  returns_scaled <- returns_scaled/sd(returns_scaled)
+  tseries::jarque.bera.test(returns_scaled)$statistic
+})  # end sapply
+
+
+# Stationarity statistic for different scaling exponents
+statis_tic <- sapply((1:20)/10, function(x) {
+  # returns_scaled <- ifelse(vol_ume>0, re_turns/(vol_ume^x), 0)
+  returns_scaled <- ifelse(rang_e>0, re_turns/(rang_e^x), 0)
+  # returns_scaled <- re_turns/(rang_e^x)
+  # Remove zero returns
+  # returns_scaled <- returns_scaled[!(returns_scaled==0)]
+  # returns_scaled <- returns_scaled/sd(returns_scaled)
+  # Standard deviation of square returns is proxy for stationarity
+  sd((returns_scaled/sd(returns_scaled))^2)
+})  # end sapply
+
+
+## Scale returns using volume (volume clock)
+vol_ume <- drop(coredata(Vo(oh_lc)))
+returns_scaled <- ifelse(vol_ume>0, re_turns/sqrt(vol_ume), 0)
+# Scale using volatility
+returns_scaled <- returns_scaled/sd(returns_scaled)
+ma_d <- mad(returns_scaled)
+hist(returns_scaled, breaks=1111, xlim=5*c(-ma_d, ma_d), freq=FALSE)
+lines(density(returns_scaled, bw=0.2), col='blue', lwd=2)
+
+# JB statistic for different volume scaling exponents
+statis_tic <- sapply((1:20)/20, function(x) {
+  returns_scaled <- ifelse(vol_ume>0, re_turns/(vol_ume^x), 0)
+  returns_scaled <- returns_scaled/sd(returns_scaled)
+  # tseries::jarque.bera.test(returns_scaled)$statistic
+  moments::moment(returns_scaled, order=4)
+})  # end sapply
+
+
+# Regress volume on range
+da_ta <- cbind(volume=log(vol_ume), range=log(rang_e))
+# da_ta[!is.finite(da_ta)] <- NA
+da_ta <- na.omit(is.finite(da_ta)*da_ta)
+# foo <- lm(paste(colnames(da_ta), collapse=" ~ "), data=as.data.frame(da_ta))
+foo <- lm(volume ~ range, as.data.frame(da_ta))
+plot(volume ~ range, as.data.frame(da_ta[sampl_e, ]))
+abline(foo, lwd=3, col="red")
+
+
+## Apply Manly transformation to returns to make them more normal
+lamb_da <- 1.5
+
+# Modulus
+# Scale returns using volume (volume clock)
 
 
 ## Calculate moments and perform normality test
 sum(is.na(returns_scaled))
 sum(is.infinite(returns_scaled))
 range(returns_scaled)
-sapply(3:4, moments::moment, x=returns_scaled)
+sapply(1:4, moments::moment, x=returns_scaled)
 tseries::jarque.bera.test(returns_scaled)
 x11()
 ma_d <- mad(returns_scaled)
-hist(returns_scaled, breaks=1111, xlim=2*c(-ma_d, ma_d))
-tseries::jarque.bera.test(returns_scaled)
+hist(returns_scaled, breaks=11111, xlim=10*c(-ma_d, ma_d), freq=FALSE)
+pacf(returns_scaled)
 
 
 
@@ -289,7 +375,7 @@ mad_zscores[1:win_dow, ] <- 0
 tail(z_scores)
 mad(z_scores)
 range(z_scores)
-hist(z_scores, breaks=30, xlim=c(-10, 10))
+hist(z_scores, breaks=30, xlim=c(-10, 10), freq=FALSE)
 
 # Calculate position_s and pnls from z-scores and vol_at
 position_s <- rep(NA_real_, NROW(price_s))
@@ -507,7 +593,7 @@ bar <- sapply(hurst_prof, function(x) {
 })  # end sapply
 
 bar <- sort(bar)
-hist(bar)
+hist(bar, freq=FALSE)
 which.max(bar)
 bar[[names(which.max(bar))]]
 hurst_prof[[names(which.max(bar))]]
@@ -573,7 +659,7 @@ z_scores <- sapply((look_back+1):n_rows, function(x) {
 })  # end sapply
 z_scores <- c(rep(0, look_back), z_scores)
 
-hist(z_scores, breaks=100)
+hist(z_scores, breaks=100, freq=FALSE)
 quantile(z_scores, 0.9)
 
 foo <- which((z_scores < quantile(z_scores, 0.1)) & (z_scores > quantile(z_scores, 0.01)))
@@ -856,8 +942,8 @@ colnames(sig_nal) <- "sig_nal"
 sig_nal[1:look_back] <- 0
 # or
 sig_nal <- calc_signal(look_back, close_num, de_sign)
-hist(sig_nal)
-# hist(sig_nal, xlim=c(-10, 10))
+hist(sig_nal, freq=FALSE)
+# hist(sig_nal, xlim=c(-10, 10), freq=FALSE)
 
 # old: perform parallel loop over look_backs
 look_backs <- 15:35
@@ -944,9 +1030,9 @@ foo <- logical(21)
 foo[sample(NROW(foo), 12)] <- TRUE
 barr <- roll_countr(foo)
 foo <- roll_countr(close_high)
-bar <- hist(foo, breaks=0:15, xlim=c(0, 4))
-bar <- hist(close_high_count, breaks=0:15, xlim=c(0, 4))
-bar <- hist(close_low_count, breaks=0:15, xlim=c(0, 4))
+bar <- hist(foo, breaks=0:15, xlim=c(0, 4), freq=FALSE)
+bar <- hist(close_high_count, breaks=0:15, xlim=c(0, 4), freq=FALSE)
+bar <- hist(close_low_count, breaks=0:15, xlim=c(0, 4), freq=FALSE)
 bar$counts
 all.equal(roll_countr(close_high), drop(roll_count(close_high)), check.attributes=FALSE)
 library(microbenchmark)
@@ -1313,7 +1399,7 @@ sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
 sum(is.infinite(sig_nal))
 sum(is.na(sig_nal))
 sd(sig_nal)
-hist(sig_nal)
+hist(sig_nal, freq=FALSE)
 plot(sig_nal, t="l")
 
 
@@ -1425,8 +1511,8 @@ run_signal <- function(look_back, clo_se, de_sign) {
   rutils::lag_it(sig_nal, lagg=1)
 }  # end run_signal
 sig_nal <- run_signal(look_back, clo_se, de_sign)
-hist(sig_nal)
-hist(sig_nal, xlim=c(-10, 10))
+hist(sig_nal, freq=FALSE)
+hist(sig_nal, xlim=c(-10, 10), freq=FALSE)
 
 # perform parallel loop over look_backs under Windows
 look_backs <- 15:35

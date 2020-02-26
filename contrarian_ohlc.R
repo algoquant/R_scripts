@@ -55,18 +55,18 @@ threshold_s <- 1:4
 cum_pnls <- sapply(threshold_s, function(thresh_old) {
   cat("thresh_old=", thresh_old, "\n")
   # Initialize positions
-  po_sit <- rep(NA_integer_, n_rows)
-  po_sit[1] <- 0
+  position_s <- rep(NA_integer_, n_rows)
+  position_s[1] <- 0
   # Flip position if several consecutive positive or negative returns
-  po_sit[returns_pos_count > thresh_old] <- (-1)
-  po_sit[returns_neg_count > thresh_old] <- 1
+  position_s[returns_pos_count > thresh_old] <- (-1)
+  position_s[returns_neg_count > thresh_old] <- 1
   # Flip position if several consecutive closes at high or low
-  po_sit[close_high_count > thresh_old] <- (-1)
-  po_sit[close_low_count > thresh_old] <- 1
+  position_s[close_high_count > thresh_old] <- (-1)
+  position_s[close_low_count > thresh_old] <- 1
   # LOCF
-  po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
-  po_sit <- rutils::lag_it(po_sit, lagg=1)
-  cumsum(po_sit*re_turns)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+  position_s <- rutils::lag_it(position_s, lagg=1)
+  cumsum(position_s*re_turns)
 })  # end sapply
 
 # Plot in panels
@@ -78,39 +78,39 @@ plot.zoo(cum_pnls)
 ## Backtest strategy for flipping if two consecutive positive and negative returns
 rm(da_ta)
 # Initialize positions
-po_sit <- rep(NA_integer_, n_rows)
-po_sit[1] <- 0
+position_s <- rep(NA_integer_, n_rows)
+position_s[1] <- 0
 # Flip position if several consecutive positive or negative returns
-po_sit[returns_pos_count > 1] <- (-1)
-po_sit[returns_neg_count > 1] <- 1
+position_s[returns_pos_count > 1] <- (-1)
+position_s[returns_neg_count > 1] <- 1
 # Flip position if several consecutive closes at high or low
-po_sit[close_high_count > 1] <- (-1)
-po_sit[close_low_count > 1] <- 1
+position_s[close_high_count > 1] <- (-1)
+position_s[close_low_count > 1] <- 1
 # LOCF
-po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
-po_sit <- rutils::lag_it(po_sit, lagg=1)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+position_s <- rutils::lag_it(position_s, lagg=1)
 # Calculate number of trades
-sum(abs(rutils::diff_it(po_sit))) / NROW(po_sit) / 2
+sum(abs(rutils::diff_it(position_s))) / NROW(position_s) / 2
 # Calculate strategy pnl_s
-pnl_s <- cumsum(po_sit*re_turns)
+pnl_s <- cumsum(position_s*re_turns)
 # tail(pnl_s)
 
 
 ## Backtest strategy for flipping if single close at the high or low
 rm(da_ta)
 # Initialize positions
-po_sit <- rep(NA_integer_, n_rows)
-po_sit[1] <- 0
+position_s <- rep(NA_integer_, n_rows)
+position_s[1] <- 0
 # Flip position if close at high or low
-po_sit[close_high] <- (-1)
-po_sit[close_low] <- 1
+position_s[close_high] <- (-1)
+position_s[close_low] <- 1
 # LOCF
-po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
-po_sit <- rutils::lag_it(po_sit, lagg=1)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+position_s <- rutils::lag_it(position_s, lagg=1)
 # Calculate number of trades
-sum(abs(rutils::diff_it(po_sit))) / NROW(po_sit) / 2
+sum(abs(rutils::diff_it(position_s))) / NROW(position_s) / 2
 # Calculate strategy pnl_s
-pnl_s <- cumsum(po_sit*re_turns)
+pnl_s <- cumsum(position_s*re_turns)
 # tail(pnl_s)
 
 
@@ -123,18 +123,18 @@ rang_e <- (log(core_data[, 2]) - log(core_data[, 3]))
 re_turns <- rutils::diff_it(log(clo_se))
 returns_norm <- ifelse(rang_e>0, re_turns/rang_e, 0)
 # Initialize positions
-po_sit <- rep(NA_integer_, n_rows)
-po_sit[1] <- 0
+position_s <- rep(NA_integer_, n_rows)
+position_s[1] <- 0
 # Flip position if the scaled returns exceed thresh_old 
-po_sit[returns_norm > thresh_old] <- (-1)
-po_sit[returns_norm < (-thresh_old)] <- 1
+position_s[returns_norm > thresh_old] <- (-1)
+position_s[returns_norm < (-thresh_old)] <- 1
 # LOCF
-po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
-po_sit <- rutils::lag_it(po_sit, lagg=lagg)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+position_s <- rutils::lag_it(position_s, lagg=lagg)
 # Calculate number of trades
-sum(abs(rutils::diff_it(po_sit))) / NROW(po_sit) / 2
+sum(abs(rutils::diff_it(position_s))) / NROW(position_s) / 2
 # Calculate strategy pnl_s
-pnl_s <- cumsum(po_sit*re_turns)
+pnl_s <- cumsum(position_s*re_turns)
 # tail(pnl_s)
 
 
