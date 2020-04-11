@@ -1,4 +1,30 @@
 ##############
+# Wilcoxon tests
+
+# Data
+sample1 <- rnorm(200)
+sample2 <- rnorm(100, mean=0.1)
+# Mann-Whitney-Wilcoxon rank sum test
+wil_cox <- wilcox.test(sample1, sample2, paired=FALSE)
+wil_cox$statistic
+# Calculate U statistic of Mann-Whitney-Wilcoxon test
+da_ta <- c(sample1, sample2)
+rank_s <- rank(da_ta)
+sum(rank_s[1:200]) - 100*201
+sum(rank_s[201:300]) - 50*101
+
+# Data
+sample1 <- rnorm(100)
+sample2 <- rnorm(100, mean=0.1)
+# Wilcoxon signed rank test
+wil_cox <- wilcox.test(sample1, sample2, paired=TRUE)
+wil_cox$statistic
+# Calculate V statistic of Wilcoxon test
+da_ta <- (sample1 - sample2)
+sum(rank(abs(da_ta))[da_ta>0])
+
+
+##############
 # C:/Develop/data/predictive
 
 library(rutils)
@@ -76,67 +102,7 @@ foo <- sapply(sym_bols, function(sym_bol) {
 
 
 
-
-##############
-# Load S&P500 constituent stock prices and
-# calculate the percentage daily returns scaled 
-# by their intraday range.
-
-library(HighFreq)
-
-
-load("C:/Develop/R/lecture_slides/data/sp500.RData")
-
-## Calculate the percentage returns
-price_s <- eapply(env_sp500, quantmod::Cl)
-price_s <- rutils::do_call(cbind, price_s)
-# carry forward and backward non-NA prices
-price_s <- zoo::na.locf(price_s)
-price_s <- zoo::na.locf(price_s, fromLast=TRUE)
-colnames(price_s) <- unname(sapply(colnames(price_s),
-                                   function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
-# Calculate percentage returns of the S&P500 constituent stocks
-re_turns <- rutils::diff_it(log(price_s))
-set.seed(1121)
-sam_ple <- sample(1:NCOL(re_turns), 100)
-returns_100 <- re_turns[, sam_ple]
-
-
-## Calculate scaled returns using price range
-returns_scaled <- eapply(env_sp500, function(oh_lc) {
-  oh_lc <- log(oh_lc)
-  # op_en <- Op(oh_lc)
-  hi_gh <- Hi(oh_lc)
-  lo_w <- Lo(oh_lc)
-  clo_se <- Cl(oh_lc)
-  # Scale returns using price range
-  re_turns <- rutils::diff_it(clo_se)
-  rang_e <- as.numeric(hi_gh - lo_w)
-  rang_e <- ifelse(rang_e == 0, 1, rang_e)
-  # re_turns <- ifelse(rang_e>0, re_turns/rang_e, 0)
-  re_turns <- re_turns/rang_e
-  # re_turns[is.na(re_turns)] <- 0
-  zoo::na.locf(re_turns)
-})  # end eapply
-
-returns_scaled <- rutils::do_call(cbind, returns_scaled)
-returns_scaled[is.na(returns_scaled)] <- 0
-sum(is.na(returns_scaled))
-sum(!is.finite(returns_scaled))
-# returns_scaled <- zoo::na.locf(returns_scaled)
-# returns_scaled <- zoo::na.locf(returns_scaled, fromLast=TRUE)
-colnames(returns_scaled) <- unname(sapply(colnames(returns_scaled),
-                                          function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
-
-
-## Save the returns
-save(price_s, re_turns, returns_scaled, 
-     file="C:/Develop/R/lecture_slides/data/sp500_returns.RData")
-
-
-
-
-##############
+###############
 # Scale minutely returns to make them closer to normal or stationary
 
 library(HighFreq)
@@ -260,7 +226,7 @@ pacf(returns_scaled)
 
 
 
-############## homework
+############### homework
 # Summary: Strategy using weekly and monthly stock returns.
 # It's implemented in app_roll_portf9.R
 
@@ -306,7 +272,7 @@ plot.zoo(-cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
 
-############## test
+############### test
 # Summary: Calculate drawdown in a single loop
 
 n_rows <- NROW(price_s)
@@ -336,7 +302,7 @@ max_drawdown <- draw_down[date_trough]
 
 
 
-############## homework
+############### homework
 # Summary: Create a contrarian strategy using 
 # the Hampel filter.  
 # It's implemented in app_roll_portf10.R
@@ -394,7 +360,7 @@ plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
 
-############## homework - Hurst exponents almost random
+############### homework - Hurst exponents almost random
 # Summary: Calculate a time series of monthly Hurst 
 # exponents and the volatility for the SPY series.
 # Demonstrate that the changes of the Hurst exponent 
@@ -483,7 +449,7 @@ pacf(foo[, 1])
 
 
 # wippp
-############## homework
+############### homework
 # Summary: Calculate a time series of annual Hurst 
 # exponents for S&P500 stocks.
 # Plot a scatterplot of Hurst for the years 2008 and 2009.
