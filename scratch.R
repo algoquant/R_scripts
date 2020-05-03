@@ -1,3 +1,66 @@
+
+da_ta <- exp(cumsum(rnorm(1e7)/100))
+in_dex <- seq.POSIXt(from=Sys.time(), by="sec", length.out=NROW(da_ta))
+da_ta <- xts(da_ta, in_dex)
+
+interval_s <- seq.int(from=1e2, to=1e3, by=1e2)
+vol_s <- sapply(interval_s, function(inter_val) {
+  # spy_agg <- rutils::to_period(oh_lc=da_ta, k=inter_val)
+  # HighFreq::calc_var_ohlc(spy_agg)
+  end_points <- rutils::calc_endpoints(da_ta, inter_val=inter_val)
+  sd(rutils::diff_it(log(da_ta[end_points])))
+})  # end sapply
+
+interval_s <- c("seconds", "minutes", "hours", "days")
+inter_log <- log(c(1, 60, 3600, 6.5*3600))
+inter_log <- log(c(1, 60, 3600, 24*3600))
+vol_s <- sapply(interval_s, function(inter_val) {
+  spy_agg <- rutils::to_period(oh_lc=HighFreq::SPY, k=inter_val)
+  # spy_agg <- rutils::to_period(oh_lc=HighFreq::SPY, period=inter_val)
+  # HighFreq::calc_var_ohlc(spy_agg)
+  re_turns <- rutils::diff_it(spy_agg[, 4])
+  sd(re_turns)
+})  # end sapply
+
+
+names(vol_s) <- paste0("agg_", interval_s)
+vol_log <- log(vol_s)
+inter_log <- log(interval_s)
+inter_log <- inter_log - mean(inter_log)
+vol_log <- vol_log - mean(vol_log)
+mod_el <- lm(vol_log ~ inter_log)
+hurst_lm <- summary(mod_el)$coeff[2, 1]
+hurs_t <- sum(vol_log*inter_log)/sum(inter_log^2)
+all.equal(hurst_lm, hurs_t)
+
+
+
+##############
+# VXX and SVXY
+
+# re_turns <- -etf_env$re_turns$VXX
+re_turns <- na.omit(etf_env$re_turns$SVXY)
+re_turns <- cbind(re_turns, -na.omit(etf_env$re_turns$VXX))
+which_na <- which(is.na(re_turns$VXX))
+re_turns$VXX[which_na] <- re_turns$SVXY[which_na]
+re_turns <- cumprod(1+rowMeans(re_turns))
+sum(is.na(re_turns))
+head(re_turns)
+vol_ume <- cbind(quantmod::Vo(etf_env$SVXY), quantmod::Vo(etf_env$VXX))
+vol_ume$VXX.Volume[which_na] <- vol_ume$SVXY.Volume[which_na]
+vol_ume <- rowMeans(vol_ume)
+
+roll_vwap <- rutils::roll_sum(x_ts=re_turns*vol_ume, look_back=look_back)
+volume_rolling <- rutils::roll_sum(x_ts=vol_ume, look_back=look_back)
+roll_vwap <- roll_vwap/volume_rolling
+roll_vwap[is.na(roll_vwap)] <- 0
+roll_vwap
+
+plot(re_turns, t="l", lwd=2)
+lines(roll_vwap, col="red", lwd=2)
+
+
+
 ##############
 # Wilcoxon tests
 
@@ -383,7 +446,103 @@ library(HighFreq)
 
 # This is best version
 # Calculate Hurst exponent using median of range ratios
-calc_hurst <- function(hi_price, lo_price, end_points) {
+calc_hurst 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<- function(hi_price, lo_price, end_points) {
   range_ratio <- sapply(seq_along(end_points)[-1], function(it) {
     start_point <- end_points[it-1]
     end_point <- end_points[it]
@@ -458,7 +617,7 @@ pacf(foo[, 1])
 library(HighFreq)
 
 # Load S&P500 constituent stock prices
-load("C:/Develop/R/lecture_slides/data/sp500.RData")
+load("C:/Develop/lecture_slides/data/sp500.RData")
 
 oh_lc <- log(env_sp500$SIG)
 quantmod::chart_Series(Cl(oh_lc))
@@ -533,7 +692,7 @@ hurst_prof <- lapply(hurst_prof, function(volat_hurst) {
   na.locf(volat_hurst, fromLast=TRUE)
 })  # end lapply
 
-save(hurst_prof, file="C:/Develop/R/lecture_slides/data/sp500_perf.RData")
+save(hurst_prof, file="C:/Develop/lecture_slides/data/sp500_perf.RData")
 
 bar <- sapply(hurst_prof, function(x) sum(is.na(x) | is.infinite(x)))
 max(bar)
@@ -573,7 +732,7 @@ bar <- sapply(hurst_prof, function(x) {
 })  # end sapply
 re_turns <- price_s[, names(tail(bar, 100))]
 re_turns <- rutils::diff_it(log(re_turns))
-save(re_turns, file="C:/Develop/R/lecture_slides/data/sp100_rets.RData")
+save(re_turns, file="C:/Develop/lecture_slides/data/sp100_rets.RData")
 
 col_names <- colnames(hurst_prof$AAPL)
 bar <- lapply(hurst_prof, function(x) {
@@ -647,7 +806,7 @@ plot(foo, t="l")
 library(HighFreq)
 detach("package:HighFreq")
 
-load(file="C:/Develop/R/lecture_slides/data/sp500_returns.RData")
+load(file="C:/Develop/lecture_slides/data/sp500_returns.RData")
 n_rows <- NROW(re_turns)
 
 # Define maximum Sharpe portfolio weights
@@ -2124,7 +2283,7 @@ summary(microbenchmark(
 ###############
 ### convolutions and filtering
 
-# Rcpp::sourceCpp(file="C:/Develop/R/lecture_slides/assignments/roll_wsum.cpp")
+# Rcpp::sourceCpp(file="C:/Develop/lecture_slides/assignments/roll_wsum.cpp")
 library(HighFreq)
 
 weight_s <- c(1, rep(1e-5, 10))
@@ -2165,7 +2324,7 @@ summary(microbenchmark(
 library(rutils)
 
 # load new data
-load("C:/Develop/R/lecture_slides/data/sp500_2018.RData")
+load("C:/Develop/lecture_slides/data/sp500_2018.RData")
 # verify that the Close and Adjusted price columns are equal for all symbols
 sum(!unlist(eapply(env_sp500, function(x) {
   x <- unname(coredata(x))
@@ -2178,7 +2337,7 @@ env_sp500_new <- env_sp500
 
 
 # load old data
-load("C:/Develop/R/lecture_slides/data/sp500_2017.RData")
+load("C:/Develop/lecture_slides/data/sp500_2017.RData")
 # verify that the Close and Adjusted price columns are equal for all symbols
 sum(!unlist(eapply(env_sp500, function(x) {
   x <- unname(coredata(x))
@@ -2249,7 +2408,7 @@ sum(!unlist(eapply(env_sp500, function(x) {
   all.equal(x[, 4], x[, 6])
 })))
 
-save(env_sp500, file="C:/Develop/R/lecture_slides/data/sp500.RData")
+save(env_sp500, file="C:/Develop/lecture_slides/data/sp500.RData")
 
 
 

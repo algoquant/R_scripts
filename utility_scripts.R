@@ -4,7 +4,7 @@
 
 ###############
 # Get all file names with *.Rnw in the lecture_slides directory
-file_names <- Sys.glob("C:/Develop/R/lecture_slides/*.Rnw")
+file_names <- Sys.glob("C:/Develop/lecture_slides/*.Rnw")
 # Get all *.Rnw files in the lecture_slides directory, except those that contain "FRE"
 file_names <- file_names[-grep("FRE", file_names)]
 
@@ -13,7 +13,7 @@ file_names <- file_names[-grep("FRE", file_names)]
 ###############
 # Render *.Rnw files into *.pdf files.
 # Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
-setwd("C:/Develop/R/lecture_slides")
+setwd("C:/Develop/lecture_slides")
 sapply(file_names, knitr::knit2pdf, bib_engine="biber")
 
 
@@ -37,8 +37,8 @@ sapply(Sys.glob("*.Rmd"),
 # Read the RData file sp500.RData, and write all the time series into 
 # separate CSV files using function data.table::fwrite()
 
-dir_name <- "C:/Develop/R/lecture_slides/data/SP500/"
-load("C:/Develop/R/lecture_slides/data/sp500.RData")
+dir_name <- "C:/Develop/lecture_slides/data/SP500/"
+load("C:/Develop/lecture_slides/data/sp500.RData")
 
 dir_name <- "C:/Develop/data/"
 # Using lapply() and zoo::write.zoo()

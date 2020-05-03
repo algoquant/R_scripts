@@ -13,7 +13,7 @@ library(rutils)
 library(HighFreq)
 
 
-load("C:/Develop/R/lecture_slides/data/sp500.RData")
+load("C:/Develop/lecture_slides/data/sp500.RData")
 
 ## Calculate the percentage returns
 price_s <- eapply(env_sp500, quantmod::Cl)
@@ -63,7 +63,7 @@ save(price_s, re_turns, returns_scaled, returns_100, returns_100_scaled,
 
 ## Save the returns
 save(price_s, re_turns, returns_scaled, 
-     file="C:/Develop/R/lecture_slides/data/sp500_returns.RData")
+     file="C:/Develop/lecture_slides/data/sp500_returns.RData")
 
 
 
