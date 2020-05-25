@@ -19,15 +19,21 @@ load("C:/Develop/lecture_slides/data/sp500.RData")
 price_s <- eapply(env_sp500, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
 # carry forward and backward non-NA prices
-price_s <- zoo::na.locf(price_s)
+price_s <- zoo::na.locf(price_s, na.rm=FALSE)
 price_s <- zoo::na.locf(price_s, fromLast=TRUE)
-col_names <- unname(sapply(colnames(returns_scaled),
-              function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
+col_names <- unname(sapply(colnames(price_s),
+  function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
 colnames(price_s) <- col_names
 # Calculate percentage returns of the S&P500 constituent stocks
-re_turns <- rutils::diff_it(log(price_s))
+# Calculate percentage returns of the S&P500 constituent stocks
+# re_turns <- rutils::diff_it(log(price_s))
+# Or
+# re_turns <- lapply(price_s, function(x)
+#   rutils::diff_it(x)/rutils::lag_it(x))
+# re_turns <- rutils::do_call(cbind, re_turns)
+re_turns <- rutils::diff_it(price_s)/rutils::lag_it(price_s)
 set.seed(1121)
-sam_ple <- sample(1:NCOL(re_turns), 100)
+sam_ple <- sample(NCOL(re_turns), s=100, replace=FALSE)
 returns_100 <- re_turns[, sam_ple]
 
 ## Calculate scaled returns using price range
@@ -44,14 +50,14 @@ returns_scaled <- eapply(env_sp500, function(oh_lc) {
   # re_turns <- ifelse(rang_e>0, re_turns/rang_e, 0)
   re_turns <- re_turns/rang_e
   # re_turns[is.na(re_turns)] <- 0
-  zoo::na.locf(re_turns)
+  zoo::na.locf(re_turns, na.rm=FALSE)
 })  # end eapply
 
 returns_scaled <- rutils::do_call(cbind, returns_scaled)
 returns_scaled[is.na(returns_scaled)] <- 0
 sum(is.na(returns_scaled))
 sum(!is.finite(returns_scaled))
-# returns_scaled <- zoo::na.locf(returns_scaled)
+# returns_scaled <- zoo::na.locf(returns_scaled, na.rm=FALSE)
 # returns_scaled <- zoo::na.locf(returns_scaled, fromLast=TRUE)
 colnames(returns_scaled) <- col_names
 
