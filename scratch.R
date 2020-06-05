@@ -1,4 +1,104 @@
 ##############
+# Rolling portfolio optimization strategies
+# Code from app_roll_trend_vol_scaled.R
+
+# load packages
+library(HighFreq)
+
+# Best parameters
+# typ_e max_sharpe  min_var
+# inter_val weeks  weeks
+# look_back	4 4
+# max_eigen	9 9
+# al_pha	0.01 0.01
+
+# sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU", "SVXY", "VXX")
+sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU")
+
+n_weights <- NROW(sym_bols)
+re_turns <- rutils::etf_env$re_turns[, sym_bols]
+# Calculate the first non-NA values and their positions.
+first_non_na <- sapply(re_turns, function(x_ts) {
+  match(TRUE, !is.na(x_ts))
+})  # end sapply
+# Select rows containing at least 3 non-NA values.
+re_turns <- re_turns[-(1:(sort(first_non_na)[7]-1))]
+# Copy over NA values with zeros
+re_turns[1, is.na(re_turns[1, ])] <- 0
+re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
+# sum(is.na(re_turns))
+
+# Define model parameters
+typ_e <- "max_sharpe"
+inter_val <- "weeks"
+look_back <- 6
+max_eigen <- 5
+al_pha <- 0.01
+pro_b <- 0.25
+co_eff <- 1
+
+
+# Define end points
+end_p <- rutils::calc_endpoints(re_turns, inter_val=inter_val)
+# end_p <- ifelse(end_p<(n_weights+1), n_weights+1, end_p)
+end_p <- end_p[end_p > 2*n_weights]
+n_rows <- NROW(end_p)
+# Define start points
+start_p <- c(rep_len(1, look_back-1), end_p[1:(n_rows-look_back+1)])
+
+# Run the model
+pnl_s <- HighFreq::back_test(ex_cess=re_turns, 
+                             re_turns=re_turns,
+                             start_points=start_p-1,
+                             end_points=end_p-1,
+                             pro_b=pro_b,
+                             max_eigen=max_eigen, 
+                             al_pha=al_pha, 
+                             typ_e=typ_e,
+                             co_eff=co_eff)
+
+pnl_s[which(is.na(pnl_s)), ] <- 0
+pnl_s <- cumsum(pnl_s)
+pnl_s <- xts::xts(pnl_s, zoo::index(re_turns))
+dygraphs::dygraph(pnl_s)
+# plot(pnl_s, t="l")
+# pnl_s <- cumprod(1 + pnl_s)
+pnl_s <- cbind(pnl_s, in_dex)
+colnames(pnl_s) <- c("Strategy", "Index")
+
+
+weight_s <- HighFreq::calc_weights(re_turns=re_turns[start_p[1432]:end_p[1432], ],
+                              max_eigen=max_eigen, 
+                              pro_b=pro_b,
+                              al_pha=al_pha, 
+                              typ_e=typ_e)
+
+weight_s <- sapply(1:NROW(end_p), function(it) 
+  HighFreq::calc_weights(re_turns=re_turns[start_p[it]:end_p[it], ],
+                         max_eigen=max_eigen, 
+                         pro_b=pro_b,
+                         al_pha=al_pha, 
+                         typ_e=typ_e))
+weight_s <- t(weight_s)
+weight_s <- xts::xts(weight_s, index(re_turns)[end_p])
+weight_s <- cbind(re_turns[, 1], weight_s)
+weight_s <- weight_s[, -1]
+colnames(weight_s) <- colnames(re_turns)
+weight_s[1, is.na(weight_s[1, ])] <- 0
+weight_s <- zoo::na.locf(weight_s, na.rm=FALSE)
+weight_s <- rutils::lag_it(weight_s)
+
+zoo::plot.zoo(weight_s)
+
+bar <- rowSums(re_turns * weight_s)
+bar <- cumsum(bar)
+plot(bar, t="l")
+
+
+
+
+
+##############
 # Rolling portfolio optimization strategy in app_roll_trend.R.
 
 sym_bols <- c("VYM", "VEU", "DBC", "IEF", "IVW")
@@ -6,6 +106,8 @@ sym_bols <- c("VYM", "VEU", "DBC", "IEF", "VTI", "IWF", "IWD", "IWB")
 sym_bols <- c("XLU", "XLE", "XLK", "IWD", "VYM", "IWF", "XLI", "IEF", "VNQ", "DBC")
 # ETFs with largest Hurst using calc_hurst_hilo()
 sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU")
+sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU", "SVXY", "VXX")
+
 
 
 ##############
@@ -81,7 +183,7 @@ hurst_s <- sort(hurst_s)
 
 # Find stocks with largest Hurst before 2000
 load("C:/Develop/lecture_slides/data/sp500.RData")
-star_t <- as.Date("2000-01-01")
+star_t <- "2000-01-01"
 hurst_s <- eapply(env_sp500, function(oh_lc) {
   # oh_lc <- get(sym_bol, rutils::etf_env)
   if (start(oh_lc) < star_t) {
@@ -99,7 +201,9 @@ re_turns <- re_turns[, sym_bols]
 save(re_turns, file="C:/Develop/lecture_slides/data/sp100_rets_hurst.RData")
 
 
-# Find ETFs with largest Hurst
+
+## Find portfolio with largest Hurst
+
 # Vector of initial portfolio weights
 weight_s <- rep(1/n_weights, n_weights)
 
@@ -108,9 +212,8 @@ object_ive <- function(weight_s, re_turns, end_p) {
   -calc_hurst_rets(re_turns %*% weight_s, end_p)
 }  # end object_ive
 
-# Find portfolio with largest Hurst
-# Portfolio optimization using principal components
 
+# Portfolio optimization using principal components
 # Perform PCA
 pc_a <- prcomp(re_turns, center=TRUE, scale.=TRUE)
 # ei_gen <- eigen(cor(re_turns))
@@ -160,7 +263,7 @@ op_tim <- DEoptim::DEoptim(object_ive,
 # Stop R processes over cluster under Windows
 # stopCluster(clus_ter)
 
-# extract optimal parameters into weight_s vector
+# Extract optimal parameters into weight_s vector
 weight_s <- op_tim$optim$bestmem
 weight_s <- 0.01*weight_s/sd(rets_pca %*% weight_s)
 # weight_s <- weight_s*sd(rowMeans(rets_pca))/sd(rets_pca %*% weight_s)
@@ -183,6 +286,58 @@ dygraphs::dygraph(da_ta, main="Max Hurst vs Max Hurst DEoptim") %>%
   dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
   dySeries(name=col_names[1], axis="y", col="blue") %>%
   dySeries(name=col_names[2], axis="y2", col="red")
+
+
+
+## Calculate autocorrelations
+re_turns <- rutils::etf_env$re_turns
+re_turns[1, is.na(re_turns[1, ])] <- 0
+re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
+returns_lag <- rutils::lag_it(re_turns)
+foo <- sapply(colnames(re_turns), function(sym_bol) {
+  re_turns <- re_turns[, sym_bol]
+  mean(re_turns*returns_lag[, sym_bol])/var(re_turns)
+})  # end sapply
+foo <- sort(foo)
+
+
+## Find portfolio with largest autocorrelations
+
+# Vector of initial portfolio weights
+re_turns <- rutils::etf_env$re_turns
+sym_bols <- colnames(re_turns)
+sym_bols <- sym_bols[!(sym_bols %in% c("VXX", "SVXY", "MTUM"))]
+re_turns <- re_turns[, sym_bols]
+re_turns[1, is.na(re_turns[1, ])] <- 0
+re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
+returns_lag <- rutils::lag_it(re_turns)
+
+n_weights <- NCOL(re_turns)
+weight_s <- rep(1/n_weights, n_weights)
+
+# object_ive with shrinkage
+object_ive <- function(weight_s, re_turns, returns_lag) {
+  re_turns <- re_turns %*% weight_s
+  -drop(mean(re_turns*(returns_lag %*% weight_s))/var(re_turns))
+}  # end object_ive
+object_ive(weight_s, re_turns, returns_lag)
+
+
+op_tim <- optim(par=rep(1/n_weights, n_weights),
+                fn=object_ive,
+                re_turns=re_turns,
+                returns_lag=returns_lag,
+                method="L-BFGS-B",
+                upper=rep(10, n_weights),
+                lower=rep(-10, n_weights))
+# Optimal parameters
+weight_s <- op_tim$par
+names(weight_s) <- colnames(re_turns)
+sort(weight_s)
+# wippp
+pnl_s <- xts::xts(cumsum(re_turns %*% weight_s), zoo::index(re_turns))
+dygraphs::dygraph(pnl_s)
+
 
 
 
