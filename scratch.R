@@ -2,7 +2,7 @@
 # Rolling portfolio optimization strategies
 # Code from app_roll_trend_vol_scaled.R
 
-# load packages
+# Load packages
 library(HighFreq)
 
 # Best parameters
@@ -157,10 +157,120 @@ dygraphs::dygraph(weal_th, main="Max Hurst vs Max Hurst DEoptim") %>%
 
 
 ##############
+# Variance ratios
+
+# Find stocks with largest variance ratios
+load("C:/Develop/lecture_slides/data/sp500_returns.RData")
+sym_bols <- colnames(re_turns)
+n_weights <- NROW(sym_bols)
+lagg <- 25
+vr_s <- sapply(re_turns, function(re_turn) {
+  re_turn <- na.omit(re_turn)
+  if (NROW(re_turn) > 500)
+    calc_var(re_turn, lagg)/calc_var(re_turn)/lagg
+  else NULL
+})  # end sapply
+vr_s <- sort(unlist(vr_s), decreasing=TRUE)
+
+# Find ETFs with largest variance ratios
+re_turns <- rutils::etf_env$re_turns
+sym_bols <- colnames(re_turns)
+sym_bols <- sym_bols[!(sym_bols %in% c("VXX", "SVXY", "MTUM", "IEF"))]
+re_turns <- re_turns[, sym_bols]
+vr_s <- sapply(re_turns, function(re_turn) {
+  re_turn <- na.omit(re_turn)
+  if (NROW(re_turn) > 100)
+    calc_var(re_turn, lagg)/calc_var(re_turn)/lagg
+  else NULL
+})  # end sapply
+vr_s <- sort(unlist(vr_s), decreasing=TRUE)
+sym_bols <- names(vr_s)
+
+# Find PCAs with largest variance ratios
+re_turns[1, is.na(re_turns[1, ])] <- 0
+re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
+pc_a <- prcomp(re_turns, scale=TRUE)
+pca_rets <- xts(pc_a$x/100, order.by=index(re_turns))
+vr_s <- sapply(pca_rets, function(re_turn) {
+  re_turn <- na.omit(re_turn)
+  if (NROW(re_turn) > 100)
+    calc_var(re_turn, lagg)/calc_var(re_turn)/lagg
+  else NULL
+})  # end sapply
+vr_s <- sort(unlist(vr_s), decreasing=TRUE)
+pca_rets <- pca_rets[, names(vr_s)]
+save(pca_rets, file="C:/Develop/data/pca_rets.RData")
+x11()
+dygraphs::dygraph(cumsum(pca_rets[, "PC2"]))
+barplot(sort(pc_a$rotation[, "PC2"]))
+
+# Second PCA
+cum_sum <- cumsum(pca_rets)
+end_p <- rutils::calc_endpoints(pca_rets, inter_val=5)
+cum_sum <- cum_sum[end_p, ]
+cum_sum <- rutils::diff_it(cum_sum)
+pc_a <- prcomp(cum_sum, scale=TRUE)
+pca_rets <- xts(pc_a$x/100, order.by=index(cum_sum))
+vr_s <- sapply(pca_rets, function(re_turn) {
+  re_turn <- na.omit(re_turn)
+  if (NROW(re_turn) > 100)
+    calc_var(re_turn, lagg)/calc_var(re_turn)/lagg
+  else NULL
+})  # end sapply
+vr_s <- sort(unlist(vr_s), decreasing=TRUE)
+
+
+## optim
+object_ive <- function(weight_s, re_turns, lagg) {
+  re_turns <- (re_turns %*% weight_s)
+  -calc_var(re_turns, lagg)/calc_var(re_turns)/lagg
+}  # end object_ive
+
+sym_bols <- colnames(re_turns)
+n_weights <- NROW(sym_bols)
+op_tim <- optim(par=rep(1/n_weights, n_weights),
+                fn=object_ive,
+                re_turns=re_turns,
+                lagg=lagg,
+                method="L-BFGS-B",
+                upper=rep(10, n_weights),
+                lower=rep(-10, n_weights))
+# Optimal parameters
+weight_s <- op_tim$par
+# weight_s <- weight_s*sd(rowMeans(rets_pca))/sd(rets_pca %*% weight_s)
+names(weight_s) <- colnames(re_turns)
+object_ive(weight_s, re_turns, lagg)
+op_tim$value
+pnl_s <- cumsum(re_turns %*% weight_s)
+pnl_s <- xts::xts(pnl_s, zoo::index(re_turns))
+dygraphs::dygraph(pnl_s)
+
+
+# DEoptim
+op_tim <- DEoptim::DEoptim(object_ive, 
+                           re_turns=re_turns,
+                           lagg=lagg,
+                           upper=rep(10, n_weights),
+                           lower=rep(-10, n_weights), 
+                           control=list(trace=FALSE, itermax=500))
+
+# Extract optimal parameters into weight_s vector
+weight_s <- op_tim$optim$bestmem
+# weight_s <- weight_s*sd(rowMeans(rets_pca))/sd(rets_pca %*% weight_s)
+names(weight_s) <- colnames(re_turns)
+object_ive(weight_s, re_turns, lagg)
+pnl_s <- cumsum(re_turns %*% weight_s)
+pnl_s <- xts::xts(pnl_s, zoo::index(re_turns))
+dygraphs::dygraph(pnl_s)
+
+
+
+##############
 # Hurst stuff
 
+lagg <- 25
 oh_lc <- rutils::etf_env$VTI
-end_p <- rutils::calc_endpoints(oh_lc, 21)
+end_p <- rutils::calc_endpoints(oh_lc, lagg)
 hi_gh <- Hi(oh_lc)
 lo_w <- Lo(oh_lc)
 calc_hurst_hilo(hi_gh, lo_w, end_p)
@@ -168,18 +278,21 @@ calc_hurst_hilo(hi_gh, lo_w, end_p)
 # Find ETFs with largest Hurst
 hurst_s <- sapply(rutils::etf_env$sym_bols, function(sym_bol) {
   oh_lc <- get(sym_bol, rutils::etf_env)
-  end_p <- rutils::calc_endpoints(oh_lc, 21)
+  end_p <- rutils::calc_endpoints(oh_lc, lagg)
   hi_gh <- Hi(oh_lc)
   lo_w <- Lo(oh_lc)
   calc_hurst_hilo(hi_gh, lo_w, end_p)
 })  # end eapply
-hurst_s <- sort(hurst_s)
+hurst_s <- sort(hurst_s, decreasing=TRUE)
+
+plot(hurst_s, vr_s)
+text(x=hurst_s, y=vr_s, labels=names(vr_s))
 
 
 # Calculate Hurst from returns
-end_p <- rutils::calc_endpoints(re_turns, 21)
+end_p <- rutils::calc_endpoints(re_turns, lagg)
 hurst_s <- sapply(re_turns, calc_hurst_rets, end_p)
-hurst_s <- sort(hurst_s)
+hurst_s <- sort(hurst_s, decreasing=TRUE)
 
 # Find stocks with largest Hurst before 2000
 load("C:/Develop/lecture_slides/data/sp500.RData")
@@ -188,7 +301,7 @@ hurst_s <- eapply(env_sp500, function(oh_lc) {
   # oh_lc <- get(sym_bol, rutils::etf_env)
   if (start(oh_lc) < star_t) {
     oh_lc <- oh_lc[paste0("/", star_t)]
-    end_p <- rutils::calc_endpoints(oh_lc, 21)
+    end_p <- rutils::calc_endpoints(oh_lc, lagg)
     hi_gh <- Hi(oh_lc)
     lo_w <- Lo(oh_lc)
     calc_hurst_hilo(hi_gh, lo_w, end_p)
@@ -215,7 +328,7 @@ object_ive <- function(weight_s, re_turns, end_p) {
 
 # Portfolio optimization using principal components
 # Perform PCA
-pc_a <- prcomp(re_turns, center=TRUE, scale.=TRUE)
+pc_a <- prcomp(re_turns, center=TRUE, scale=TRUE)
 # ei_gen <- eigen(cor(re_turns))
 # all.equal(abs(pc_a$rotation), abs(ei_gen$vectors), check.attributes=FALSE)
 # Calculate principal component time series
@@ -226,6 +339,9 @@ round(cor(rets_pca), 4)
 # time series rets_pca:
 rot_inv <- solve(pc_a$rotation)
 sol_ved <- rets_pca %*% rot_inv
+
+hurst_pca <- apply(rets_pca, 2, calc_hurst_rets, end_p=end_p)
+sort(hurst_pca, decreasing=TRUE)
 
 op_tim <- optim(par=rep(1/n_weights, n_weights),
                 fn=object_ive,
@@ -269,7 +385,7 @@ weight_s <- 0.01*weight_s/sd(rets_pca %*% weight_s)
 # weight_s <- weight_s*sd(rowMeans(rets_pca))/sd(rets_pca %*% weight_s)
 names(weight_s) <- colnames(rets_pca)
 object_ive(weight_s, rets_pca, end_p)
-
+  
 
 # Plot wealth
 portf_hurst <- drop(rets_pca %*% weight_s)
@@ -278,10 +394,10 @@ portf_hurst <- xts::xts(portf_hurst, index(re_turns))
 colnames(portf_hurst) <- "max_hurst_deopt"
 weal_th <- cumsum(portf_hurst)
 # weal_th <- cumprod(1 + portf_hurst)
-da_ta <- cbind(Cl(rutils::etf_env$VTI)[index(re_turns)], weal_th)
-colnames(da_ta)[1] <- "VTI"
+da_ta <- cbind(Cl(rutils::etf_env$VEU)[index(re_turns)], weal_th)
+colnames(da_ta)[1] <- "VEU"
 col_names <- colnames(da_ta)
-dygraphs::dygraph(da_ta, main="Max Hurst vs Max Hurst DEoptim") %>%
+dygraphs::dygraph(da_ta, main="Max Hurst vs VEU") %>%
   dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
   dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
   dySeries(name=col_names[1], axis="y", col="blue") %>%
@@ -294,11 +410,11 @@ re_turns <- rutils::etf_env$re_turns
 re_turns[1, is.na(re_turns[1, ])] <- 0
 re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
 returns_lag <- rutils::lag_it(re_turns)
-foo <- sapply(colnames(re_turns), function(sym_bol) {
+auto_cor <- sapply(colnames(re_turns), function(sym_bol) {
   re_turns <- re_turns[, sym_bol]
   mean(re_turns*returns_lag[, sym_bol])/var(re_turns)
 })  # end sapply
-foo <- sort(foo)
+auto_cor <- sort(auto_cor, decreasing=TRUE)
 
 
 ## Find portfolio with largest autocorrelations
@@ -306,7 +422,7 @@ foo <- sort(foo)
 # Vector of initial portfolio weights
 re_turns <- rutils::etf_env$re_turns
 sym_bols <- colnames(re_turns)
-sym_bols <- sym_bols[!(sym_bols %in% c("VXX", "SVXY", "MTUM"))]
+sym_bols <- sym_bols[!(sym_bols %in% c("VXX", "SVXY", "MTUM", "IEF"))]
 re_turns <- re_turns[, sym_bols]
 re_turns[1, is.na(re_turns[1, ])] <- 0
 re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
@@ -333,10 +449,48 @@ op_tim <- optim(par=rep(1/n_weights, n_weights),
 # Optimal parameters
 weight_s <- op_tim$par
 names(weight_s) <- colnames(re_turns)
-sort(weight_s)
+weight_s <- sort(weight_s, decreasing=TRUE)
+object_ive(weight_s, re_turns, returns_lag)
+op_tim$value
 # wippp
 pnl_s <- xts::xts(cumsum(re_turns %*% weight_s), zoo::index(re_turns))
 dygraphs::dygraph(pnl_s)
+
+# DEoptim
+op_tim <- DEoptim::DEoptim(object_ive, 
+                           re_turns=re_turns,
+                           returns_lag=returns_lag,
+                           upper=rep(10, n_weights),
+                           lower=rep(-10, n_weights), 
+                           # cluster=clus_ter,
+                           # parVar=c("calc_hurst_rets"),
+                           control=list(trace=FALSE, itermax=500, parallelType=1))
+# Extract optimal parameters into weight_s vector
+weight_s <- op_tim$optim$bestmem
+weight_s <- 0.01*weight_s/sd(rets_pca %*% weight_s)
+# weight_s <- weight_s*sd(rowMeans(rets_pca))/sd(rets_pca %*% weight_s)
+names(weight_s) <- colnames(re_turns)
+sort(weight_s, decreasing=TRUE)
+object_ive(weight_s, re_turns, returns_lag)
+pnl_s <- xts::xts(cumsum(re_turns %*% weight_s), zoo::index(re_turns))
+dygraphs::dygraph(pnl_s)
+
+
+# Plot wealth
+portf_hurst <- drop(rets_pca %*% weight_s)
+calc_hurst_rets(portf_hurst, end_p)
+portf_hurst <- xts::xts(portf_hurst, index(re_turns))
+colnames(portf_hurst) <- "max_hurst_deopt"
+weal_th <- cumsum(portf_hurst)
+# weal_th <- cumprod(1 + portf_hurst)
+da_ta <- cbind(Cl(rutils::etf_env$VEU)[index(re_turns)], weal_th)
+colnames(da_ta)[1] <- "VEU"
+col_names <- colnames(da_ta)
+dygraphs::dygraph(da_ta, main="Max Hurst vs VEU") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", col="red")
 
 
 

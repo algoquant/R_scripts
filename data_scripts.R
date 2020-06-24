@@ -21,8 +21,7 @@ price_s <- rutils::do_call(cbind, price_s)
 # carry forward and backward non-NA prices
 price_s <- zoo::na.locf(price_s, na.rm=FALSE)
 price_s <- zoo::na.locf(price_s, fromLast=TRUE)
-col_names <- unname(sapply(colnames(price_s),
-  function(col_name) strsplit(col_name, split="[.]")[[1]][1]))
+col_names <- unname(sapply(colnames(price_s), rutils::get_name))
 colnames(price_s) <- col_names
 # Calculate percentage returns of the S&P500 constituent stocks
 # Calculate percentage returns of the S&P500 constituent stocks
@@ -31,7 +30,7 @@ colnames(price_s) <- col_names
 # re_turns <- lapply(price_s, function(x)
 #   rutils::diff_it(x)/rutils::lag_it(x))
 # re_turns <- rutils::do_call(cbind, re_turns)
-re_turns <- rutils::diff_it(price_s)/rutils::lag_it(price_s)
+re_turns <- (24*3600)*rutils::diff_it(price_s)/rutils::lag_it(price_s)/rutils::diff_it(.index(price_s))
 set.seed(1121)
 sam_ple <- sample(NCOL(re_turns), s=100, replace=FALSE)
 returns_100 <- re_turns[, sam_ple]
