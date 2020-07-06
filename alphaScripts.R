@@ -1354,7 +1354,7 @@ library(roll)
 
 # Load S&P500 constituent stock prices
 load("C:/Develop/R/lecture_slides/data/sp500.RData")
-price_s <- eapply(env_sp500, quantmod::Cl)
+price_s <- eapply(sp500_env, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
 # Remove NA values
 price_s <- zoo::na.locf(price_s, na.rm=FALSE)

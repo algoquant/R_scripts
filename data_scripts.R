@@ -2,21 +2,181 @@
 # Scripts for downloading data from external sources,
 # and for loading data from files.
 
-library(rutils)
+library(HighFreq)
 
 
 ###############
-# Load S&P500 constituent stock prices and
-# calculate the percentage daily returns scaled 
+# Download from WRDS the Compustat names table using package rWRDS
+
+devtools::install_github("davidsovich/rwrds")
+library(rwrds)
+library(dplyr)
+
+wrds_con <- rwrds::wrds_connect(username="jp3900", password="Wtinlke18")
+# Downloads Compustat names table as dplyr
+names_table <- rwrds::compustat_names(wrds=wrds_con, subset=FALSE, dl=TRUE)
+dim(names_table)
+write.csv(names_table, file="C:/Develop/data/WRDS/compustat_table.csv", row.names=FALSE)
+# rm(compustat_table)
+names_table <- read.csv(file="C:/Develop/data/WRDS/compustat_table.csv", stringsAsFactors=FALSE)
+# sym_bol <- "VTI"
+# match(sym_bol, names_table$tic)
+# Get cusips of sym_bols tickers
+in_dex <- match(sym_bols, names_table$tic)
+names(in_dex) <- sym_bols
+etf_cusips <- names_table$cusip[in_dex]
+names(etf_cusips) <- sym_bols
+# Save cusips into text file
+cat(etf_cusips, file="C:/Develop/data/WRDS/etf_cusips.txt", sep="\n")
+# Save gvkeys into text file
+etf_gvkeys <- names_table$gvkey[in_dex]
+names(etf_gvkeys) <- sym_bols
+cat(etf_gvkeys, file="C:/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
+
+
+
+###############
+# Read .csv file with S&P500 constituents
+
+sp500_table <- read.csv(file="C:/Develop/data/WRDS/sp500_constituents.csv", stringsAsFactors=FALSE)
+duplicate_s <- table(sp500_table$gvkey)
+duplicate_s <- duplicate_s[duplicate_s > 1]
+duplicate_s <- sp500_table[match(as.numeric(names(duplicate_s)), sp500_table$gvkey), ]
+# Select unique gvkeys
+sp500_gvkeys <- unique(sp500_table$gvkey)
+# foo <- sp500_table[match(sp500_gvkeys, sp500_table$gvkey), ]
+# Save gvkeys into text file
+cat(sp500_gvkeys, file="C:/Develop/data/WRDS/sp500_gvkeys.txt", sep="\n")
+# Select unique cusips and save into text file
+sp500_cusips <- unique(sp500_table$co_cusip)
+cat(sp500_cusips, file="C:/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
+# Find the rows corresponding to the sp500_cusips
+rows_cusips <- sp500_table[match(sp500_cusips, sp500_table$co_cusip), ]
+# Find the rows corresponding to duplicate gvkeys
+duplicate_s <- table(rows_cusips$gvkey)
+duplicate_s <- duplicate_s[duplicate_s > 1]
+duplicate_s <- rows_cusips[rows_cusips$gvkey %in% as.numeric(names(duplicate_s)), ]
+
+
+
+###############
+# Download EEM etf OHLC prices from WRDS to .csv file, read
+# it, and format into xts series.
+# WRDS query name EMM_OHLC
+# https://wrds-web.wharton.upenn.edu/wrds/ds/compd/secd/index.cfm
+# Column names: 
+# datadate ajexdi cshtrd  prccd  prchd  prcld prcod trfd
+# ajexdi and trfd columns are adjustment factors.
+
+# Read .csv file with EEM OHLC prices
+oh_lc <- read.csv(file="C:/Develop/data/WRDS/EEM.csv", stringsAsFactors=FALSE)
+sym_bol <- oh_lc[1, "tic"]
+# oh_lc <- oh_lc[, -c(1, 2, 4, 5)]
+# Plot adjusted close prices
+plot(oh_lc[, "prcld"]/oh_lc[, "ajexdi"]*oh_lc[, "trfd"], t="l")
+# Adjustment factor
+adj_fact <- drop(oh_lc[, c("ajexdi")])
+# Daily total return factor
+tr_fact <- drop(oh_lc[, "trfd"])
+# Extract dates index
+in_dex <- drop(oh_lc[, "datadate"])
+in_dex <- lubridate::ymd(in_dex)
+# oh_lc <- oh_lc[, -match(c("ajexdi", "trfd"), colnames(oh_lc))]
+# Select only OHLCV data
+oh_lc <- oh_lc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
+colnames(oh_lc) <- paste(sym_bol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
+# Coerce to xts series
+oh_lc <- xts::xts(oh_lc, in_dex)
+# Fill initial Open NA prices
+is_na <- is.na(oh_lc[, 1])
+oh_lc[is_na, 1] <- (oh_lc[is_na, 2] + oh_lc[is_na, 3])/2
+sum(is.na(oh_lc))
+# Adjust all the prices
+oh_lc[, 1:4] <- tr_fact*oh_lc[, 1:4]/adj_fact/tr_fact[NROW(tr_fact)]
+plot(quantmod::Cl(oh_lc))
+head(oh_lc)
+tail(oh_lc)
+
+
+
+###############
+# Define formatting function for OHLC prices 
+# download from WRDS into .csv files.
+# Output is an OHLCV xts series.
+
+format_ohlc <- function(oh_lc, environ_ment) {
+  # sym_bol <- oh_lc[1, "tic"]
+  sym_bol <- names_table$tic[match(oh_lc$gvkey[1], names_table$gvkey)]
+  # Adjustment factor
+  adj_fact <- drop(oh_lc[, c("ajexdi")])
+  # Daily total return factor
+  tr_fact <- drop(oh_lc[, "trfd"])
+  # Fill NA values
+  tr_fact <- ifelse(is.na(tr_fact), 1, tr_fact)
+  # Extract dates index
+  in_dex <- drop(oh_lc[, "datadate"])
+  in_dex <- lubridate::ymd(in_dex)
+  # Select only OHLCV data
+  oh_lc <- oh_lc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
+  colnames(oh_lc) <- paste(sym_bol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
+  # Coerce to xts series
+  oh_lc <- xts::xts(oh_lc, in_dex)
+  # Fill NA prices
+  is_na <- is.na(oh_lc[, 1])
+  oh_lc[is_na, 1] <- (oh_lc[is_na, 2] + oh_lc[is_na, 3])/2
+  # Adjust the prices
+  oh_lc[, 1:4] <- tr_fact*oh_lc[, 1:4]/adj_fact/tr_fact[NROW(tr_fact)]
+  # Copy the OHLCV data to environ_ment
+  assign(x=sym_bol, value=oh_lc, envir=environ_ment)
+  sym_bol
+}  # end format_ohlc
+
+
+# Load OHLC prices from .csv file downloaded from WRDS
+etf_prices <- read.csv(file="C:/Develop/data/WRDS/etf_prices_crsp.csv", stringsAsFactors=FALSE)
+
+# Create new data environment
+etf_env <- new.env()
+# Perform OHLC aggregations by ticker symbol column
+process_ed <- lapply(split(etf_prices, etf_prices$tic), format_ohlc, environ_ment=etf_env)
+plot(quantmod::Cl(etf_env$USO))
+# Save OHLC prices to .RData file
+save(etf_env, file="C:/Develop/lecture_slides/data/etf_data.RData")
+# Load OHLC prices from .RData file
+load("C:/Develop/lecture_slides/data/etf_data.RData")
+
+
+
+###############
+# Read .csv file with S&P500 OHLC prices
+
+# Load OHLC prices from .csv file downloaded from WRDS by gvkey
+sp500_prices <- read.csv(file="C:/Develop/data/WRDS/sp500_prices_bygvkey.csv", stringsAsFactors=FALSE)
+# Create new data environment
+sp500_env <- new.env()
+# Perform OHLC aggregations by gvkey column
+sp500_prices <- split(sp500_prices, sp500_prices$gvkey)
+process_ed <- lapply(sp500_prices, format_ohlc, environ_ment=sp500_env)
+plot(quantmod::Cl(sp500_env$MSFT))
+# Save OHLC prices to .RData file
+save(sp500_env, file="C:/Develop/lecture_slides/data/sp500.RData")
+# Load OHLC prices from .RData file
+load("C:/Develop/lecture_slides/data/sp500.RData")
+
+
+
+
+
+###############
+# Old
+# Load S&P500 constituent stock prices from .RData file
+# and calculate the percentage daily returns scaled 
 # by their intraday range.
-
-library(HighFreq)
-
 
 load("C:/Develop/lecture_slides/data/sp500.RData")
 
 ## Calculate the percentage returns
-price_s <- eapply(env_sp500, quantmod::Cl)
+price_s <- eapply(sp500_env, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
 # carry forward and backward non-NA prices
 price_s <- zoo::na.locf(price_s, na.rm=FALSE)
@@ -36,12 +196,12 @@ sam_ple <- sample(NCOL(re_turns), s=100, replace=FALSE)
 returns_100 <- re_turns[, sam_ple]
 
 ## Calculate scaled returns using price range
-returns_scaled <- eapply(env_sp500, function(oh_lc) {
+returns_scaled <- eapply(sp500_env, function(oh_lc) {
   oh_lc <- log(oh_lc)
-  # op_en <- Op(oh_lc)
-  hi_gh <- Hi(oh_lc)
-  lo_w <- Lo(oh_lc)
-  clo_se <- Cl(oh_lc)
+  # op_en <- quantmod::Op(oh_lc)
+  hi_gh <- quantmod::Hi(oh_lc)
+  lo_w <- quantmod::Lo(oh_lc)
+  clo_se <- quantmod::Cl(oh_lc)
   # Scale returns using price range
   re_turns <- rutils::diff_it(clo_se)
   rang_e <- as.numeric(hi_gh - lo_w)
@@ -215,7 +375,7 @@ for (sym_bol in rev(sym_bols)[-1]) {
     in_dex <- match(TRUE, exceed_s)
     in_dex <- zoo::index(exceed_s[in_dex])
     # Scale the prices
-    fac_tor <- as.numeric(Cl(chain_ed[in_dex])/Cl(oh_lc[in_dex]))
+    fac_tor <- as.numeric(quantmod::Cl(chain_ed[in_dex])/quantmod::Cl(oh_lc[in_dex]))
   } else {
     in_dex <- NROW(exceed_s)
     in_dex <- zoo::index(exceed_s[in_dex])

@@ -1,3 +1,74 @@
+
+get_data <- function(sym_bols,
+                     data_dir=NULL, # the directory containing csv files
+                     data_env=NULL, # the environment for writing xts into
+                     start_date="2000-01-01",
+                     end_date=Sys.Date(),
+                     date_fun=match.fun("as.Date"),
+                     for_mat="%Y-%m-%d",
+                     header=TRUE,
+                     e_cho=TRUE,
+                     scrub=TRUE, 
+                     api.key=NULL) {
+  if (is.null(data_dir)) {
+    # download prices from Tiingo
+    out_put <- quantmod::getSymbols.tiingo(sym_bols,
+                                           env = data_env,
+                                           from = start_date,
+                                           to = end_date,
+                                           adjust = TRUE, 
+                                           auto.assign = TRUE,
+                                           api.key = api.key)
+    # adjust the OHLC prices and save back to data_env
+    # out_put <- lapply(sym_bols,
+    #                   function(sym_bol) {
+    #                     assign(sym_bol,
+    #                            value=adjust_ohlc(get(sym_bol, envir=data_env)),
+    #                            envir=data_env)
+    #                     sym_bol
+    #                   }
+    # )  # end lapply
+    invisible(out_put)
+  }
+  else {
+    # load from csv files
+    file_names <- file.path(data_dir, paste0(sym_bols, ".csv"))
+    invisible(sapply(file_names, function(file_name) {
+      if (e_cho)
+        cat("Loading instrument: \t", file_name, "\n")
+      da_ta <- xts::as.xts(zoo::read.zoo(file=file_name,
+                                         header=header, sep=",",
+                                         drop=FALSE,
+                                         FUN=date_fun,
+                                         format=for_mat))
+      if (scrub) {
+        # overwrite NA values
+        da_ta <- rutils::na_locf(da_ta)
+        da_ta <- rutils::na_locf(da_ta, from_last=TRUE)
+      }  # end if
+      assign(rutils::get_name(colnames(da_ta)[1]),
+             da_ta,
+             envir=data_env)
+      file_name
+    }))  # end sapply
+  }  # end if
+}  # end get_data
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ##############
 # Rolling portfolio optimization strategies
 # Code from app_roll_trend_vol_scaled.R
@@ -297,7 +368,7 @@ hurst_s <- sort(hurst_s, decreasing=TRUE)
 # Find stocks with largest Hurst before 2000
 load("C:/Develop/lecture_slides/data/sp500.RData")
 star_t <- "2000-01-01"
-hurst_s <- eapply(env_sp500, function(oh_lc) {
+hurst_s <- eapply(sp500_env, function(oh_lc) {
   # oh_lc <- get(sym_bol, rutils::etf_env)
   if (start(oh_lc) < star_t) {
     oh_lc <- oh_lc[paste0("/", star_t)]
@@ -1184,7 +1255,7 @@ library(HighFreq)
 # Load S&P500 constituent stock prices
 load("C:/Develop/lecture_slides/data/sp500.RData")
 
-oh_lc <- log(env_sp500$SIG)
+oh_lc <- log(sp500_env$SIG)
 quantmod::chart_Series(Cl(oh_lc))
 hi_gh <- quantmod::Hi(oh_lc)
 lo_w <- quantmod::Lo(oh_lc)
@@ -1217,7 +1288,7 @@ abline(mod_el)
 
 ###
 
-# Scrub data in env_sp500
+# Scrub data in sp500_env
 
 x[is.infinite(x)] <- NA
 x <- na.locf(x)
@@ -1227,7 +1298,7 @@ x <- na.locf(x, fromLast=TRUE)
 ###
 
 
-hurst_prof <- eapply(env_sp500, function(oh_lc) {
+hurst_prof <- eapply(sp500_env, function(oh_lc) {
   end_p <- rutils::calc_endpoints(oh_lc, inter_val="years")
   if (NROW(end_p) > 3) {
     oh_lc <- log(oh_lc)
@@ -2891,28 +2962,28 @@ library(rutils)
 # load new data
 load("C:/Develop/lecture_slides/data/sp500_2018.RData")
 # verify that the Close and Adjusted price columns are equal for all symbols
-sum(!unlist(eapply(env_sp500, function(x) {
+sum(!unlist(eapply(sp500_env, function(x) {
   x <- unname(coredata(x))
   all.equal(x[, 4], x[, 6])
 })))
 # symbols_new are the new symbols
-symbols_new <- ls(env_sp500)
-# env_sp500_new is the new data
-env_sp500_new <- env_sp500
+symbols_new <- ls(sp500_env)
+# sp500_env_new is the new data
+sp500_env_new <- sp500_env
 
 
 # load old data
 load("C:/Develop/lecture_slides/data/sp500_2017.RData")
 # verify that the Close and Adjusted price columns are equal for all symbols
-sum(!unlist(eapply(env_sp500, function(x) {
+sum(!unlist(eapply(sp500_env, function(x) {
   x <- unname(coredata(x))
   all.equal(x[, 4], x[, 6])
 })))
 # symbols_old are the old symbols
-symbols_old <- ls(env_sp500)
-# env_sp500_old is the old data
-env_sp500_old <- env_sp500
-rm(env_sp500)
+symbols_old <- ls(sp500_env)
+# sp500_env_old is the old data
+sp500_env_old <- sp500_env
+rm(sp500_env)
 
 # find the new symbols that are not in the old symbols
 is_in <- symbols_new %in% symbols_old
@@ -2925,20 +2996,20 @@ sym_bols <- symbols_old[is_in]
 symbols_old[!is_in]
 
 # create a new environment to store the updated data
-env_sp500 <- new.env()
-# copy the old symbols that are also in the new symbols from env_sp500_old to env_sp500
+sp500_env <- new.env()
+# copy the old symbols that are also in the new symbols from sp500_env_old to sp500_env
 # for (sym_bol in sym_bols) {
-#   assign(sym_bol, get(sym_bol, envir=env_sp500_old), envir=env_sp500)
-#   # env_sp500$sym_bol <- env_sp500_old$sym_bol
+#   assign(sym_bol, get(sym_bol, envir=sp500_env_old), envir=sp500_env)
+#   # sp500_env$sym_bol <- sp500_env_old$sym_bol
 # }  # end for
 
-# stitch the old and new data and copy it into env_sp500
+# stitch the old and new data and copy it into sp500_env
 for (sym_bol in sym_bols) {
   # get old data
-  old_data <- get(sym_bol, envir=env_sp500_old)
+  old_data <- get(sym_bol, envir=sp500_env_old)
   end_date <- end(old_data)
   # get new data
-  new_data <- get(sym_bol, envir=env_sp500_new)
+  new_data <- get(sym_bol, envir=sp500_env_new)
   # stitch the old and new data only if old is older
   if (start(old_data) < start(new_data)) {
     cl_ose <- new_data[, 4]
@@ -2962,18 +3033,18 @@ for (sym_bol in sym_bols) {
     new_data <- rbind(old_data, new_data[index(new_data)>end_date])
   }  # end if
   # copy the data
-  assign(sym_bol, new_data, envir=env_sp500)
+  assign(sym_bol, new_data, envir=sp500_env)
 }  # end for
 
 # verify that all symbols were stitched
-all.equal(sym_bols, ls(env_sp500))
+all.equal(sym_bols, ls(sp500_env))
 # verify that the Close and Adjusted price columns are equal for all symbols
-sum(!unlist(eapply(env_sp500, function(x) {
+sum(!unlist(eapply(sp500_env, function(x) {
   x <- unname(coredata(x))
   all.equal(x[, 4], x[, 6])
 })))
 
-save(env_sp500, file="C:/Develop/lecture_slides/data/sp500.RData")
+save(sp500_env, file="C:/Develop/lecture_slides/data/sp500.RData")
 
 
 

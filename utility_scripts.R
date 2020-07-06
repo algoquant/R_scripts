@@ -50,15 +50,15 @@ file_names <- lapply(ls(etf_env), function(sym_bol) {
 unlist(file_names)
 
 # Or using lapply() and data.table::fwrite()
-file_names <- lapply(ls(env_sp500), function(sym_bol) {
-  x_ts <- get(sym_bol, envir=env_sp500)
+file_names <- lapply(ls(sp500_env), function(sym_bol) {
+  x_ts <- get(sym_bol, envir=sp500_env)
   data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, sym_bol, ".csv"))
   sym_bol
 })  # end eapply
 names(file_names)
 
 # Or using eapply() and data.table::fwrite()
-file_names <- eapply(env_sp500, function(x_ts) {
+file_names <- eapply(sp500_env, function(x_ts) {
   file_name <- rutils::get_name(colnames(x_ts)[1])
   data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
   file_name
@@ -66,7 +66,7 @@ file_names <- eapply(env_sp500, function(x_ts) {
 names(file_names)
 
 # Or
-file_names <- lapply(as.list(env_sp500), function(x_ts) {
+file_names <- lapply(as.list(sp500_env), function(x_ts) {
   file_name <- rutils::get_name(colnames(x_ts)[1])
   data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
   file_name
