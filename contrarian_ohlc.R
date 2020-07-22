@@ -5,12 +5,12 @@
 # gains or losses, and if also the prices close at the 
 # highs or lows, then it's best to reverse the strong trend.
 
-library(rutils)
+library(HighFreq)
 
 # Compile Rcpp functions.
-# The function roll_count() counts the number of 
+# The function HighFreq::roll_count() counts the number of 
 # consecutive TRUE elements in a Boolean vector.
-Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/lm_arma.cpp")
+# Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/lm_arma.cpp")
 
 # Load the 5-second ES futures bar data collected from IB.
 data_dir <- "C:/Develop/data/ib_data/"
@@ -38,16 +38,16 @@ pacf(re_turns)
 ## Calculate technical indicators.
 # Select only those bars where there was a change in prices
 high_low <- (hi_gh > lo_w)
-returns_pos_count <- drop(roll_count(re_turns > 0))
-returns_neg_count <- drop(roll_count(re_turns < 0))
+returns_pos_count <- drop(HighFreq::roll_count(re_turns > 0))
+returns_neg_count <- drop(HighFreq::roll_count(re_turns < 0))
 open_high <- (op_en == hi_gh) & high_low
-open_high_count <- drop(roll_count(open_high))
+open_high_count <- drop(HighFreq::roll_count(open_high))
 open_low <- (op_en == lo_w) & high_low
-open_low_count <- drop(roll_count(open_low))
+open_low_count <- drop(HighFreq::roll_count(open_low))
 close_high <- (clo_se == hi_gh) & high_low
-close_high_count <- drop(roll_count(close_high))
+close_high_count <- drop(HighFreq::roll_count(close_high))
 close_low <- (clo_se == lo_w) & high_low
-close_low_count <- drop(roll_count(close_low))
+close_low_count <- drop(HighFreq::roll_count(close_low))
 
 
 ## Backtest strategies based on number of consecutive positive and negative returns
