@@ -139,22 +139,22 @@ backtest_ewma <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1
   re_turns <- rutils::diff_it(clo_se)
   rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
   vol_ume <- quantmod::Vo(oh_lc)
-  # Simulate strategy
+  # Calculate VWAP indicator
   v_wap <- HighFreq::roll_sum(t_series=clo_se*vol_ume, look_back=look_back)
   volume_rolling <- HighFreq::roll_sum(t_series=vol_ume, look_back=look_back)
   v_wap <- v_wap/volume_rolling
   v_wap[is.na(v_wap)] <- 0
-  # Calculate VWAP indicator
-  # indica_tor <- sign(clo_se - v_wap)
-  indica_tor <- integer(NROW(oh_lc))
-  indica_tor <- ifelse((clo_se - v_wap) > thresh_old*rang_e, 1, indica_tor)
-  indica_tor <- ifelse((clo_se - v_wap) < (-thresh_old*rang_e), -1, indica_tor)
-  indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
-  indic_sum[1:lagg] <- 0
+  # Simulate strategy
   position_s <- rep(NA_integer_, NROW(clo_se))
   position_s[1] <- 0
-  position_s <- ifelse(indic_sum == lagg, 1, position_s)
-  position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
+  # Long positions
+  indica_tor <- ((clo_se - v_wap) > thresh_old*rang_e)
+  indica_tor <- HighFreq::roll_count(indica_tor)
+  position_s <- ifelse(indica_tor >= lagg, 1, position_s)
+  # Short positions
+  indica_tor <- ((clo_se - v_wap) < (-thresh_old*rang_e))
+  indica_tor <- HighFreq::roll_count(indica_tor)
+  position_s <- ifelse(indica_tor >= lagg, -1, position_s)
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   # Lag the positions to trade in next period
   position_s <- rutils::lag_it(position_s, lagg=1)
@@ -171,23 +171,24 @@ backtest_zscores <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_ef
   clo_se <- log(quantmod::Cl(oh_lc))
   re_turns <- rutils::diff_it(clo_se)
   # rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
-  vol_ume <- quantmod::Vo(oh_lc)
+  # vol_ume <- quantmod::Vo(oh_lc)
   # Simulate strategy
   in_dex <- 1:NROW(oh_lc)
   de_sign <- matrix(in_dex, nc=1)
   sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_back)
   colnames(sig_nal) <- "sig_nal"
   sig_nal[1:look_back] <- 0
-  
-  indica_tor <- integer(NROW(oh_lc))
-  indica_tor <- ifelse(sig_nal > thresh_old, 1, indica_tor)
-  indica_tor <- ifelse(sig_nal < (-thresh_old), -1, indica_tor)
-  indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
-  indic_sum[1:lagg] <- 0
+  # Simulate strategy
   position_s <- rep(NA_integer_, NROW(clo_se))
   position_s[1] <- 0
-  position_s <- ifelse(indic_sum == lagg, 1, position_s)
-  position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
+  # Long positions
+  indica_tor <- (sig_nal > thresh_old)
+  indica_tor <- HighFreq::roll_count(indica_tor)
+  position_s <- ifelse(indica_tor >= lagg, 1, position_s)
+  # Short positions
+  indica_tor <- (sig_nal < (-thresh_old))
+  indica_tor <- HighFreq::roll_count(indica_tor)
+  position_s <- ifelse(indica_tor >= lagg, -1, position_s)
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   # Lag the positions to trade in next period
   position_s <- rutils::lag_it(position_s, lagg=1)
@@ -221,6 +222,82 @@ backtest_ewmar <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=
   colnames(da_ta) <- c("positions", "vwap", "pnls")
   return(da_ta)
 }  # end backtest_ewmar
+
+
+
+###############
+# Legacy functions for 2020 backtest for TS fund
+
+
+## Define EWMA backtest function
+backtest_ewma_ts <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
+  clo_se <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clo_se)
+  rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
+  vol_ume <- quantmod::Vo(oh_lc)
+  # Simulate strategy
+  v_wap <- HighFreq::roll_sum(t_series=clo_se*vol_ume, look_back=look_back)
+  volume_rolling <- HighFreq::roll_sum(t_series=vol_ume, look_back=look_back)
+  v_wap <- v_wap/volume_rolling
+  v_wap[is.na(v_wap)] <- 0
+  # Calculate VWAP indicator
+  # indica_tor <- sign(clo_se - v_wap)
+  indica_tor <- integer(NROW(oh_lc))
+  indica_tor <- ifelse((clo_se - v_wap) > thresh_old*rang_e, 1, indica_tor)
+  indica_tor <- ifelse((clo_se - v_wap) < (-thresh_old*rang_e), -1, indica_tor)
+  indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
+  indic_sum[1:lagg] <- 0
+  position_s <- rep(NA_integer_, NROW(clo_se))
+  position_s[1] <- 0
+  position_s <- ifelse(indic_sum == lagg, 1, position_s)
+  position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+  # Lag the positions to trade in next period
+  position_s <- rutils::lag_it(position_s, lagg=1)
+  # Return positions, vwap, and log strategy returns
+  da_ta <- cbind(positions=co_eff*position_s, vwap=v_wap, pnls=co_eff*re_turns*position_s)
+  colnames(da_ta) <- c("positions", "vwap", "pnls")
+  return(da_ta)
+}  # end backtest_ewma_ts
+
+
+
+## Define Z-Score backtest function
+backtest_zscores_ts <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
+  clo_se <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clo_se)
+  # rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
+  # vol_ume <- quantmod::Vo(oh_lc)
+  # Simulate strategy
+  in_dex <- 1:NROW(oh_lc)
+  de_sign <- matrix(in_dex, nc=1)
+  sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_back)
+  colnames(sig_nal) <- "sig_nal"
+  sig_nal[1:look_back] <- 0
+  
+  indica_tor <- integer(NROW(oh_lc))
+  indica_tor <- ifelse(sig_nal > thresh_old, 1, indica_tor)
+  indica_tor <- ifelse(sig_nal < (-thresh_old), -1, indica_tor)
+  indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
+  indic_sum[1:lagg] <- 0
+  position_s <- rep(NA_integer_, NROW(clo_se))
+  position_s[1] <- 0
+  position_s <- ifelse(indic_sum == lagg, 1, position_s)
+  position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+  # Lag the positions to trade in next period
+  position_s <- rutils::lag_it(position_s, lagg=1)
+  # Return positions and log strategy returns
+  da_ta <- cbind(positions=co_eff*position_s, pnls=co_eff*re_turns*position_s)
+  colnames(da_ta) <- c("positions", "pnls")
+  return(da_ta)
+}  # end backtest_zscores_ts
+
+
+
+
+
+
 
 
 

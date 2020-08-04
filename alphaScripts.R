@@ -340,8 +340,547 @@ assign(sym_bol_rets, da_ta)
 ########### end temp ###########
 
 
+
+##############
+# TAQ high frequency trading strategies
+
+# Load packages
+library(HighFreq)
+library(TAQMNGR)
+
+file_name <- "aapl_tick_trades_2020_07_20"
+# ta_q <- TAQMNGR::TAQ.Read(file="C:/Develop/data/aapl_tick_trades_2020_07_20.csv")
+# ta_q <- read.csv(file="C:/Develop/data/aapl_tick_trades_2020_07_20.csv", stringsAsFactors=FALSE)
+# ta_q <- data.table::fread(file=paste0("C:/Develop/data/", file_name, ".csv"), stringsAsFactors=FALSE)
+load(file=paste0("C:/Develop/data/", file_name, ".RData"))
+# ta_q$TIME_M[(NROW(ta_q)-3e4):(NROW(ta_q)-3e4+10)]
+# plot(ta_q$PRICE[3e4:(NROW(ta_q)-3e4)], t="l")
+# da_ta <- ta_q[3e4:(NROW(ta_q)-3e4), c("SIZE", "PRICE")]
+
+# Select only the large lots greater than 100
+ta_q <- ta_q[ta_q$SIZE > 100]
+
+sym_bol <- ta_q$SYM_ROOT[1]
+look_back <- 252
+lagg <- 2
+thresh_old <- 0.3
+co_eff <- (-1)
+clo_se <- matrix(ta_q$PRICE, nc=1)
+vol_ume <- matrix(ta_q$SIZE, nc=1)
+re_turns <- rutils::diff_it(clo_se)
+
+# Calculate VWAP indicator
+v_wap <- HighFreq::roll_sum(t_series=clo_se*vol_ume, look_back=look_back)
+volume_rolling <- HighFreq::roll_sum(t_series=vol_ume, look_back=look_back)
+v_wap <- v_wap/volume_rolling
+v_wap[is.na(v_wap)] <- 0
+# hist((clo_se - v_wap), breaks=100, xlim=c(-0.3, 0.3))
+# Simulate strategy
+position_s <- rep(NA_integer_, NROW(clo_se))
+position_s[1] <- 0
+# Long positions
+indica_tor <- ((clo_se - v_wap) > thresh_old*rang_e)
+indica_tor <- HighFreq::roll_count(indica_tor)
+position_s <- ifelse(indica_tor >= lagg, 1, position_s)
+# Short positions
+indica_tor <- ((clo_se - v_wap) < (-thresh_old*rang_e))
+indica_tor <- HighFreq::roll_count(indica_tor)
+position_s <- ifelse(indica_tor >= lagg, -1, position_s)
+position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+# Lag the positions to trade in next period
+position_s <- rutils::lag_it(position_s, lagg=1)
+pnl_s <- cumsum(co_eff*re_turns*position_s)
+# plot(pnl_s, t="l")
+
+# Create date-time index
+in_dex <- paste(ta_q$DATE, ta_q$TIME_M)
+in_dex <- strptime(in_dex, "%Y%m%d %H:%M:%OS")
+in_dex <- as.POSIXct(in_dex)
+# Coerce trade ticks to xts series
+ta_q <- xts::xts(cbind(ta_q$PRICE, ta_q$SIZE), in_dex)
+colnames(ta_q) <- paste(sym_bol, c("Close", "Volume"), sep=".")
+save(ta_q, file=paste0("C:/Develop/data/", file_name, "_biglots.RData"))
+
+re_turns <- xts::xts(re_turns, in_dex)
+colnames(re_turns) <- paste(sym_bol, c("returns"), sep=".")
+
+# Subset recurring time interval using "T notation"
+returns_am <- re_turns["T09:30:00/T11:00:00"]
+returns_noon <- re_turns["T11:00:00/T15:00:00"]
+returns_pm <- re_turns["T15:00:00/T16:00:00"]
+pacf(as.numeric(returns_am))
+
+# Plot pnl_s
+pnl_s <- cbind(clo_se, pnl_s, v_wap)
+pnl_s <- xts::xts(pnl_s, in_dex)
+col_names <- c(sym_bol, "strategy", "vwap")
+colnames(pnl_s) <- col_names
+da_ta <- pnl_s[rutils::calc_endpoints()]
+
+
+dygraphs::dygraph(pnl_s, main=paste(col_names[1], "Strategy")) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=col_names[3], axis="y", label=col_names[3], strokeWidth=2, col="green") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
+
+
+
+
+##############
+# Backtest of ETF trading strategies using the code 
+# in jp2sig.R and jp2sig2.R
+
+# Load packages
+library(HighFreq)
+
+# Source the backtest functions
+source("C:/Develop/R/scripts/backtest_functions.R")
+
+
+## Define data
+look_back <- 5
+lagg <- 2
+co_eff <- (-1)
+thresh_old <- 0.0
+data_env <- rutils::etf_env
+sym_bols <- get("sym_bols", data_env)
+sym_bols <- sym_bols[!(sym_bols %in% c("VXX", "SVXY", "MTUM"))]
+sym_bol <- "VTI"
+oh_lc <- get(sym_bol, data_env)
+clo_se <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clo_se)
+
+pnl_s <- backtest_ewma(get(sym_bol, data_env), look_back=look_back, lagg=lagg, co_eff=co_eff)
+
+## Loop over look_backs
+perf_stats <- lapply(3:5, backtest_ewma, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+pnl_s <- lapply(perf_stats, function(x) x[, "pnls"])
+pnl_s <- do.call(cbind, pnl_s)
+pnl_s <- rowMeans(pnl_s)
+mean(pnl_s)/sd(pnl_s)
+pnl_s <- xts::xts(pnl_s, index(oh_lc))
+dygraphs::dygraph(cumsum(pnl_s), main=paste("Back-test of", sym_bol, "Strategies"))
+
+
+## Calculate performance of all ETFs and save to environment
+sym_bols <- rutils::etf_env$sym_bols
+perf_stats <- lapply(sym_bols, function(sym_bol) {
+  oh_lc <- get(sym_bol, data_env)
+  backtest_ewma(oh_lc, look_back=20, lagg=1, thresh_old=0, co_eff=1)
+  # backtest_zscores(oh_lc, look_back=15, lagg=1, thresh_old=1.5, co_eff=(-1))
+})  # end lapply
+names(perf_stats) <- sym_bols
+save(perf_stats, file="C:/Develop/data/perf_ewma_trend_lback20.RData")
+load("C:/Develop/data/perf_ewma_trend_lback20.RData")
+
+# Calculate out-of-sample pnls using performance environment
+pnl_s <- lapply(perf_stats, function(x_ts) {
+  if (start(x_ts) < "2017-01-01") {
+    # Out-of-sample pnl_s
+    pnl_s <- x_ts["2010/2017" ,"pnls"]
+    mean(pnl_s)/sd(pnl_s)
+  } else NULL
+})  # end lapply
+
+# Calculate symbols of best out-of-sample pnls
+# pnl_s <- rutils::do_call(c, pnl_s)
+pnl_s <- unlist(pnl_s)
+# names(pnl_s) <- rutils::etf_env$sym_bols
+pnl_s <- sort(pnl_s, decreasing=TRUE)
+sym_bols <- names(pnl_s)
+
+
+# Calculate time series of pnls
+pnl_s <- lapply(perf_stats, function(x_ts) {
+  if (start(x_ts) < "2017-01-01") {
+    x_ts[ ,"pnls"]
+  } else NULL
+})  # end lapply
+pnl_s <- rutils::do_call(cbind, pnl_s)
+pnl_s[1, is.na(pnl_s[1, ])] <- 0
+pnl_s <- zoo::na.locf(pnl_s, na.rm=FALSE)
+sum(is.na(pnl_s))
+pnl_s <- xts::xts(rowMeans(pnl_s), index(pnl_s))
+pnl_s <- cumsum(pnl_s)
+dygraphs::dygraph(pnl_s, main="Back-test of Reverting Strategies")
+
+
+
+## Run model for single sym_bol and plot it
+
+# Get data
+sym_bol <- "MSFT"
+oh_lc <- get(sym_bol, sp500_env)["2010/"]
+clo_se <- log(quantmod::Cl(oh_lc))
+# Run model
+pnl_s <- lapply(2*(5:15), backtest_zscores, oh_lc=oh_lc, lagg=1, thresh_old=0, co_eff=(-1))
+pnl_s <- lapply(pnl_s, function(x) x[, "pnls"])
+pnl_s <- do.call(cbind, pnl_s)
+pnl_s <- rowMeans(pnl_s)
+pnl_s <- xts::xts(cumsum(pnl_s), index(oh_lc))
+# Plot it
+da_ta <- cbind(clo_se, pnl_s)
+col_names <- c(sym_bol, "Strategy")
+colnames(da_ta) <- col_names
+dygraphs::dygraph(da_ta, main=paste(col_names[1], "Strategy")) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
+
+
+
+## Run many models and plot them
+
+data_env <- sp500_env
+pnl_s <- eapply(data_env, function(oh_lc) {
+  if ((start(oh_lc) < "2015-01-01") & (end(oh_lc) > "2020-06-25")) {
+    oh_lc <- oh_lc["2010/2017"]
+    pnl_s <- lapply(2*(5:15), backtest_zscores, oh_lc=oh_lc, lagg=1, thresh_old=0, co_eff=(-1))
+    pnl_s <- lapply(pnl_s, function(x) x[, "pnls"])
+    pnl_s <- do.call(cbind, pnl_s)
+    pnl_s <- rowMeans(pnl_s)
+    pnl_s2 <- lapply(4:8, backtest_ewmar, oh_lc=oh_lc, lagg=1, co_eff=(-1))
+    pnl_s2 <- lapply(pnl_s2, function(x) x[, "pnls"])
+    pnl_s2 <- do.call(cbind, pnl_s2)
+    pnl_s2 <- rowMeans(pnl_s2)
+    pnl_s <- rowMeans(cbind(pnl_s, pnl_s2))
+    mean(pnl_s)/sd(pnl_s)
+  } else NULL
+  
+})  # end eapply
+
+pnl_s <- unlist(pnl_s)
+pnl_s <- sort(pnl_s, decreasing=TRUE)
+write.csv(pnl_s, file="C:/Develop/data/backtest_revert_combo_is.csv", row.names=TRUE)
+
+
+## Calculate performance of all sp500 stocks and save to environment
+perf_env <- new.env()
+process_ed <- eapply(sp500_env, function(oh_lc) {
+  sym_bol <- rutils::get_name(colnames(oh_lc)[1])
+  cat(sym_bol, "\n")
+  assign(x=sym_bol, 
+         value=backtest_zscores(oh_lc, look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff), 
+         envir=perf_env)
+  sym_bol
+})  # end eapply
+
+save(perf_env, file="C:/Develop/data/perf_sp500_vwap_lback20.RData")
+load("C:/Develop/data/perf_sp500_zscores_lback5.RData")
+
+
+# Calculate in-sample pnls using performance environment
+pnl_s <- eapply(perf_env, function(x_ts) {
+  if (start(x_ts) < "2017-01-01") {
+    pnl_s <- x_ts["2010/2017" ,"pnls"]
+    mean(pnl_s)/sd(pnl_s)
+  } else NULL
+})  # end eapply
+pnl_s <- unlist(pnl_s)
+pnl_s <- sort(pnl_s, decreasing=TRUE)
+sym_bols <- names(pnl_s)
+
+# Calculate out-of-sample pnls of best stocks from environment
+be_st <- lapply(sym_bols[1:20], function(sym_bol) {
+  get(sym_bol, perf_env)[, "pnls"]
+})  # end lapply
+names(be_st) <- sym_bols[1:20]
+be_st <- rutils::do_call(cbind, be_st)
+
+# Calculate reverse of pnls of worst stocks
+wo_rst <- lapply(sym_bols[(NROW(sym_bols)-19):NROW(sym_bols)], function(sym_bol) {
+  get(sym_bol, perf_env)[, "pnls"]
+})  # end lapply
+names(be_st) <- sym_bols[(NROW(sym_bols)-19):NROW(sym_bols)]
+wo_rst <- rutils::do_call(cbind, wo_rst)
+wo_rst <- (-wo_rst)
+
+# Combine everything and plot
+pnl_s <- cbind(be_st, wo_rst)
+pnl_s[1, is.na(pnl_s[1, ])] <- 0
+pnl_s <- zoo::na.locf(pnl_s, na.rm=FALSE)
+sum(is.na(pnl_s))
+pnl_s <- xts::xts(rowMeans(pnl_s), index(pnl_s))
+pnl_s <- cumsum(pnl_s)
+dygraphs::dygraph(pnl_s, main="Back-test of Reverting Strategies")
+
+
+# Calculate holding period number of trades for best stocks from environment
+period_s <- sapply(sym_bols[1:20], function(sym_bol) {
+  position_s <- get(sym_bol, perf_env)[, "positions"]
+  2*NROW(position_s) / sum(abs(rutils::diff_it(position_s)))
+})  # end sapply
+names(period_s) <- sym_bols[1:20]
+
+# Calculate holding period number of trades for worst stocks
+period_s <- sapply(sym_bols[(NROW(sym_bols)-19):NROW(sym_bols)], function(sym_bol) {
+  position_s <- get(sym_bol, perf_env)[, "positions"]
+  2*NROW(position_s) / sum(abs(rutils::diff_it(position_s)))
+})  # end sapply
+names(period_s) <- sym_bols[(NROW(sym_bols)-19):NROW(sym_bols)]
+
+
+
+## Loop over all sp500 stocks using several parameters
+perf_env <- new.env()
+process_ed <- eapply(sp500_env, function(oh_lc) {
+  sym_bol <- rutils::get_name(colnames(oh_lc)[1])
+  # cat(sym_bol, "\n")
+  pnl_s <- lapply(5:10, backtest_ewma, oh_lc=oh_lc, lagg=lagg, co_eff=co_eff)
+  pnl_s <- lapply(pnl_s, function(x) x[, "pnls"])
+  pnl_s <- do.call(cbind, pnl_s)
+  assign(x=sym_bol, 
+         value=xts::xts(rowMeans(pnl_s), index(oh_lc)), 
+         envir=perf_env)
+  sym_bol
+})  # end eapply
+
+save(perf_env, file="C:/Develop/data/perf_sp500_vwap_lback510.RData")
+load("C:/Develop/data/perf_sp500_vwap_lback510.RData")
+
+# Calculate in-sample pnls using performance environment
+pnl_s <- eapply(perf_env, function(x_ts) {
+  if (start(x_ts) < "2017-01-01") {
+    pnl_s <- x_ts["2010/2017"]
+    mean(pnl_s)/sd(pnl_s)
+  } else NULL
+})  # end eapply
+pnl_s <- unlist(pnl_s)
+pnl_s <- sort(pnl_s, decreasing=TRUE)
+sym_bols <- names(pnl_s)
+write.csv(sym_bols, file="C:/Develop/data/backtest_ewma2.csv", row.names=TRUE)
+
+# Calculate out-of-sample pnls of best stocks from environment
+be_st <- lapply(sym_bols[1:20], function(sym_bol) {
+  get(sym_bol, perf_env)
+})  # end lapply
+names(be_st) <- sym_bols[1:20]
+be_st <- rutils::do_call(cbind, be_st)
+
+# Calculate reverse of pnls of worst stocks
+wo_rst <- lapply(sym_bols[(NROW(sym_bols)-19):NROW(sym_bols)], function(sym_bol) {
+  get(sym_bol, perf_env)
+})  # end lapply
+names(be_st) <- sym_bols[(NROW(sym_bols)-19):NROW(sym_bols)]
+wo_rst <- rutils::do_call(cbind, wo_rst)
+wo_rst <- (-wo_rst)
+
+# Combine everything and plot
+pnl_s <- cbind(be_st, wo_rst)
+pnl_s[1, is.na(pnl_s[1, ])] <- 0
+pnl_s <- zoo::na.locf(pnl_s, na.rm=FALSE)
+sum(is.na(pnl_s))
+pnl_s <- xts::xts(rowMeans(pnl_s), index(pnl_s))
+pnl_s <- cumsum(pnl_s)
+dygraphs::dygraph(pnl_s, main="Back-test of Reverting Strategies")
+
+
+#############
+## Rank the S&P500 stock strategies in-sample
+# perf_env is an environment with time series of performance
+perf_stats <- eapply(perf_env, function(x_ts) {
+  if (start(x_ts) < "2010-01-01") {
+    pnl_s <- x_ts["2010/2017" ,"pnls"]
+    mean(pnl_s)/sd(pnl_s)
+  } else NULL
+})  # end eapply
+perf_stats <- unlist(perf_stats)
+perf_stats <- sort(perf_stats, decreasing=TRUE)
+sym_bols <- names(perf_stats)
+
+# Calculate the returns of S&P500 stock strategies out-of-sample
+# as a function of the number of stocks selected
+calc_perf <- function(n_stocks) {
+  # Calculate the returns of the best performing stocks
+  be_st <- lapply(sym_bols[1:n_stocks], function(sym_bol) {
+    get(sym_bol, perf_env)[, "pnls"]
+  })  # end lapply
+  be_st <- rutils::do_call(cbind, be_st)
+  # Calculate the returns of the worst performing stocks
+  wo_rst <- lapply(sym_bols[(NROW(sym_bols)-n_stocks+1):NROW(sym_bols)], function(sym_bol) {
+    get(sym_bol, perf_env)[, "pnls"]
+  })  # end lapply
+  wo_rst <- rutils::do_call(cbind, wo_rst)
+  wo_rst <- (-wo_rst)
+  pnl_s <- cbind(be_st, wo_rst)
+  pnl_s[1, is.na(pnl_s[1, ])] <- 0
+  pnl_s <- zoo::na.locf(pnl_s, na.rm=FALSE)
+  pnl_s <- pnl_s["2017/"]
+  mean(pnl_s)/sd(pnl_s)
+}  # end calc_perf
+
+pro_file <- sapply(10*(1:10), calc_perf)
+plot(x=10*(1:10), y=pro_file, t="l", main="Sharpe of Back-test EWMA Strategies", 
+     xlab="Select number", ylab="Sharpe")
+
+
+
+##############
+# Rolling portfolio optimization strategies
+# Code from app_roll_trend_vol_scaled.R
+
+# Load packages
+library(HighFreq)
+
+# Best parameters
+# typ_e max_sharpe  min_var
+# inter_val weeks  weeks
+# look_back	4 4
+# max_eigen	9 9
+# al_pha	0.01 0.01
+
+# sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU", "SVXY", "VXX")
+sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU")
+
+n_weights <- NROW(sym_bols)
+re_turns <- rutils::etf_env$re_turns[, sym_bols]
+# Calculate the first non-NA values and their positions.
+first_non_na <- sapply(re_turns, function(x_ts) {
+  match(TRUE, !is.na(x_ts))
+})  # end sapply
+# Select rows containing at least 3 non-NA values.
+re_turns <- re_turns[-(1:(sort(first_non_na)[7]-1))]
+# Copy over NA values with zeros
+re_turns[1, is.na(re_turns[1, ])] <- 0
+re_turns <- zoo::na.locf(re_turns, na.rm=FALSE)
+# sum(is.na(re_turns))
+
+# Define model parameters
+typ_e <- "max_sharpe"
+inter_val <- "weeks"
+look_back <- 6
+max_eigen <- 5
+al_pha <- 0.01
+pro_b <- 0.25
+co_eff <- 1
+
+
+# Define end points
+end_p <- rutils::calc_endpoints(re_turns, inter_val=inter_val)
+# end_p <- ifelse(end_p<(n_weights+1), n_weights+1, end_p)
+end_p <- end_p[end_p > 2*n_weights]
+n_rows <- NROW(end_p)
+# Define start points
+start_p <- c(rep_len(1, look_back-1), end_p[1:(n_rows-look_back+1)])
+
+# Run the model
+pnl_s <- HighFreq::back_test(ex_cess=re_turns, 
+                             re_turns=re_turns,
+                             start_points=start_p-1,
+                             end_points=end_p-1,
+                             pro_b=pro_b,
+                             max_eigen=max_eigen, 
+                             al_pha=al_pha, 
+                             typ_e=typ_e,
+                             co_eff=co_eff)
+
+pnl_s[which(is.na(pnl_s)), ] <- 0
+pnl_s <- cumsum(pnl_s)
+pnl_s <- xts::xts(pnl_s, zoo::index(re_turns))
+dygraphs::dygraph(pnl_s)
+# plot(pnl_s, t="l")
+# pnl_s <- cumprod(1 + pnl_s)
+pnl_s <- cbind(pnl_s, in_dex)
+colnames(pnl_s) <- c("Strategy", "Index")
+
+
+weight_s <- HighFreq::calc_weights(re_turns=re_turns[start_p[1432]:end_p[1432], ],
+                                   max_eigen=max_eigen, 
+                                   pro_b=pro_b,
+                                   al_pha=al_pha, 
+                                   typ_e=typ_e)
+
+weight_s <- sapply(1:NROW(end_p), function(it) 
+  HighFreq::calc_weights(re_turns=re_turns[start_p[it]:end_p[it], ],
+                         max_eigen=max_eigen, 
+                         pro_b=pro_b,
+                         al_pha=al_pha, 
+                         typ_e=typ_e))
+weight_s <- t(weight_s)
+weight_s <- xts::xts(weight_s, index(re_turns)[end_p])
+weight_s <- cbind(re_turns[, 1], weight_s)
+weight_s <- weight_s[, -1]
+colnames(weight_s) <- colnames(re_turns)
+weight_s[1, is.na(weight_s[1, ])] <- 0
+weight_s <- zoo::na.locf(weight_s, na.rm=FALSE)
+weight_s <- rutils::lag_it(weight_s)
+
+zoo::plot.zoo(weight_s)
+
+bar <- rowSums(re_turns * weight_s)
+bar <- cumsum(bar)
+plot(bar, t="l")
+
+
+
+
+
+##############
+# Rolling portfolio optimization strategy in app_roll_trend.R.
+
+sym_bols <- c("VYM", "VEU", "DBC", "IEF", "IVW")
+sym_bols <- c("VYM", "VEU", "DBC", "IEF", "VTI", "IWF", "IWD", "IWB")
+sym_bols <- c("XLU", "XLE", "XLK", "IWD", "VYM", "IWF", "XLI", "IEF", "VNQ", "DBC")
+# ETFs with largest Hurst using calc_hurst_hilo()
+
+# old version
+sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU")
+sym_bols <- c("IVW", "VTI", "IWF", "IWD", "IWB", "VYM", "DBC", "IEF", "VEU", "SVXY", "VXX")
+
+
+
+##############
+# Returns scaled by volume
+
+# Extract volumes
+volume_s <- lapply(sym_bols, function(sym_bol) {
+  quantmod::Vo(get(x=sym_bol, envir=rutils::etf_env))
+})  # end lapply
+volume_s <- rutils::do_call(cbind, volume_s)
+colnames(volume_s) <- sym_bols
+volume_s <- volume_s[index(re_turns)]
+volume_s[volume_s == 0] <- NA
+volume_s <- zoo::na.locf(volume_s, na.rm=FALSE)
+volume_s <- zoo::na.locf(volume_s, fromLast=TRUE)
+ex_cess <- re_turns/volume_s
+sum(is.na(ex_cess))
+sum(is.infinite(ex_cess))
+
+inter_val <- "months"
+look_back <- 6
+al_pha <- 0.7
+max_eigen <- 5
+end_p <- rutils::calc_endpoints(re_turns, inter_val="months")
+end_p <- end_p[end_p > 2*n_weights]
+n_rows <- NROW(end_p)
+start_p <- c(rep_len(1, look_back-1), end_p[1:(n_rows-look_back+1)])
+
+portf_rets <- drop(HighFreq::back_test(ex_cess=ex_cess, 
+                                       re_turns=re_turns, 
+                                       start_points=start_p-1, 
+                                       end_points=end_p-1, 
+                                       al_pha=al_pha, 
+                                       max_eigen=max_eigen))
+# Benchmark index
+in_dex <- xts(rowMeans(re_turns), index(re_turns))
+weal_th <- cbind(cumprod(1 + in_dex),
+                 cumprod(1 + portf_rets))
+colnames(weal_th) <- c("equal_weight", "roll_portf")
+col_names <- colnames(weal_th)
+dygraphs::dygraph(weal_th, main="Max Hurst vs Max Hurst DEoptim") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", col="red")
+
+
+
+
 ################
-### managing high frequency data using package HighFreq
+### Managing high frequency data using package HighFreq
 
 # Load a single day of seconds TAQ data
 sym_bol <- load("C:/Develop/data/hfreq/src/SPY/2012.02.16.SPY.RData")

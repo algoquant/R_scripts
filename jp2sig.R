@@ -26,11 +26,11 @@ re_turns <- rutils::diff_it(clo_se)
 
 
 ## Calculate the strategy performance for a single stock
-pnl_s <- backtest_ewma(get(sym_bol, sp500_env), look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+pnl_s <- backtest_ewma_ts(get(sym_bol, sp500_env), look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 
 
 ## Calculate the strategy performance for a vector of look_back parameters
-perf_stats <- lapply(3:5, backtest_ewma, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+perf_stats <- lapply(3:5, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 pnl_s <- lapply(perf_stats, function(x) x[, "pnls"])
 pnl_s <- do.call(cbind, pnl_s)
 pnl_s <- rowMeans(pnl_s)
@@ -53,7 +53,7 @@ dygraphs::dygraph(da_ta, main=paste(col_names[1], "Strategy")) %>%
 ## Rank the S&P500 stocks based on strategy returns for a vector of look_back parameters
 perf_stats <- eapply(sp500_env, function(oh_lc) {
   if (start(oh_lc) < "2017-01-01") {
-    pnl_s <- lapply(3:5, backtest_ewma, oh_lc=oh_lc["2010/"], lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+    pnl_s <- lapply(3:5, backtest_ewma_ts, oh_lc=oh_lc["2010/"], lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
     pnl_s <- lapply(pnl_s, function(x) x[, "pnls"])
     pnl_s <- do.call(cbind, pnl_s)
     pnl_s <- rowMeans(pnl_s)
@@ -64,7 +64,7 @@ perf_stats <- eapply(sp500_env, function(oh_lc) {
 perf_stats <- unlist(perf_stats)
 # names(perf_stats) <- names(sp500_env)
 perf_stats <- sort(perf_stats, decreasing=TRUE)
-write.csv(perf_stats, file="C:/Develop/data/backtest_ewma2.csv", row.names=TRUE)
+write.csv(perf_stats, file="C:/Develop/jp2sig/data/backtest_ewma2.csv", row.names=TRUE)
 
 
 
@@ -74,14 +74,14 @@ process_ed <- eapply(sp500_env, function(oh_lc) {
   sym_bol <- rutils::get_name(colnames(oh_lc)[1])
   # cat(sym_bol, "\n")
   assign(x=sym_bol, 
-         value=backtest_ewma(oh_lc, look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff), 
+         value=backtest_ewma_ts(oh_lc, look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff), 
          envir=perf_env)
   sym_bol
 })  # end eapply
 
-save(perf_env, file="C:/Develop/data/perf_ewma_trend_lback5.RData")
+save(perf_env, file="C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
 
-load("C:/Develop/data/perf_ewma_trend_lback5.RData")
+load("C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
 
 
 ## Rank the S&P500 stocks based on strategy returns
@@ -94,7 +94,7 @@ perf_stats <- sapply(perf_env, function(x_ts) {
 perf_stats <- unlist(perf_stats)
 # names(perf_stats) <- names(sp500_env)
 perf_stats <- sort(perf_stats, decreasing=TRUE)
-write.csv(perf_stats, file="C:/Develop/data/backtest_ewma.csv", row.names=TRUE)
+write.csv(perf_stats, file="C:/Develop/jp2sig/data/backtest_ewma.csv", row.names=TRUE)
 
 
 
@@ -177,7 +177,7 @@ be_st <- lapply(sym_bols[1:n_stocks], function(sym_bol) {
   in_dex <- paste(format(index(position_s)), "21:00:00")
   position_s <- cbind(in_dex, rep(sym_bol, NROW(position_s)), as.character(position_s))
   colnames(position_s) <- c("time", "TICKER", "position_dollars")
-  write.table(position_s, file="C:/Develop/jp2sig/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+  write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
   NULL
 })  # end lapply
 # Calculate the positions of the worst performing stocks
@@ -187,14 +187,14 @@ wo_rst <- lapply(sym_bols[(NROW(sym_bols)-n_stocks+1):NROW(sym_bols)], function(
   position_s <- (-position_s)
   position_s <- cbind(in_dex, rep(sym_bol, NROW(position_s)), as.character(position_s))
   colnames(position_s) <- c("time", "TICKER", "position_dollars")
-  write.table(position_s, file="C:/Develop/jp2sig/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+  write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
   NULL
 })  # end lapply
 
 
 
 
-## Z-scores strategies using backtest_zscores()
+## Z-scores strategies using backtest_zscores_ts()
 
 # Define variables
 data_env <- rutils::etf_env
@@ -211,13 +211,13 @@ re_turns <- rutils::diff_it(clo_se)
 ## Calculate the strategy performance for two vectors of look_back parameters
 # This model works well more recently
 thresh_old <- 1.5
-perf_stats <- lapply(13:16, backtest_zscores, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+perf_stats <- lapply(13:16, backtest_zscores_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 # This model also worked well in 2008
 thresh_old <- 1.0
 perf_stats <- c(perf_stats,
-                lapply(7:15, backtest_zscores, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff))
-save(perf_stats, file="C:/Develop/data/perf_zscores_revert_xlk.RData")
-load("C:/Develop/data/perf_zscores_revert_xlk.RData")
+                lapply(7:15, backtest_zscores_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff))
+save(perf_stats, file="C:/Develop/jp2sig/data/perf_zscores_revert_xlk.RData")
+load("C:/Develop/jp2sig/data/perf_zscores_revert_xlk.RData")
 # Calculate the strategy returns
 pnl_s <- lapply(perf_stats, function(x) x[, "pnls"])
 pnl_s <- do.call(cbind, pnl_s)
@@ -258,10 +258,10 @@ in_dex <- paste(format(index(position_s)), "21:00:00")
 position_s <- rowSums(position_s)
 position_s <- cbind(in_dex, rep(sym_bol, NROW(position_s)), as.character(position_s))
 colnames(position_s) <- c("time", "TICKER", "position_dollars")
-write.table(position_s, file="C:/Develop/jp2sig/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
 
 
-## Trending strategy using backtest_ewma()
+## Trending strategy using backtest_ewma_ts()
 
 # Define variables
 sym_bol <- "VXX"
@@ -274,9 +274,9 @@ clo_se <- log(quantmod::Cl(oh_lc))
 re_turns <- rutils::diff_it(clo_se)
 
 ## Calculate the strategy performance for two vectors of look_back parameters
-perf_stats <- lapply(3:5, backtest_ewma, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
-save(perf_stats, file="C:/Develop/data/perf_ewma_trend_vxx.RData")
-load("C:/Develop/data/perf_ewma_trend_vxx.RData")
+perf_stats <- lapply(3:5, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+save(perf_stats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
+load("C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
 # Calculate the strategy returns
 pnl_s <- lapply(perf_stats, function(x) x[, "pnls"])
 pnl_s <- do.call(cbind, pnl_s)
@@ -316,14 +316,14 @@ in_dex <- paste(format(index(position_s)), "21:00:00")
 position_s <- rowSums(position_s)
 position_s <- cbind(in_dex, rep(sym_bol, NROW(position_s)), as.character(position_s))
 colnames(position_s) <- c("time", "TICKER", "position_dollars")
-write.table(position_s, file="C:/Develop/jp2sig/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
 
 
 
 ## Read the strategy positions back
 
 # Read the strategy positions back
-position_s <- read.csv(file="C:/Develop/jp2sig/positions.csv", stringsAsFactors=FALSE)
+position_s <- read.csv(file="C:/Develop/jp2sig/data/positions.csv", stringsAsFactors=FALSE)
 # Split time series into daily list
 position_s <- split(position_s, position_s$TICKER)
 # cbind the list back into a time series and compare with the original
@@ -389,7 +389,7 @@ sp500_env <- sp500_env
 sym_bols <- c("PG", "CDNS", "YUM", "YUMC", "KHC", "SNPS", "ODFL", "CHRW", "AWK", "SO", "EA", "FIS", "DG", "BAX", "HRL", "MSFT", "XOM", "BSX", "JNJ", "CLX", "CL", "MCD", "WMT", "SBUX", "LLY", "ADM", "BIO", "XLNX", "ATVI", "DISH", "K", "SHW", "SIG", "CSCO", "INTU", "VRTX", "FB", "ORCL", "DUK", "KSS", "ROP", "AKAM", "MXIM", "TXN", "NEM", "COST", "EL", "JWN", "ACN", "FISV", "KLAC", "PFE", "TYL", "BIIB", "MCHP", "BBBY", "DRE", "PEP", "LIN", "NKE", "TROW", "LEN", "HOLX", "NVR", "UDR", "WEC", "DHI", "NI")
 
 pnl_s <- lapply(sym_bols, function(sym_bol) {
-  backtest_ewma(get(sym_bol, sp500_env), look_back=look_back, lagg=lagg, co_eff=co_eff)[, "pnls"]
+  backtest_ewma_ts(get(sym_bol, sp500_env), look_back=look_back, lagg=lagg, co_eff=co_eff)[, "pnls"]
 })  # end lapply
 
 pnl_s <- rutils::do_call(cbind, pnl_s)
@@ -409,14 +409,14 @@ sp500_env <- sp500_env
 sym_bols <- c("PG", "CDNS", "YUM", "YUMC", "KHC", "SNPS", "ODFL", "CHRW", "AWK", "SO", "EA", "FIS", "DG", "BAX", "HRL", "MSFT", "XOM", "BSX", "JNJ", "CLX", "CL", "MCD", "WMT", "SBUX", "LLY", "ADM", "BIO", "XLNX", "ATVI", "DISH", "K", "SHW", "SIG", "CSCO", "INTU", "VRTX", "FB", "ORCL", "DUK", "KSS", "ROP", "AKAM", "MXIM", "TXN", "NEM", "COST", "EL", "JWN", "ACN", "FISV", "KLAC", "PFE", "TYL", "BIIB", "MCHP", "BBBY", "DRE", "PEP", "LIN", "NKE", "TROW", "LEN", "HOLX", "NVR", "UDR", "WEC", "DHI", "NI")
 
 position_s <- lapply(sym_bols, function(sym_bol) {
-  backtest_ewma(get(sym_bol, sp500_env), look_back=look_back, lagg=lagg, co_eff=co_eff)[, "positions"]
+  backtest_ewma_ts(get(sym_bol, sp500_env), look_back=look_back, lagg=lagg, co_eff=co_eff)[, "positions"]
 })  # end lapply
 
 position_s <- rutils::do_call(cbind, position_s)
 names(position_s) <- sym_bols
 position_s[1, ] <- 0
 position_s <- na.locf(position_s, na.rm=FALSE)
-zoo::write.zoo(position_s, file="C:/Develop/data/positions_ewma.csv", sep=",", col.names=TRUE)
+zoo::write.zoo(position_s, file="C:/Develop/jp2sig/data/positions_ewma.csv", sep=",", col.names=TRUE)
 
 
 load(file="C:/Develop/lecture_slides/data/sp500_returns.RData")
@@ -439,7 +439,7 @@ lagg <- 1
 co_eff <- (-1)
 thresh_old <- 1
 
-pnl_s <- backtest_zscores(sp500_env$YUM["2010/"], look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+pnl_s <- backtest_zscores_ts(sp500_env$YUM["2010/"], look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 pnl_s <- pnl_s[, "pnls"]
 position_s <-  pnl_s[, "positions"]
 plot(cumsum(pnl_s))
@@ -497,7 +497,7 @@ dygraphs::dygraph(pnl_s, main="Back-test of Reverting Strategies")
 ## Calculate pnls directly
 pnl_s <- eapply(sp500_env, function(oh_lc) {
   if (start(oh_lc) < "2017-01-01") {
-    pnl_s <- backtest_zscores(oh_lc["2010/"], look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+    pnl_s <- backtest_zscores_ts(oh_lc["2010/"], look_back=look_back, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
     pnl_s <- pnl_s[, "pnls"]
     mean(pnl_s)/sd(pnl_s)
   } else NULL
@@ -505,7 +505,7 @@ pnl_s <- eapply(sp500_env, function(oh_lc) {
 
 pnl_s <- unlist(pnl_s)
 pnl_s <- sort(pnl_s, decreasing=TRUE)
-write.csv(pnl_s, file="C:/Develop/data/backtest_zscores.csv", row.names=TRUE)
+write.csv(pnl_s, file="C:/Develop/jp2sig/data/backtest_zscores.csv", row.names=TRUE)
 
 
 ## Loop over all sp500 stocks using several parameters
@@ -519,7 +519,7 @@ thresh_old <- 1
 
 pnl_s <- eapply(sp500_env, function(oh_lc) {
   if (start(oh_lc) < "2017-01-01") {
-    pnl_s <- lapply(2*(5:15), backtest_zscores, oh_lc=oh_lc["2010/"], lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
+    pnl_s <- lapply(2*(5:15), backtest_zscores_ts, oh_lc=oh_lc["2010/"], lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
     pnl_s <- lapply(pnl_s, function(x) x[, "pnls"])
     pnl_s <- do.call(cbind, pnl_s)
     pnl_s <- rowMeans(pnl_s)
@@ -530,15 +530,15 @@ pnl_s <- eapply(sp500_env, function(oh_lc) {
 pnl_s <- unlist(pnl_s)
 # names(pnl_s) <- names(sp500_env)
 pnl_s <- sort(pnl_s, decreasing=TRUE)
-write.csv(pnl_s, file="C:/Develop/data/backtest_zscores_revert.csv", row.names=TRUE)
+write.csv(pnl_s, file="C:/Develop/jp2sig/data/backtest_zscores_revert.csv", row.names=TRUE)
 
 
 
 ## Combine S&P500 symbols
 
-symbols_zscores_revert <- read.csv(file="C:/Develop/data/backtest_zscores_revert.csv", stringsAsFactors=FALSE)
-symbols_ewma_revert <- read.csv(file="C:/Develop/data/backtest_ewma_revert.csv", stringsAsFactors=FALSE)
-symbols_ewma_revertr <- read.csv(file="C:/Develop/data/backtest_ewma_revertr.csv", stringsAsFactors=FALSE)
+symbols_zscores_revert <- read.csv(file="C:/Develop/jp2sig/data/backtest_zscores_revert.csv", stringsAsFactors=FALSE)
+symbols_ewma_revert <- read.csv(file="C:/Develop/jp2sig/data/backtest_ewma_revert.csv", stringsAsFactors=FALSE)
+symbols_ewma_revertr <- read.csv(file="C:/Develop/jp2sig/data/backtest_ewma_revertr.csv", stringsAsFactors=FALSE)
 
 foo <- (symbols_zscores_revert$ticker %in% symbols_ewma_revert$ticker)
 
