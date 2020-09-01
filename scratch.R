@@ -1,3 +1,126 @@
+# Calculate VTI and XLF returns for a single month
+re_turns <- zoo::coredata(na.omit(NPE::etf_env$re_turns["2008-10/2008-11", c("VTI", "XLF")]))
+n_rows <- NROW(re_turns)
+
+sampl_e <- re_turns[sample.int(n_rows, replace = TRUE), ]
+xl_f <- sampl_e[, "XLF", drop=FALSE]
+vt_i <- sampl_e[, "VTI", drop=FALSE]
+
+cov(xl_f, vt_i)/var(vt_i)
+0.25*(NPE::calc_mad(xl_f + vt_i)^2 - NPE::calc_mad(xl_f - vt_i)^2)/NPE::calc_mad(vt_i)^2
+NPE::theilSenEstimator(vt_i, xl_f)[2]
+
+boot_data <- sapply(boot_sample, function(sampl_e) {
+  xl_f <- sampl_e[, "XLF", drop=FALSE]
+  vt_i <- sampl_e[, "VTI", drop=FALSE]
+  c(theilSen=NPE::theilSenEstimator(vt_i, xl_f)[2], 
+    robust=0.25*(NPE::calc_mad(xl_f + vt_i)^2 - NPE::calc_mad(xl_f - vt_i)^2)/NPE::calc_mad(vt_i)^2,
+    least_squares=cov(xl_f, vt_i)/var(vt_i))
+})  # end sapply
+std_errors <- apply(boot_data, MARGIN=1, function(x) 
+  c(mean=mean(x), std_error=sd(x)))
+# The ratio of std_error to mean shows that the Nonparametric skewness 
+# has the smallest standard error of all types of skewness.
+std_errors[2, ]/std_errors[1, ]
+
+
+
+##############
+# Dan Predictive high frequency trading strategies
+
+# Load packages
+library(HighFreq)
+
+# Load data with AAPL stock predictive features from csv file
+da_ta <- data.table::fread(file="C:/Develop/data/predictive/jerzy_aapl_20200720.csv", stringsAsFactors=FALSE)
+re_turns <- da_ta$price_change_plus_5min
+da_ta <- da_ta[, -"price_change_plus_5min"]
+da_ta <- as.matrix(da_ta)
+cor_vec <- drop(cor(re_turns, da_ta))
+barplot(cor_vec, main="Correlations of Features to the AAPL Returns")
+data_scaled <- scale(da_ta, center=TRUE, scale=TRUE)
+sd_data <- apply(da_ta, MARGIN=2, sd)
+mean_data <- apply(da_ta, MARGIN=2, mean)
+
+# Calculate correlation matrix
+cor_mat <- cor(data_scaled)
+# Reorder correlation matrix based on clusters
+library(corrplot)
+or_der <- corrMatOrder(cor_mat, 
+                       order="hclust", 
+                       hclust.method="complete")
+cor_mat <- cor_mat[or_der, or_der]
+# Plot the correlation matrix
+col_ors <- colorRampPalette(c("red", "white", "blue"))
+x11()
+corrplot(cor_mat, title="AAPL Features Correlation Matrix", 
+         tl.col="black", tl.cex=0.8, mar=c(0,0,1,0), 
+         method="square", col=col_ors(8), 
+         cl.offset=0.75, cl.cex=0.7, 
+         cl.align.text="l", cl.ratio=0.25)
+# Draw rectangles on the correlation matrix plot
+corrRect.hclust(cor_mat, k=NROW(cor_mat) %/% 2, 
+                method="complete", col="red")
+
+
+# Perform PCA
+pc_a <- prcomp(data_scaled, scale=FALSE)
+# Plot barplots with PCA vectors weights in multiple panels
+x11()
+n_weights <- 6
+par(mfrow=c(n_weights/2, 2))
+par(mar=c(2, 2, 2, 1), oma=c(0, 0, 0, 0))
+for (or_der in 1:n_weights) {
+  barplot(pc_a$rotation[, or_der], las=3, xlab="", ylab="", main="")
+  title(paste0("PC", or_der), line=-2.0, col.main="red")
+} # end for
+
+# Inspect principal component time series
+round(cor(pc_a$x), 4)
+plot(pc_a$x[, 1], t="l")
+
+# Calculate correlations of principal component time series and re_turns
+returns_std <- (re_turns - mean(re_turns))/sd(re_turns)
+s_d <- apply(pc_a$x, MARGIN=2, sd)
+# pca_ts <- scale(pc_a$x, center=TRUE, scale=TRUE)
+cor_vec <- cor(re_turns, pc_a$x)
+# apply(returns_std*pca_ts, MARGIN=2, sum)/NROW(returns_std)
+# Calculate weight_s equal to correlations
+weight_s <- cor_vec/s_d
+x11()
+barplot(weight_s)
+
+# Invert all the principal component time series
+inv_rotation <- solve(pc_a$rotation)
+weights_solved <- drop(weight_s %*% inv_rotation)
+weights_solved <- weights_solved/sd_data
+foo <- drop(da_ta %*% weights_solved)
+cor(re_turns, foo)
+barplot(weights_solved)
+barplot(weights_solved, main="Weights of Features in New Feature")
+
+
+# Simulate trading strategy
+position_s <- rep(NA_integer_, NROW(re_turns))
+position_s[1] <- 0
+# Long positions
+# indica_tor <- (da_ta[, feature4] + da_ta[, feature5])
+indica_tor <- (da_ta[, feature4] + da_ta[, feature5])
+position_s <- indica_tor
+# position_s <- ifelse(indica_tor >= lagg, 1, position_s)
+# Short positions
+# indica_tor <- ((clo_se - v_wap) < (-thresh_old*rang_e))
+# indica_tor <- HighFreq::roll_count(indica_tor)
+# position_s <- ifelse(indica_tor >= lagg, -1, position_s)
+# position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+# Lag the positions to trade in next period
+position_s <- rutils::lag_it(position_s, lagg=1)
+pnl_s <- cumsum(co_eff*re_turns*position_s)
+plot(pnl_s[(1e3*(1:(NROW(re_turns) %/% 1e3)))], t="l")
+
+
+
+
 ##############
 # Prototype of function get_data() for rutils
 
