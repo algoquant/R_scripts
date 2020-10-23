@@ -8,7 +8,7 @@ oh_lc <- log(rutils::etf_env$VTI)
 op_en <- Op(oh_lc)
 hi_gh <- Hi(oh_lc)
 lo_w <- Lo(oh_lc)
-clo_se <- Cl(oh_lc)
+clos_e <- Cl(oh_lc)
 vari_ance <- (hi_gh - lo_w)^2
 colnames(vari_ance) <- "variance"
 vol_at <- sqrt(vari_ance)
@@ -17,7 +17,7 @@ vol_ume <- Vo(oh_lc)
 colnames(vol_ume) <- "volume"
 
 # Define current and future returns
-re_turns <- rutils::diff_it(clo_se)
+re_turns <- rutils::diff_it(clos_e)
 colnames(re_turns) <- "returns"
 # returns_adv <- rutils::lag_it(re_turns, lagg=-1)
 # or
@@ -32,25 +32,25 @@ colnames(returns_adv) <- "returns_adv"
 # colnames(returns_adv) <- "returns_adv"
 
 # Define OHLC technical indicators
-# residuals of the regression of the time series of clo_se prices
+# residuals of the regression of the time series of clos_e prices
 date_s <- xts::.index(oh_lc)
 look_back <- 11
-z_scores <- HighFreq::roll_zscores(res_ponse=clo_se, 
+z_scores <- HighFreq::roll_zscores(res_ponse=clos_e, 
                                    de_sign=matrix(as.numeric(date_s), nc=1), 
                                    look_back=look_back)
 colnames(z_scores) <- "z_scores"
 z_scores[1:3] <- 0
-close_open <- (clo_se-op_en)
+close_open <- (clos_e-op_en)
 colnames(close_open) <- "close_open"
-close_high <- (clo_se-hi_gh)
+close_high <- (clos_e-hi_gh)
 colnames(close_high) <- "close_high"
-close_low <- (clo_se-lo_w)
+close_low <- (clos_e-lo_w)
 colnames(close_low) <- "close_low"
-# sk_ew <- ((hi_gh+lo_w) - (op_en+clo_se))
-sk_ew <- ((hi_gh+lo_w) - (op_en+clo_se))
+# sk_ew <- ((hi_gh+lo_w) - (op_en+clos_e))
+sk_ew <- ((hi_gh+lo_w) - (op_en+clos_e))
 colnames(sk_ew) <- "sk_ew"
-# moment_um <- ((clo_se-op_en) - (hi_gh-lo_w))
-moment_um <- ((clo_se-op_en) - (hi_gh-lo_w)) + 1.0
+# moment_um <- ((clos_e-op_en) - (hi_gh-lo_w))
+moment_um <- ((clos_e-op_en) - (hi_gh-lo_w)) + 1.0
 colnames(moment_um) <- "moment_um"
 
 # close_high <- (hi_gh - rutils::lag_it(hi_gh))

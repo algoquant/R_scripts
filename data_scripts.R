@@ -241,9 +241,9 @@ returns_scaled <- eapply(sp500_env, function(oh_lc) {
   # op_en <- quantmod::Op(oh_lc)
   hi_gh <- quantmod::Hi(oh_lc)
   lo_w <- quantmod::Lo(oh_lc)
-  clo_se <- quantmod::Cl(oh_lc)
+  clos_e <- quantmod::Cl(oh_lc)
   # Scale returns using price range
-  re_turns <- rutils::diff_it(clo_se)
+  re_turns <- rutils::diff_it(clos_e)
   rang_e <- as.numeric(hi_gh - lo_w)
   rang_e <- ifelse(rang_e == 0, 1, rang_e)
   # re_turns <- ifelse(rang_e>0, re_turns/rang_e, 0)
@@ -747,7 +747,7 @@ save(com_bo, file="C:/Develop/data/combined.RData")
 
 # plot dygraph
 label_s <- c("TY1.Close", "TU1.Close")
-# dygraphs::dygraph(cbind(clo_se, da_ta())["2018-02-09"], main="OHLC Technicals Strategy") %>%
+# dygraphs::dygraph(cbind(clos_e, da_ta())["2018-02-09"], main="OHLC Technicals Strategy") %>%
 dygraphs::dygraph(oh_lc[endpoints(oh_lc, on="hours"), label_s], main="OHLC Data") %>%
   dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
   dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%

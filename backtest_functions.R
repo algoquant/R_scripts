@@ -4,23 +4,23 @@
 
 
 ## Calculate signals using various methods
-calc_signal <- function(oh_lc, clo_se, de_sign, look_short, look_long=look_short, high_freq=TRUE) {
+calc_signal <- function(oh_lc, clos_e, de_sign, look_short, look_long=look_short, high_freq=TRUE) {
   # signal from t-value of trailing slope
   if (high_freq)
     # Calculate the signal as the residual of the rolling time series
-    # regressions of the clo_se prices
-    sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_short)
+    # regressions of the clos_e prices
+    sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_short)
   else {
     # signal equal to trailing average returns
     # vari_ance <- HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_long, scal_e=FALSE)
     # vari_ance[vari_ance==0] <- as.numeric(vari_ance[2])
-    # re_turns <- rutils::diff_it(clo_se, lagg=look_short)/look_short/sqrt(vari_ance)
+    # re_turns <- rutils::diff_it(clos_e, lagg=look_short)/look_short/sqrt(vari_ance)
     # re_turns <- roll::roll_scale(data=re_turns, width=look_long, min_obs=1, center=FALSE)
     # vari_ance <- roll::roll_scale(data=vari_ance, width=look_long, min_obs=1, center=FALSE)
     # sig_nal <- re_turns + vari_ance
     # signal equal to trailing average returns
-    sig_nal <- rutils::diff_it(clo_se, lagg=look_short)/sqrt(look_short)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_short, scal_e=FALSE))
-    # sig_nal <- roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_short)
+    sig_nal <- rutils::diff_it(clos_e, lagg=look_short)/sqrt(look_short)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_short, scal_e=FALSE))
+    # sig_nal <- roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_short)
   }  # end if
   sig_nal[1:look_short, ] <- 0
   # sig_nal <- HighFreq::roll_scale(mat_rix=sig_nal, look_back=look_short, use_median=TRUE)
@@ -35,10 +35,10 @@ calc_signal <- function(oh_lc, clo_se, de_sign, look_short, look_long=look_short
 
 
 ## Calculate the signal as the difference between the price minus the moving average of the price
-calc_ma <- function(oh_lc, clo_se, de_sign, look_back, high_freq=TRUE) {
+calc_ma <- function(oh_lc, clos_e, de_sign, look_back, high_freq=TRUE) {
   # signal from t-value of trailing slope
-  # sign(clo_se - HighFreq::roll_vwap(oh_lc, look_back=look_back))
-  (clo_se - HighFreq::roll_vec(clo_se, look_back=look_back)/look_back)
+  # sign(clos_e - HighFreq::roll_vwap(oh_lc, look_back=look_back))
+  (clos_e - HighFreq::roll_vec(clos_e, look_back=look_back)/look_back)
   # sig_nal[1:look_back, ] <- 0
   # sig_nal[is.na(sig_nal), ] <- 0
   # sig_nal[is.infinite(sig_nal), ] <- 0
@@ -135,24 +135,24 @@ sim_revert_trending <- function(signal_short, signal_long, re_turns, en_ter, ex_
 
 ## Define EWMA backtest function
 backtest_ewma <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
-  clo_se <- log(quantmod::Cl(oh_lc))
-  re_turns <- rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clos_e)
   rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
   vol_ume <- quantmod::Vo(oh_lc)
   # Calculate VWAP indicator
-  v_wap <- HighFreq::roll_sum(t_series=clo_se*vol_ume, look_back=look_back)
+  v_wap <- HighFreq::roll_sum(t_series=clos_e*vol_ume, look_back=look_back)
   volume_rolling <- HighFreq::roll_sum(t_series=vol_ume, look_back=look_back)
   v_wap <- v_wap/volume_rolling
   v_wap[is.na(v_wap)] <- 0
   # Simulate strategy
-  position_s <- rep(NA_integer_, NROW(clo_se))
+  position_s <- rep(NA_integer_, NROW(clos_e))
   position_s[1] <- 0
   # Long positions
-  indica_tor <- ((clo_se - v_wap) > thresh_old*rang_e)
+  indica_tor <- ((clos_e - v_wap) > thresh_old*rang_e)
   indica_tor <- HighFreq::roll_count(indica_tor)
   position_s <- ifelse(indica_tor >= lagg, 1, position_s)
   # Short positions
-  indica_tor <- ((clo_se - v_wap) < (-thresh_old*rang_e))
+  indica_tor <- ((clos_e - v_wap) < (-thresh_old*rang_e))
   indica_tor <- HighFreq::roll_count(indica_tor)
   position_s <- ifelse(indica_tor >= lagg, -1, position_s)
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
@@ -168,18 +168,18 @@ backtest_ewma <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1
 
 ## Define Z-Score backtest function
 backtest_zscores <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
-  clo_se <- log(quantmod::Cl(oh_lc))
-  re_turns <- rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clos_e)
   # rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
   # vol_ume <- quantmod::Vo(oh_lc)
   # Simulate strategy
   in_dex <- 1:NROW(oh_lc)
   de_sign <- matrix(in_dex, nc=1)
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_back)
+  sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_back)
   colnames(sig_nal) <- "sig_nal"
   sig_nal[1:look_back] <- 0
   # Simulate strategy
-  position_s <- rep(NA_integer_, NROW(clo_se))
+  position_s <- rep(NA_integer_, NROW(clos_e))
   position_s[1] <- 0
   # Long positions
   indica_tor <- (sig_nal > thresh_old)
@@ -203,8 +203,8 @@ backtest_zscores <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_ef
 
 ## Define EWMA backtest function
 backtest_ewmar <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
-  clo_se <- log(quantmod::Cl(oh_lc))
-  re_turns <- rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clos_e)
   # rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
   vol_ume <- quantmod::Vo(oh_lc)
   # Simulate strategy
@@ -213,7 +213,7 @@ backtest_ewmar <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=
   v_wap <- v_wap/volume_rolling
   v_wap[is.na(v_wap)] <- 0
   # Calculate VWAP indicator
-  # indica_tor <- sign(clo_se - v_wap)
+  # indica_tor <- sign(clos_e - v_wap)
   position_s <- sign(v_wap)
   # Lag the positions to trade in next period
   position_s <- rutils::lag_it(position_s, lagg=1)
@@ -231,23 +231,23 @@ backtest_ewmar <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=
 
 ## Define EWMA backtest function
 backtest_ewma_ts <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
-  clo_se <- log(quantmod::Cl(oh_lc))
-  re_turns <- rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clos_e)
   rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
   vol_ume <- quantmod::Vo(oh_lc)
   # Simulate strategy
-  v_wap <- HighFreq::roll_sum(t_series=clo_se*vol_ume, look_back=look_back)
+  v_wap <- HighFreq::roll_sum(t_series=clos_e*vol_ume, look_back=look_back)
   volume_rolling <- HighFreq::roll_sum(t_series=vol_ume, look_back=look_back)
   v_wap <- v_wap/volume_rolling
   v_wap[is.na(v_wap)] <- 0
   # Calculate VWAP indicator
-  # indica_tor <- sign(clo_se - v_wap)
+  # indica_tor <- sign(clos_e - v_wap)
   indica_tor <- integer(NROW(oh_lc))
-  indica_tor <- ifelse((clo_se - v_wap) > thresh_old*rang_e, 1, indica_tor)
-  indica_tor <- ifelse((clo_se - v_wap) < (-thresh_old*rang_e), -1, indica_tor)
+  indica_tor <- ifelse((clos_e - v_wap) > thresh_old*rang_e, 1, indica_tor)
+  indica_tor <- ifelse((clos_e - v_wap) < (-thresh_old*rang_e), -1, indica_tor)
   indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
   indic_sum[1:lagg] <- 0
-  position_s <- rep(NA_integer_, NROW(clo_se))
+  position_s <- rep(NA_integer_, NROW(clos_e))
   position_s[1] <- 0
   position_s <- ifelse(indic_sum == lagg, 1, position_s)
   position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
@@ -264,14 +264,14 @@ backtest_ewma_ts <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_ef
 
 ## Define Z-Score backtest function
 backtest_zscores_ts <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co_eff=1) {
-  clo_se <- log(quantmod::Cl(oh_lc))
-  re_turns <- rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  re_turns <- rutils::diff_it(clos_e)
   # rang_e <- (log(quantmod::Hi(oh_lc)) - log(quantmod::Lo(oh_lc)))
   # vol_ume <- quantmod::Vo(oh_lc)
   # Simulate strategy
   in_dex <- 1:NROW(oh_lc)
   de_sign <- matrix(in_dex, nc=1)
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clo_se, de_sign=de_sign, look_back=look_back)
+  sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_back)
   colnames(sig_nal) <- "sig_nal"
   sig_nal[1:look_back] <- 0
   
@@ -280,7 +280,7 @@ backtest_zscores_ts <- function(oh_lc, look_back=252, lagg=2, thresh_old=0.0, co
   indica_tor <- ifelse(sig_nal < (-thresh_old), -1, indica_tor)
   indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
   indic_sum[1:lagg] <- 0
-  position_s <- rep(NA_integer_, NROW(clo_se))
+  position_s <- rep(NA_integer_, NROW(clos_e))
   position_s[1] <- 0
   position_s <- ifelse(indic_sum == lagg, 1, position_s)
   position_s <- ifelse(indic_sum == (-lagg), -1, position_s)

@@ -35,7 +35,7 @@ oh_lc <- xts::xts(coredata(oh_lc), order.by=index(oh_lc), tz="America/New_York")
 in_dex <- index(oh_lc)
 n_rows <- NROW(oh_lc)
 end_points <- xts::endpoints(oh_lc, on="hours")
-clo_se <- Cl(oh_lc)[end_points]
+clos_e <- Cl(oh_lc)[end_points]
 # re_turns <- HighFreq::diff_vec(log(drop(coredata(Cl(oh_lc)))))
 # re_turns <- c(0, re_turns)
 re_turns <- log(drop(coredata(Cl(oh_lc))))
@@ -82,7 +82,7 @@ pnl_s <- cumsum(pnl_s)
 
 ## Coerce pnl_s to xts
 # pnl_s <- xts(pnl_s, in_dex)
-pnl_s <- cbind(pnl_s[end_points], clo_se)
+pnl_s <- cbind(pnl_s[end_points], clos_e)
 col_names <- c("Strategy", sym_bol)
 colnames(pnl_s) <- col_names
 

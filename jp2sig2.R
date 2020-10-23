@@ -13,7 +13,7 @@ co_eff <- 1
 
 sym_bol <- "VXX"
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 # perf_stats <- lapply(3:5, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 # save(perf_stats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
 load("C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
@@ -43,7 +43,7 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 
 sym_bol <- "SVXY"
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 # perf_stats <- lapply(4:15, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 load("C:/Develop/jp2sig/data/perf_ewma_trend_svxy.RData")
 position_s <- lapply(perf_stats, function(x_ts) {
@@ -71,7 +71,7 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 
 sym_bol <- "DBC"
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 # perf_stats <- lapply(14:17, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 load("C:/Develop/jp2sig/data/perf_ewma_trend_dbc.RData")
 position_s <- lapply(perf_stats, function(x_ts) {
@@ -99,7 +99,7 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 
 sym_bol <- "USO"
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 # perf_stats <- lapply(2:10, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 load("C:/Develop/jp2sig/data/perf_ewma_trend_uso.RData")
 position_s <- lapply(perf_stats, function(x_ts) {
@@ -129,7 +129,7 @@ sym_bol <- "XLK"
 lagg <- 1
 co_eff <- (-1)
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 # thresh_old <- 1.5
 # perf_stats <- lapply(13:16, backtest_zscores_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
 # thresh_old <- 1.0
@@ -167,7 +167,7 @@ lagg <- 1
 co_eff <- 1
 thresh_old <- 0.0
 oh_lc <- get(sym_bol, sp500_env)
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 load("C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
 
 # perf_env <- new.env()
@@ -279,8 +279,8 @@ sym_bols <- names(sp500_env)
 sym_bols <- sym_bols[sym_bols %in% symbols_strategy]
 sp500_returns <- lapply(sym_bols, function(sym_bol) {
   oh_lc <- get(sym_bol, sp500_env)
-  clo_se <- log(quantmod::Cl(oh_lc))
-  rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  rutils::diff_it(clos_e)
 })  # end lapply
 sp500_returns <- rutils::do_call(cbind, sp500_returns)
 sp500_returns <- sp500_returns[in_dex]

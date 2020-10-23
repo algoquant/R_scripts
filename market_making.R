@@ -5,7 +5,7 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   op_en <- oh_lc[, 1]
   hi_gh <- oh_lc[, 2]
   lo_w <- oh_lc[, 3]
-  clo_se <- oh_lc[, 4]
+  clos_e <- oh_lc[, 4]
   # look_back <- 111
   # weight_s <- exp(-lamb_da*1:look_back)
   # weight_s <- weight_s/sum(weight_s)
@@ -56,11 +56,11 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
 
       buy_limit <- (ohlc_lag[it, 3] - buy_spread + bia_s[it])
       # buy_limit should be no greater than previous close price
-      buy_limit <- min(clo_se[it], buy_limit)
+      buy_limit <- min(clos_e[it], buy_limit)
 
       sell_limit <- (ohlc_lag[it, 2] + sell_spread + bia_s[it])
       # sell_limit should be no less than previous close price
-      sell_limit <- max(clo_se[it], sell_limit)
+      sell_limit <- max(clos_e[it], sell_limit)
 
       # Trade in the next period - but don't trade if inventory exceeds limit
       buy_ind <- (lo_w[it+1] < buy_limit) & (inv_ent[it] < invent_limit)
@@ -72,7 +72,7 @@ make_market <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
       sell_s[it+1] <- sell_s[it] + sell_ind*sell_limit
 
       # Realized and unrealized pnls
-      mark_to_market <- (-clo_se[it+1]*inv_ent[it+1])
+      mark_to_market <- (-clos_e[it+1]*inv_ent[it+1])
       # This part takes long to run, so commented out
       # past_buys <- buy_s[match(n_sells[it], n_buys)]
       # past_sells <- sell_s[match(n_buys[it], n_sells)]
@@ -104,7 +104,7 @@ make_market_vec <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   op_en <- oh_lc[, 1]
   hi_gh <- oh_lc[, 2]
   lo_w <- oh_lc[, 3]
-  clo_se <- oh_lc[, 4]
+  clos_e <- oh_lc[, 4]
   look_back <- 111
   weight_s <- exp(-lamb_da*1:look_back)
   weight_s <- weight_s/sum(weight_s)
@@ -147,7 +147,7 @@ make_market_vec <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   sell_s <- cumsum(sell_s)
 
   # Realized and unrealized pnls
-  mark_to_market <- clo_se*(n_sells - n_buys)
+  mark_to_market <- clos_e*(n_sells - n_buys)
   past_buys <- buy_s[match(n_sells, n_buys)]
   past_sells <- sell_s[match(n_buys, n_sells)]
   re_al <- ifelse(n_buys > n_sells,
@@ -178,7 +178,7 @@ trade_median <- function(re_turns, oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   op_en <- oh_lc[, 1]
   hi_gh <- oh_lc[, 2]
   lo_w <- oh_lc[, 3]
-  clo_se <- oh_lc[, 4]
+  clos_e <- oh_lc[, 4]
   # weight_s <- exp(-lamb_da*1:look_back)
   # weight_s <- weight_s/sum(weight_s)
   # ew_ma <- HighFreq::roll_wsum(vec_tor=rutils::lag_it(oh_lc)[, 4], weight_s=rev(weight_s))
@@ -235,7 +235,7 @@ trade_median <- function(re_turns, oh_lc, ohlc_lag=rutils::lag_it(oh_lc),
   sell_s <- cumsum(sell_s)
   
   # Realized and unrealized pnls
-  mark_to_market <- clo_se*(n_sells - n_buys)
+  mark_to_market <- clos_e*(n_sells - n_buys)
   past_buys <- buy_s[match(n_sells, n_buys)]
   past_sells <- sell_s[match(n_buys, n_sells)]
   re_al <- ifelse(n_buys > n_sells,
@@ -288,7 +288,7 @@ make_market_ewma <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc), lagg,
   op_en <- oh_lc[, 1]
   hi_gh <- oh_lc[, 2]
   lo_w <- oh_lc[, 3]
-  clo_se <- oh_lc[, 4]
+  clos_e <- oh_lc[, 4]
   # look_back <- 111
   # weight_s <- exp(-lamb_da*1:look_back)
   # weight_s <- weight_s/sum(weight_s)
@@ -333,8 +333,8 @@ make_market_ewma <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc), lagg,
     #   b_spread <- buy_spread + 5
 
     ew_ma[it] <- lamb_da*oh_lc[it, 6] + (1-lamb_da)*ew_ma[max(it-1, 1)]
-    # z_score[it] <- calc_zscore(val_ue=clo_se[it],
-    #                        se_ries=clo_se[max(it-warm_up, 1):max(it-1, 1)],
+    # z_score[it] <- calc_zscore(val_ue=clos_e[it],
+    #                        se_ries=clos_e[max(it-warm_up, 1):max(it-1, 1)],
     #                        de_sign, design_inv, design_2, oo_s, oos_t, deg_free)
 
 
@@ -342,8 +342,8 @@ make_market_ewma <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc), lagg,
 
       sell_limit <- 0
       buy_limit <- 0
-      # if (clo_se[it-lagg] > ew_ma[it-lagg]) {
-      if (clo_se[it-lagg] > ew_ma[it-lagg]) {
+      # if (clos_e[it-lagg] > ew_ma[it-lagg]) {
+      if (clos_e[it-lagg] > ew_ma[it-lagg]) {
         # for limit order
         sell_limit <- (hi_gh[it] + sell_spread)
         sell_ind <- (hi_gh[it+1] > sell_limit) & (inv_ent[it] > -invent_limit)
@@ -372,7 +372,7 @@ make_market_ewma <- function(oh_lc, ohlc_lag=rutils::lag_it(oh_lc), lagg,
       inv_ent[it+1] <- (n_buys[it+1] - n_sells[it+1])
 
       # Realized and unrealized pnls
-      mark_to_market <- (-clo_se[it+1]*inv_ent[it+1])
+      mark_to_market <- (-clos_e[it+1]*inv_ent[it+1])
       # This part takes long to run, so commented out
       # past_buys <- buy_s[match(n_sells[it], n_buys)]
       # past_sells <- sell_s[match(n_buys[it], n_sells)]

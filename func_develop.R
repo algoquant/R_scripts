@@ -974,8 +974,8 @@ to_period_rolling <- function(x_ts, win_dow=10) {
 
 open_close <- function(oh_lc) {
   op_en <- Op(oh_lc)
-  clo_se <- lag.xts(Cl(oh_lc), k=-1)
-  which(!(op_en==clo_se))
+  clos_e <- lag.xts(Cl(oh_lc), k=-1)
+  which(!(op_en==clos_e))
 }  # end open_close
 
 

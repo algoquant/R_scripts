@@ -20,8 +20,8 @@ co_eff <- 1
 thresh_old <- 0.0
 
 oh_lc <- get(sym_bol, sp500_env)
-clo_se <- log(quantmod::Cl(oh_lc))
-re_turns <- rutils::diff_it(clo_se)
+clos_e <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clos_e)
 
 
 
@@ -38,8 +38,8 @@ mean(pnl_s)/sd(pnl_s)
 pnl_s <- xts::xts(pnl_s, index(oh_lc))
 # Plot it
 dygraphs::dygraph(cumsum(pnl_s), main=paste("Back-test of", sym_bol, "Strategies"))
-# Plot it with clo_se
-da_ta <- cbind(clo_se, cumsum(pnl_s))
+# Plot it with clos_e
+da_ta <- cbind(clos_e, cumsum(pnl_s))
 col_names <- c(sym_bol, "Strategy")
 colnames(da_ta) <- col_names
 dygraphs::dygraph(da_ta, main=paste(col_names[1], "Strategy")) %>%
@@ -205,8 +205,8 @@ lagg <- 1
 co_eff <- (-1)
 
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
-re_turns <- rutils::diff_it(clo_se)
+clos_e <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clos_e)
 
 ## Calculate the strategy performance for two vectors of look_back parameters
 # This model works well more recently
@@ -227,8 +227,8 @@ pnl_s <- xts::xts(pnl_s, index(oh_lc))
 # Plot it
 dygraphs::dygraph(cumsum(pnl_s), main=paste("Back-test of", sym_bol, "Strategies"))
 plot(cumsum(pnl_s), main=paste("Back-test of", sym_bol, "Strategies"))
-# Plot it with clo_se
-da_ta <- cbind(clo_se, cumsum(pnl_s))
+# Plot it with clos_e
+da_ta <- cbind(clos_e, cumsum(pnl_s))
 col_names <- c(sym_bol, "Strategy")
 colnames(da_ta) <- col_names
 dygraphs::dygraph(da_ta, main=paste(col_names[1], "Strategy")) %>%
@@ -270,8 +270,8 @@ thresh_old <- 0
 co_eff <- 1
 
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
-re_turns <- rutils::diff_it(clo_se)
+clos_e <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clos_e)
 
 ## Calculate the strategy performance for two vectors of look_back parameters
 perf_stats <- lapply(3:5, backtest_ewma_ts, oh_lc=oh_lc, lagg=lagg, thresh_old=thresh_old, co_eff=co_eff)
@@ -286,8 +286,8 @@ pnl_s <- xts::xts(pnl_s, index(oh_lc))
 # Plot it
 dygraphs::dygraph(cumsum(pnl_s), main=paste("Back-test of", sym_bol, "Strategies"))
 plot(cumsum(pnl_s), main=paste("Back-test of", sym_bol, "Strategies"))
-# Plot it with clo_se
-da_ta <- cbind(clo_se, cumsum(pnl_s))
+# Plot it with clos_e
+da_ta <- cbind(clos_e, cumsum(pnl_s))
 col_names <- c(sym_bol, "Strategy")
 colnames(da_ta) <- col_names
 dygraphs::dygraph(da_ta, main=paste(col_names[1], "Strategy")) %>%
@@ -358,8 +358,8 @@ sym_bols <- names(sp500_env)
 sym_bols <- sym_bols[sym_bols %in% symbols_strategy]
 sp500_returns <- lapply(sym_bols, function(sym_bol) {
   oh_lc <- get(sym_bol, sp500_env)
-  clo_se <- log(quantmod::Cl(oh_lc))
-  rutils::diff_it(clo_se)
+  clos_e <- log(quantmod::Cl(oh_lc))
+  rutils::diff_it(clos_e)
 })  # end lapply
 sp500_returns <- rutils::do_call(cbind, sp500_returns)
 sp500_returns <- sp500_returns[in_dex]

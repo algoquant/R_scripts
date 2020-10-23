@@ -43,8 +43,8 @@ oh_lc <- rutils::etf_env$VTI
 op_en <- quantmod::Op(oh_lc)
 hi_gh <- quantmod::Hi(oh_lc)
 lo_w <- quantmod::Lo(oh_lc)
-clo_se <- quantmod::Cl(oh_lc)
-re_turns <- rutils::diff_it(log(clo_se))
+clos_e <- quantmod::Cl(oh_lc)
+re_turns <- rutils::diff_it(log(clos_e))
 colnames(re_turns) <- "returns"
 vol_ume <- Vo(oh_lc)
 colnames(volume) <- "volume"
@@ -63,19 +63,19 @@ sig_nal[1:look_back] <- 0
 
 roll_sharpe
 
-# Residuals of the regression of the time series of clo_se prices
+# Residuals of the regression of the time series of clos_e prices
 date_s <- xts::.index(oh_lc)
 # foo <- unique(date_s)
 de_sign <- matrix(date_s, nc=1)
 # foo <- MASS::ginv(de_sign)
 look_back <- 11
-z_scores <- HighFreq::roll_zscores(res_ponse=clo_se, 
+z_scores <- HighFreq::roll_zscores(res_ponse=clos_e, 
                                    de_sign=de_sign, 
                                    look_back=look_back)
 colnames(z_scores) <- "z_scores"
 z_scores[1:3] <- 0
 
-moment_um <- ((clo_se-op_en) - (hi_gh-lo_w)) + 1.0
+moment_um <- ((clos_e-op_en) - (hi_gh-lo_w)) + 1.0
 colnames(moment_um) <- "moment_um"
 
 
@@ -365,25 +365,25 @@ look_back <- 252
 lagg <- 2
 thresh_old <- 0.3
 co_eff <- (-1)
-clo_se <- matrix(ta_q$PRICE, nc=1)
+clos_e <- matrix(ta_q$PRICE, nc=1)
 vol_ume <- matrix(ta_q$SIZE, nc=1)
-re_turns <- rutils::diff_it(clo_se)
+re_turns <- rutils::diff_it(clos_e)
 
 # Calculate VWAP indicator
-v_wap <- HighFreq::roll_sum(t_series=clo_se*vol_ume, look_back=look_back)
+v_wap <- HighFreq::roll_sum(t_series=clos_e*vol_ume, look_back=look_back)
 volume_rolling <- HighFreq::roll_sum(t_series=vol_ume, look_back=look_back)
 v_wap <- v_wap/volume_rolling
 v_wap[is.na(v_wap)] <- 0
-# hist((clo_se - v_wap), breaks=100, xlim=c(-0.3, 0.3))
+# hist((clos_e - v_wap), breaks=100, xlim=c(-0.3, 0.3))
 # Simulate strategy
-position_s <- rep(NA_integer_, NROW(clo_se))
+position_s <- rep(NA_integer_, NROW(clos_e))
 position_s[1] <- 0
 # Long positions
-indica_tor <- ((clo_se - v_wap) > thresh_old*rang_e)
+indica_tor <- ((clos_e - v_wap) > thresh_old*rang_e)
 indica_tor <- HighFreq::roll_count(indica_tor)
 position_s <- ifelse(indica_tor >= lagg, 1, position_s)
 # Short positions
-indica_tor <- ((clo_se - v_wap) < (-thresh_old*rang_e))
+indica_tor <- ((clos_e - v_wap) < (-thresh_old*rang_e))
 indica_tor <- HighFreq::roll_count(indica_tor)
 position_s <- ifelse(indica_tor >= lagg, -1, position_s)
 position_s <- zoo::na.locf(position_s, na.rm=FALSE)
@@ -411,7 +411,7 @@ returns_pm <- re_turns["T15:00:00/T16:00:00"]
 pacf(as.numeric(returns_am))
 
 # Plot pnl_s
-pnl_s <- cbind(clo_se, pnl_s, v_wap)
+pnl_s <- cbind(clos_e, pnl_s, v_wap)
 pnl_s <- xts::xts(pnl_s, in_dex)
 col_names <- c(sym_bol, "strategy", "vwap")
 colnames(pnl_s) <- col_names
@@ -449,8 +449,8 @@ sym_bols <- get("sym_bols", data_env)
 sym_bols <- sym_bols[!(sym_bols %in% c("VXX", "SVXY", "MTUM"))]
 sym_bol <- "VTI"
 oh_lc <- get(sym_bol, data_env)
-clo_se <- log(quantmod::Cl(oh_lc))
-re_turns <- rutils::diff_it(clo_se)
+clos_e <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clos_e)
 
 pnl_s <- backtest_ewma(get(sym_bol, data_env), look_back=look_back, lagg=lagg, co_eff=co_eff)
 
@@ -513,7 +513,7 @@ dygraphs::dygraph(pnl_s, main="Back-test of Reverting Strategies")
 # Get data
 sym_bol <- "MSFT"
 oh_lc <- get(sym_bol, sp500_env)["2010/"]
-clo_se <- log(quantmod::Cl(oh_lc))
+clos_e <- log(quantmod::Cl(oh_lc))
 # Run model
 pnl_s <- lapply(2*(5:15), backtest_zscores, oh_lc=oh_lc, lagg=1, thresh_old=0, co_eff=(-1))
 pnl_s <- lapply(pnl_s, function(x) x[, "pnls"])
@@ -521,7 +521,7 @@ pnl_s <- do.call(cbind, pnl_s)
 pnl_s <- rowMeans(pnl_s)
 pnl_s <- xts::xts(cumsum(pnl_s), index(oh_lc))
 # Plot it
-da_ta <- cbind(clo_se, pnl_s)
+da_ta <- cbind(clos_e, pnl_s)
 col_names <- c(sym_bol, "Strategy")
 colnames(da_ta) <- col_names
 dygraphs::dygraph(da_ta, main=paste(col_names[1], "Strategy")) %>%
@@ -918,8 +918,8 @@ lines(density(re_turns), col='red', lwd=1)  # draw density
 # quantmod::getSymbols("SPY", adjust=TRUE)
 op_en <- SPY[, 1]
 tail(op_en)
-cl_ose <- SPY[, 4]
-tail(cl_ose)
+clos_e <- SPY[, 4]
+tail(clos_e)
 
 
 ## Calculate daily price profiles after overnight gaps
@@ -927,19 +927,19 @@ tail(cl_ose)
 # Calculate daily Open and Close prices from high frequency data
 end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
 start_days <- rutils::lag_it(end_days)+1
-cl_ose <- HighFreq::SPY[end_days, 4]
-index(cl_ose) <- lubridate::floor_date(index(cl_ose), "day")
-# index(cl_ose) <- as.POSIXct(trunc(index(cl_ose), "day"))
-# index(cl_ose) <- as.POSIXct(format(index(cl_ose), format="%Y-%m-%d"))
-tail(cl_ose)
+clos_e <- HighFreq::SPY[end_days, 4]
+index(clos_e) <- lubridate::floor_date(index(clos_e), "day")
+# index(clos_e) <- as.POSIXct(trunc(index(clos_e), "day"))
+# index(clos_e) <- as.POSIXct(format(index(clos_e), format="%Y-%m-%d"))
+tail(clos_e)
 op_en <- HighFreq::SPY[start_days, 4]
 index(op_en) <- lubridate::floor_date(index(op_en), "day")
 tail(op_en)
 # Calculate daily overnight and intraday returns
-close_rets <- (cl_ose - rutils::lag_it(op_en)) / rutils::lag_it(op_en)
+close_rets <- (clos_e - rutils::lag_it(op_en)) / rutils::lag_it(op_en)
 open_rets <- (op_en - rutils::lag_it(op_en)) / rutils::lag_it(op_en)
-over_night <- (op_en - rutils::lag_it(cl_ose)) / rutils::lag_it(cl_ose)
-intra_day <- (cl_ose - op_en) / op_en
+over_night <- (op_en - rutils::lag_it(clos_e)) / rutils::lag_it(clos_e)
+intra_day <- (clos_e - op_en) / op_en
 plot.zoo(x=over_night, y=intra_day, main="intra_day versus over_night")
 plot.zoo(x=over_night[over_night<(-0.02)], y=intra_day[over_night<(-0.02)], main="intra_day versus over_night")
 mo_del <- lm(intra_day[over_night<(-0.02)] ~ over_night[over_night<(-0.02)])
@@ -961,7 +961,7 @@ over_night <- over_night/rutils::lag_it(var_daily)
 end_points <- lapply(seq_along(end_days), function(da_y) {
   start_days[da_y]:end_days[da_y]
 })  # end lapply
-names(end_points) <- index(cl_ose)
+names(end_points) <- index(clos_e)
 # Calculate daily price profiles
 price_profiles <- lapply(end_points, function(end_point) {
   da_ta <- as.numeric(HighFreq::SPY[end_point, 4])
@@ -2257,10 +2257,10 @@ summary(microbenchmark(
 
 # set up data
 oh_lc <- rutils::etf_env$VTI
-clo_se <- quantmod::Cl(oh_lc)
+clos_e <- quantmod::Cl(oh_lc)
 hi_gh <- quantmod::Hi(oh_lc)
 lo_w <- quantmod::Lo(oh_lc)
-re_turns <- clo_se - rutils::lag_it(clo_se)
+re_turns <- clos_e - rutils::lag_it(clos_e)
 returns_adv <- rutils::lag_it(re_turns, lagg=-1)
 returns_high <- hi_gh - rutils::lag_it(hi_gh)
 returns_low <- lo_w - rutils::lag_it(lo_w)
@@ -2291,7 +2291,7 @@ colnames(pnl_s) <- "strategy"
 
 # Plot
 library(dygraphs)
-dygraphs::dygraph(cbind(clo_se, pnl_s)) %>%
+dygraphs::dygraph(cbind(clos_e, pnl_s)) %>%
   dyAxis("y", label="VTI", independentTicks=TRUE) %>%
   dyAxis("y2", label="strategy", independentTicks=TRUE) %>%
   dySeries("strategy", axis="y2", col=c("red", "blue"))
@@ -2852,7 +2852,7 @@ in_dex <- index(oh_lc)
 n_row <- NROW(oh_lc)
 
 # Calculate close to close percentage returns
-cl_ose <- Cl(oh_lc)
+clos_e <- Cl(oh_lc)
 re_turns <- 60*HighFreq::run_returns(x_ts=HighFreq::SPY)
 
 # Define aggregation window and decay parameter
@@ -2861,35 +2861,35 @@ lamb_da <- 0.05
 # Calculate EWMA prices
 weight_s <- exp(-lamb_da*1:look_back)
 weight_s <- weight_s/sum(weight_s)
-ew_ma <- stats::filter(cl_ose, filter=weight_s, sides=1)
+ew_ma <- stats::filter(clos_e, filter=weight_s, sides=1)
 ew_ma[1:(look_back-1)] <- ew_ma[look_back]
 ew_ma <- xts(ew_ma, order.by=index(oh_lc))
 colnames(ew_ma) <- "VTI EWMA"
 
 # Determine dates right after EWMA has crossed prices
-in_dic <- sign(cl_ose - ew_ma[, 2])
+in_dic <- sign(clos_e - ew_ma[, 2])
 trade_dates <- (rutils::diff_it(in_dic) != 0)
 trade_dates <- which(trade_dates) + 1
 # Calculate positions, either: -1, 0, or 1
-position_s <- rep(NA_integer_, NROW(cl_ose))
+position_s <- rep(NA_integer_, NROW(clos_e))
 position_s[1] <- 0
 position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
 position_s <- na.locf(position_s, na.rm=FALSE)
 position_s <- xts(position_s, order.by=index(oh_lc))
 
-prices_lag <- rutils::lag_it(cl_ose)
+prices_lag <- rutils::lag_it(clos_e)
 position_lagged <- rutils::lag_it(position_s)
 # Calculate daily profits and losses
-re_turns <- position_lagged*(cl_ose - prices_lag)
+re_turns <- position_lagged*(clos_e - prices_lag)
 re_turns[trade_dates] <-
   position_lagged[trade_dates] *
   (op_en[trade_dates] - prices_lag[trade_dates]) +
   position_s[trade_dates] *
-  (cl_ose[trade_dates] - op_en[trade_dates])
+  (clos_e[trade_dates] - op_en[trade_dates])
 # Calculate annualized Sharpe ratio of strategy returns
 sqrt(260)*sum(re_turns)/sd(re_turns)/NROW(re_turns)
 pnl_s <- cumsum(re_turns)
-pnl_s <- cbind(cl_ose-as.numeric(cl_ose[1, ]), pnl_s)
+pnl_s <- cbind(clos_e-as.numeric(clos_e[1, ]), pnl_s)
 colnames(pnl_s) <- c("VTI", "EWMA PnL")
 
 
@@ -2898,29 +2898,29 @@ simu_ewma <- function(oh_lc, lamb_da=0.05, look_back=51) {
   # Calculate EWMA prices
   weight_s <- exp(-lamb_da*1:look_back)
   weight_s <- weight_s/sum(weight_s)
-  cl_ose <- Cl(oh_lc)
-  ew_ma <- stats::filter(as.numeric(cl_ose), filter=weight_s, sides=1)
+  clos_e <- Cl(oh_lc)
+  ew_ma <- stats::filter(as.numeric(clos_e), filter=weight_s, sides=1)
   ew_ma[1:(look_back-1)] <- ew_ma[look_back]
   # Determine dates right after EWMA has crossed prices
-  in_dic <- xts(sign(as.numeric(cl_ose) - ew_ma), order.by=index(oh_lc))
+  in_dic <- xts(sign(as.numeric(clos_e) - ew_ma), order.by=index(oh_lc))
   trade_dates <- (rutils::diff_it(in_dic) != 0)
   trade_dates <- which(trade_dates) + 1
   trade_dates <- trade_dates[trade_dates<NROW(oh_lc)]
   # Calculate positions, either: -1, 0, or 1
-  position_s <- rep(NA_integer_, NROW(cl_ose))
+  position_s <- rep(NA_integer_, NROW(clos_e))
   position_s[1] <- 0
   position_s[trade_dates] <- rutils::lag_it(in_dic)[trade_dates]
   position_s <- xts(na.locf(position_s, na.rm=FALSE), order.by=index(oh_lc))
   op_en <- Op(oh_lc)
-  prices_lag <- rutils::lag_it(cl_ose)
+  prices_lag <- rutils::lag_it(clos_e)
   position_lagged <- rutils::lag_it(position_s)
   # Calculate daily profits and losses
-  re_turns <- position_lagged*(cl_ose - prices_lag)
+  re_turns <- position_lagged*(clos_e - prices_lag)
   re_turns[trade_dates] <-
     position_lagged[trade_dates] *
     (op_en[trade_dates] - prices_lag[trade_dates]) +
     position_s[trade_dates] *
-    (cl_ose[trade_dates] - op_en[trade_dates])
+    (clos_e[trade_dates] - op_en[trade_dates])
   out_put <- cbind(position_s, re_turns)
   colnames(out_put) <- c("position_s", "re_turns")
   out_put
