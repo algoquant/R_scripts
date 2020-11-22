@@ -1,5 +1,60 @@
+###############
+# Backtest momentum Strategy
 
-##############
+# Load packages
+library(rutils)
+
+load("C:/Develop/lecture_slides/data/sp500_returns.RData")
+returns_100[1, ] <- 0
+returns_100 <- zoo::na.locf(returns_100, na.rm=FALSE)
+in_dex <- cumsum(rowMeans(returns_100))
+
+
+# Define backtest functional for daily momentum strategy
+# If tre_nd=(-1) then it backtests a mean reverting strategy
+momentum_daily <- function(re_turns, look_back=252, bid_offer=0.001, tre_nd=1, ...) {
+  stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
+  # Calculate rolling variance
+  vari_ance <- roll::roll_var(re_turns, width=look_back)
+  vari_ance <- zoo::na.locf(vari_ance, na.rm=FALSE)
+  # vari_ance[is.na(vari_ance)] <- 1
+  vari_ance[vari_ance <= 0] <- 1
+  # Calculate rolling Sharpe
+  pas_t <- roll::roll_mean(re_turns, width=look_back)
+  pas_t[1:look_back, ] <- 1
+  weight_s <- pas_t/sqrt(vari_ance)
+  # weight_s <- ifelse(vari_ance > 0, pas_t/sqrt(vari_ance), 0)
+  # weight_s[vari_ance == 0] <- 0
+  weight_s[1:look_back, ] <- 1
+  weight_s <- weight_s/sqrt(rowSums(weight_s^2))
+  weight_s[is.na(weight_s)] <- 0
+  weight_s <- rutils::lag_it(weight_s, 2)
+  # Calculate momentum profits and losses
+  fu_ture <- rutils::lag_it(pas_t, (-look_back))
+  pnl_s <- tre_nd*rowMeans(weight_s*fu_ture)
+  # Calculate transaction costs
+  cost_s <- 0.5*bid_offer*rowSums(abs(rutils::diff_it(weight_s)))
+  cumsum(pnl_s - cost_s)
+}  # end momentum_daily
+
+
+weal_th <- momentum_daily(re_turns=returns_100, look_back=5, bid_offer=0, tre_nd=(-1))
+
+# Combine index with AAPL
+weal_th <- cbind(weal_th, in_dex)
+weal_th <- xts(weal_th, index(returns_100))
+col_names <- c("Strategy", "Index")
+colnames(weal_th) <- col_names
+dygraphs::dygraph(weal_th, main="Momentum S&P500 Mean Reverting Strategy") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=col_names[2], axis="y2", col="blue", strokeWidth=2) %>% 
+  dyLegend(width=500)
+
+
+
+###############
 # Prototype of function get_data() for rutils
 
 get_data <- function(sym_bols,
@@ -59,55 +114,120 @@ get_data <- function(sym_bols,
 
 
 
-##############
+###############
 # PTS AAPL tick data trading strategy
 
 # Load packages
 library(rutils)
 library(data.table)
 
-# Load data with AAPL stock features from csv file
-tick_data <- data.table::fread(file="C:/Develop/predictive/data/aapl_polygon20201021.csv", sep="\t")
-# tail(tick_data)
-# class(tick_data)
-# sapply(tick_data, class)
-# unlist(sapply(tick_data, function(x) if (is.numeric(x)) sum(x))) == 0
+## Load data with AAPL stock features from csv file
+raw_ticks <- data.table::fread(file="C:/Develop/predictive/data/aapl_20201021.csv", sep="\t")
+# tail(raw_ticks)
+# class(raw_ticks)
+# sapply(raw_ticks, class)
+# unlist(sapply(raw_ticks, function(x) if (is.numeric(x)) sum(x))) == 0
 # Remove empty columns
-tick_data <- tick_data[, -(4:9)]
-# tail(tick_data)
-colnames(tick_data) <- c("price", "volume", "seconds", "timestamp")
-oh_lc <- tick_data[, .(open=first(price), high=max(price), low=min(price), close=last(price), volume=sum(volume)), by=seconds]
-# all.equal(oh_lc$seconds, unique(tick_data$seconds))
+raw_ticks <- raw_ticks[, .(timestamp=V10, seconds=V3, price=V1, volume=V2)]
+# raw_ticks <- raw_ticks[, c(1:3, 10)]
+# colnames(raw_ticks) <- c("timestamp", "seconds", "price", "volume")
 
-star_t <- as.numeric(as.POSIXct("2020-10-21 09:30:00"))
-en_d <- as.numeric(as.POSIXct("2020-10-21 16:00:00"))
-oh_lc <- oh_lc[seconds >= star_t & seconds <= en_d]
-foo <- hist(oh_lc$volume[-which(oh_lc$volume > max(oh_lc$volume)/1000)], breaks=1e3, xlim=c(0, 1000))
+## Or more recent data
+raw_ticks <- data.table::fread(file="C:/Develop/predictive/data/aapl_20201102.csv", sep=",")
+raw_ticks <- raw_ticks[, .(timestamp=V8, seconds=V3, price=V1, volume=V2)]
+# raw_ticks <- raw_ticks[, c(1:3, 8)]
+# colnames(raw_ticks) <- c("timestamp", "seconds", "price", "volume")
+
+## Bind several pieces of data together
+foo <- data.table::fread(file="C:/Develop/predictive/data/aapl_20201030.csv", sep="\t")
+foo <- foo[, c(1:3, 8)]
+colnames(foo) <- c("price", "volume", "seconds", "timestamp")
+foo <- foo[, .(timestamp, seconds, price, volume)]
+bar <- (last(raw_ticks)$price - first(foo)$price)
+foo[, price := (price + bar)]
+raw_ticks <- rbind(raw_ticks, foo)
 
 
-## Simple contrarian strategy - trade on large volume only
 
-foo <- oh_lc[volume >= 200]
-re_turns <- rutils::diff_it(foo$close)
+## Apply Hampel filter to remove price jumps
+
+win_dow <- 111
+half_window <- win_dow %/% 2
+medi_an <- TTR::runMedian(raw_ticks$price, n=win_dow)
+medi_an <- rutils::lag_it(medi_an, lagg=-half_window, pad_zeros=FALSE)
+ma_d <- TTR::runMAD(raw_ticks$price, n=win_dow)
+ma_d <- rutils::lag_it(ma_d, lagg=-half_window, pad_zeros=FALSE)
+ma_d[1:half_window] <- 1
+ma_d[ma_d == 0] <- 1
+
+z_scores <- (raw_ticks$price - medi_an)/ma_d
+z_scores[is.na(z_scores)] <- 0
+z_scores[!is.finite(z_scores)] <- 0
+sum(is.na(z_scores))
+sum(!is.finite(z_scores))
+range(z_scores)
+mad(z_scores)
+foo <- hist(z_scores, breaks=1000, xlim=c(-5*mad(z_scores), 5*mad(z_scores)))
+
+thresh_old <- 3
+bad_ticks <- (abs(z_scores) > thresh_old)
+good_ticks <- raw_ticks[!bad_ticks]
+good_ticks <- raw_ticks[volume > 10]
+
+## Calculate a vector of returns
+re_turns <- rutils::diff_it(good_ticks$price)
 n_rows <- NROW(re_turns)
-# foo <- hist(re_turns, breaks=500, xlim=c(-0.1, 0.1))
-position_s <- (-rutils::lag_it(sign(re_turns)))
+
+
+## Simple big tick contrarian strategy - trade on next tick after large volume tick
+
+# Trade on large volume and non-zero return
+big_ticks <- (good_ticks$volume >= 2000) & (abs(re_turns) > 0)
+# Or: Trade on large volume and go flat if zero return
+# big_ticks <- (good_ticks$volume >= 100)
+position_s <- rep(NA_real_, n_rows)
+position_s[1] <- 0
+position_s[big_ticks] <- -sign(re_turns[big_ticks])
+position_s <- zoo::na.locf(position_s)
+position_s <- rutils::lag_it(position_s, 3)
 pnl_s <- cumsum(re_turns*position_s)
+x11(width=6, height=5)
 plot(pnl_s, t="l")
+# Number of trades
+sum(abs(rutils::diff_it(position_s))) / NROW(position_s)
+# Plot dygraph
+date_s <- as.POSIXct(good_ticks$seconds, origin="1970-01-01")
+# There are many duplicate dates:
+NROW(good_ticks$seconds) == NROW(unique(good_ticks$seconds))
+# Make dates unique:
+date_s <- xts::make.index.unique(date_s)
+pnl_s <- xts::xts(pnl_s, date_s)
+# dygraphs::dygraph(pnl_s)
+# Combine index with AAPL
+pnl_s <- cbind(pnl_s, good_ticks$price)
+col_names <- c("Strategy", "AAPL")
+colnames(pnl_s) <- col_names
+dygraphs::dygraph(pnl_s, main="AAPL Strategy") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=col_names[2], axis="y2", col="blue", strokeWidth=2) %>% 
+  dyLegend(width=500)
 
-foo <- lapply(100*(2:10), function(x) {
-  re_turns <- rutils::diff_it(oh_lc[volume >= x]$close)
-  position_s <- (-rutils::lag_it(sign(re_turns)))
-  cumsum(re_turns*position_s)
-})  # end lapply
-sapply(foo, NROW)
-sapply(foo, last)
+da_ta <- cbind(good_ticks, position_s, pnl_s$Strategy)
+data.table::fwrite(da_ta, file="C:/Develop/predictive/data/aapl_strategy.csv")
 
-big_ticks <- tick_data[volume >= 400]
+
+## Simple big tick contrarian strategy - trade on large volume ticks only
+
+big_ticks <- raw_ticks[volume >= 400]
 re_turns <- rutils::diff_it(big_ticks$price)
+# Flip position or flatten if re_turns == 0
 position_s <- (-rutils::lag_it(sign(re_turns)))
 pnl_s <- cumsum(re_turns*position_s)
 plot(pnl_s, t="l")
+da_ta <- cbind(big_ticks, position_s, pnl_s$Strategy)
+data.table::fwrite(da_ta, file="C:/Develop/predictive/data/aapl_strategy.csv")
 # Number of trades
 sum(abs(rutils::diff_it(position_s))) / NROW(position_s)
 # Plot dygraph
@@ -126,18 +246,55 @@ dygraphs::dygraph(pnl_s, main="AAPL Strategy") %>%
   dyLegend(width=500)
 
 
+# Or always carry a position - doesn't work so well
+position_s <- rep(NA_real_, NROW(re_turns))
+position_s[1] <- 0
+position_s <- ifelse(re_turns > 0, -1, position_s)
+position_s <- ifelse(re_turns < (-1), 1, position_s)
+position_s <- zoo::na.locf(position_s)
+# position_s <- (-rutils::lag_it(sign(re_turns)))
+position_s <- rutils::lag_it(position_s)
+
 
 # temp stuff
-foo <- tail(tick_data, 33)
+foo <- tail(raw_ticks, 33)
 date_s <- as.POSIXct(foo$V3, origin="1970-01-01")
 oh_lc <- foo[, .(open=first(price), high=max(price), low=min(price), close=last(price), volume=sum(volume)), by=seconds]
 sum(foo[foo$seconds == foo[33]$seconds]$volume)
 
 
+# Aggregate to OHLC
+# tail(raw_ticks)
+oh_lc <- raw_ticks[, .(open=first(price), high=max(price), low=min(price), close=last(price), volume=sum(volume)), by=seconds]
+# all.equal(oh_lc$seconds, unique(raw_ticks$seconds))
+star_t <- as.numeric(as.POSIXct("2020-10-21 09:30:00"))
+en_d <- as.numeric(as.POSIXct("2020-10-21 16:00:00"))
+oh_lc <- oh_lc[seconds >= star_t & seconds <= en_d]
+foo <- hist(oh_lc$volume[-which(oh_lc$volume > max(oh_lc$volume)/1000)], breaks=1e3, xlim=c(0, 1000))
+
+
+## Simple OHLC contrarian strategy - trade on large volume only
+
+foo <- oh_lc[volume >= 200]
+re_turns <- rutils::diff_it(foo$close)
+n_rows <- NROW(re_turns)
+# foo <- hist(re_turns, breaks=500, xlim=c(-0.1, 0.1))
+position_s <- (-rutils::lag_it(sign(re_turns)))
+pnl_s <- cumsum(re_turns*position_s)
+plot(pnl_s, t="l")
+
+foo <- lapply(100*(2:10), function(x) {
+  re_turns <- rutils::diff_it(oh_lc[volume >= x]$close)
+  position_s <- (-rutils::lag_it(sign(re_turns)))
+  cumsum(re_turns*position_s)
+})  # end lapply
+sapply(foo, NROW)
+sapply(foo, last)
+
+
 ## AR strategy for OHLC - too complicated?
 
-# Calculate a vector of daily VTI log returns
-# price_s <- log(oh_lc$close)
+# Calculate a vector of returns
 re_turns <- rutils::diff_it(oh_lc$close)
 n_rows <- NROW(re_turns)
 hist(re_turns, breaks=500, xlim=c(-0.1, 0.1))
@@ -238,7 +395,7 @@ dygraphs::dygraph(pnl_s, main="AAPL Strategy") %>%
 
 
 
-##############
+###############
 # PTS AAPL features PCA dimension reduction trading strategy
 
 # Load packages
@@ -333,7 +490,7 @@ plot(pnl_s[(1e3*(1:(NROW(re_turns) %/% 1e3)))], t="l")
 
 
 
-##############
+###############
 # Test autoregressive strategy for all ETFs in rutils::etf_env
 
 library(rutils)
@@ -368,7 +525,7 @@ pnl_s <- xts(cumsum(sign(forecast_s)*re_turns[out_of_sample]), index(price_s[out
 
 
 
-##############
+###############
 # Variance ratios
 
 # Find stocks with largest variance ratios
@@ -477,7 +634,7 @@ dygraphs::dygraph(pnl_s)
 
 
 
-##############
+###############
 # Hurst stuff
 
 lagg <- 25
@@ -745,7 +902,7 @@ all.equal(hurst_lm, hurs_t)
 
 
 
-##############
+###############
 # Backtests
 
 # Define backtest functional
@@ -894,7 +1051,7 @@ legend("bottomleft", legend=colnames(weal_th),
 
 
 
-##############
+###############
 # VXX and SVXY
 
 # re_turns <- -etf_env$re_turns$VXX
@@ -920,7 +1077,7 @@ lines(roll_vwap, col="red", lwd=2)
 
 
 
-##############
+###############
 # Wilcoxon tests
 
 # Data
@@ -946,7 +1103,7 @@ da_ta <- (sample1 - sample2)
 sum(rank(abs(da_ta))[da_ta>0])
 
 
-##############
+###############
 # C:/Develop/predictive/data
 
 library(rutils)
@@ -996,7 +1153,7 @@ sum(foo[foo[, 9]>0.15, 8])
 
 
 
-##############
+###############
 # Compile Rcpp functions
 Rcpp::sourceCpp(file="C:/Develop/R/Rcpp/test.cpp")
 
