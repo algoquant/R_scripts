@@ -67,11 +67,11 @@ sp500_tickers <- unique(sp500_table$co_tic)
 
 
 ###############
-# Download TAP etf OHLC prices from WRDS to .csv file, read
+# Download TAP ETF OHLC prices from WRDS to .csv file, read
 # it, and format into xts series.
 # WRDS query name EMM_OHLC
 # https://wrds-web.wharton.upenn.edu/wrds/ds/compd/secd/index.cfm
-# Column names: 
+# Column names:
 # datadate ajexdi cshtrd  prccd  prchd  prcld prcod trfd
 # ajexdi and trfd columns are adjustment factors.
 
@@ -119,7 +119,7 @@ tail(oh_lc)
 
 
 ###############
-# Define formatting function for OHLC prices 
+# Define formatting function for OHLC prices
 # download from WRDS into .csv files.
 # Output is an OHLCV xts series.
 
@@ -169,6 +169,99 @@ load("C:/Develop/lecture_slides/data/etf_data.RData")
 
 
 ###############
+# Download ETF OHLC prices from Alpha Vantage and save them
+# to an .RData file.
+
+library(rutils)  # Load package rutils
+# Select ETF symbols for asset allocation
+sym_bols <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
+              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
+              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
+              "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
+
+# Create environment for data
+etf_env <- new.env()
+
+# Copy sym_bols into etf_env
+# sym_bols <- ls(etf_env)
+etf_env$sym_bols <- sym_bols
+
+# Boolean vector of symbols already downloaded
+down_loaded <- sym_bols %in% ls(etf_env)
+# Download data for sym_bols using single command - creates pacing error
+getSymbols.av(sym_bols, adjust=TRUE, env=etf_env,
+              output.size="full", api.key="T7JPW54ES8G75310")
+# Download data from Alpha Vantage using while loop
+at_tempt <- 0  # number of download attempts
+while (((sum(!down_loaded)) > 0) & (at_tempt<10)) {
+  # Download data and copy it into environment
+  at_tempt <- at_tempt + 1
+  cat("Download attempt = ", at_tempt, "\n")
+  for (sym_bol in na.omit(sym_bols[!down_loaded][1:5])) {
+    cat("Processing: ", sym_bol, "\n")
+    tryCatch(  # With error handler
+      quantmod::getSymbols.av(sym_bol, adjust=TRUE, env=etf_env, auto.assign=TRUE, output.size="full", api.key="T7JPW54ES8G75310"),
+      # Error handler captures error condition
+      error=function(error_cond) {
+        print(paste("error handler: ", error_cond))
+      },  # end error handler
+      finally=print(paste("sym_bol=", sym_bol))
+    )  # end tryCatch
+  }  # end for
+  # Update vector of symbols already downloaded
+  down_loaded <- sym_bols %in% ls(etf_env)
+  cat("Pausing 1 minute to avoid pacing...\n")
+  Sys.sleep(65)
+}  # end while
+
+
+# Adjust OHLC prices if needed
+for (sym_bol in sym_bols) {
+  cat("Processing: ", sym_bol, "\n")
+  oh_lc <- etf_env[[sym_bol]]
+  # Calculate price adjustment vector
+  fac_tor <- as.numeric(Ad(oh_lc)/Cl(oh_lc))
+  # Adjust OHLC prices
+  oh_lc[, 1:4] <- fac_tor*oh_lc[, 1:4]
+  assign(sym_bol, oh_lc, etf_env)
+}  # end for
+
+# Extract Close prices
+price_s <- eapply(etf_env, quantmod::Cl)
+# Or
+# price_s <- lapply(mget(etf_env$sym_bols, etf_env), quantmod::Cl)
+price_s <- do.call(cbind, price_s)
+
+# Drop ".Close" from colnames
+colnames(price_s) <- do.call(rbind, strsplit(colnames(price_s), split="[.]"))[, 1]
+
+# Calculate the log returns
+re_turns <- xts::diff.xts(log(price_s))
+# Or
+# re_turns <- lapply(price_s, function(x_ts) {
+#   xts::diff.xts(log(x_ts))
+# })  # end lapply
+# re_turns <- do.call(cbind, re_turns)
+
+# Copy price_s and re_turns into etf_env
+etf_env$price_s <- price_s
+etf_env$re_turns <- re_turns
+
+# Calculate the risk-return statistics
+risk_return <- PerformanceAnalytics::table.Stats(rutils::etf_env$re_turns)
+# Transpose the data frame
+risk_return <- as.data.frame(t(risk_return))
+# Copy price_s and re_turns into etf_env
+etf_env$risk_return <- risk_return
+
+# Save ETF data to .RData file
+save(etf_env, file="C:/Develop/lecture_slides/data/etf_data.RData")
+# Copy file to C:\Develop\R\rutils\data\etf_data.RData
+
+
+
+
+###############
 # Read .csv file with S&P500 OHLC prices
 
 # Read .csv file with S&P500 constituents
@@ -210,32 +303,38 @@ load("C:/Develop/lecture_slides/data/sp500.RData")
 
 ###############
 # Load S&P500 constituent stock prices from .RData file
-# and calculate the percentage daily returns scaled 
+# and calculate the percentage daily returns scaled
 # by their intraday range.
 
 load("C:/Develop/lecture_slides/data/sp500.RData")
 
-## Calculate the percentage returns
+## Calculate prices from OHLC data
 price_s <- eapply(sp500_env, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
 # Carry forward and backward non-NA prices
+sum(is.na(price_s))
 price_s <- zoo::na.locf(price_s, na.rm=FALSE)
 price_s <- zoo::na.locf(price_s, fromLast=TRUE)
+# Modify column names
 col_names <- unname(sapply(colnames(price_s), rutils::get_name))
 colnames(price_s) <- col_names
-# Calculate percentage returns of the S&P500 constituent stocks
-# Calculate percentage returns of the S&P500 constituent stocks
-# re_turns <- rutils::diff_it(log(price_s))
+
+## Calculate percentage returns of the S&P500 constituent stocks
+re_turns <- rutils::diff_it(log(price_s))
 # Or
 # re_turns <- lapply(price_s, function(x)
 #   rutils::diff_it(x)/rutils::lag_it(x))
 # re_turns <- rutils::do_call(cbind, re_turns)
-re_turns <- (24*3600)*rutils::diff_it(price_s)/rutils::lag_it(price_s)/rutils::diff_it(.index(price_s))
+# Calculate percentage returns by accounting for extra time over weekends
+# re_turns <- (24*3600)*rutils::diff_it(price_s)/rutils::lag_it(price_s)/rutils::diff_it(.index(price_s))
+
+## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
 sam_ple <- sample(NCOL(re_turns), s=100, replace=FALSE)
+prices_100 <- price_s[, sam_ple]
 returns_100 <- re_turns[, sam_ple]
 
-## Calculate scaled returns using price range
+## Calculate scaled returns using price range - experimental
 returns_scaled <- eapply(sp500_env, function(oh_lc) {
   oh_lc <- log(oh_lc)
   # op_en <- quantmod::Op(oh_lc)
@@ -263,19 +362,19 @@ colnames(returns_scaled) <- col_names
 returns_100_scaled <- returns_scaled[, sam_ple]
 
 ## Save the data
-save(price_s, re_turns, returns_scaled, returns_100, returns_100_scaled,
+save(price_s, prices_100,
      file="C:/Develop/lecture_slides/data/sp500_prices.RData")
 
 ## Save the returns
-save(price_s, re_turns, returns_scaled, 
+save(re_turns, returns_scaled, returns_100, returns_100_scaled,
      file="C:/Develop/lecture_slides/data/sp500_returns.RData")
 
 
 
 ###############
-# Read daily futures prices from CSV files and save 
+# Read daily futures prices from CSV files and save
 # them into an environment.
-# The OHLC futures prices were collected from IB on 
+# The OHLC futures prices were collected from IB on
 # consecutive days and were saved into CSV files.
 
 # Set parameters for directory with CSV files
@@ -326,12 +425,12 @@ save(data_env, file="data_env.RData")
 
 
 ###############
-# Chain together futures prices and save them into 
+# Chain together futures prices and save them into
 # an .RData file.
 
-# Define function for chaining futures prices from 
+# Define function for chaining futures prices from
 # consecutive days.
-# It adjusts prices by adding the difference in Close 
+# It adjusts prices by adding the difference in Close
 # prices, instead of multiplying them by a ratio.
 # No need for this: Fix chain_ohlc() by using ratio, as in slide Chaining Together Futures Prices in markets_trading.Rnw
 # https://www.interactivebrokers.com/en/software/tws/usersguidebook/technicalanalytics/continuous.htm
@@ -387,7 +486,7 @@ dim(oh_lc)
 
 ###############
 # Chain together VIX futures prices in a loop.
-# Perform a for() loop, and one-by-one add to chain_ed 
+# Perform a for() loop, and one-by-one add to chain_ed
 # the VIX futures prices given by the remaining sym_bols.
 # Hint: Adapt code from the slide: Chaining Together Futures Prices.
 

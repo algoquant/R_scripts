@@ -1,4 +1,83 @@
 ###############
+### PTS Sentiment SPY trading strategy
+# Load packages
+
+# Load packages
+library(rutils)
+library(data.table)
+
+# Load data with SPY sentiment from csv file
+da_ta <- data.table::fread(file="C:/Develop/predictive/data/correlation_news_to_price_change.csv", stringsAsFactors=FALSE)
+da_ta <- da_ta[, c("date", "sentiment", "close")]
+colnames(da_ta) <- c("date", "sentiment", "SPY")
+sapply(da_ta, class)
+da_ta <- xts::xts(da_ta[, 2:3], as.Date.IDate(da_ta[, date]))
+
+
+re_turns <- lapply(da_ta[, -1], rutils::diff_it)
+re_turns <- rutils::do_call(cbind, re_turns)
+colnames(re_turns) <- c("sentiment", "SPY")
+cor(rutils::lag_it(re_turns[, 1]), re_turns[, 2])
+
+x11(width=6, height=5)
+plot(SPY ~ sentiment, data=re_turns)
+
+col_names <- colnames(da_ta)
+cap_tion <- paste(col_names, collapse=" vs ")
+dygraphs::dygraph(da_ta, main=cap_tion) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="red") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="blue")
+
+
+
+
+###############
+### Benchmark of rolling functions.
+
+# Benchmark the speed of TTR::runMedian()
+oh_lc <- HighFreq::SPY["2011"]
+clos_e <- log(drop(coredata(Cl(oh_lc))))
+ro_ll <- roll::roll_median(clos_e, width=look_back)[-(1:(look_back-1))]
+rcpp_roll <- RcppRoll::roll_median(clos_e, n=look_back)
+tt_r <- TTR::runMedian(clos_e, n=look_back)[-(1:(look_back-1))]
+all.equal(rcpp_roll, coredata(tt_r), check.attributes=FALSE)
+all.equal(ro_ll, tt_r, check.attributes=FALSE)
+library(microbenchmark)
+# roll::roll_median() is several times faster than the other two
+summary(microbenchmark(
+  ro_ll=roll::roll_median(clos_e, width=look_back),
+  rcpp_roll=RcppRoll::roll_median(clos_e, n=look_back),
+  tt_r=TTR::runMedian(clos_e, n=look_back),
+  times=10))[, c(1, 4, 5)]
+
+
+# Benchmark the speed of HighFreq::roll_scale()
+# Use roll and TTR
+re_turns <- rutils::diff_it(clos_e)
+med_rets <- roll::roll_median(re_turns, width=look_back)
+mad_rets <- TTR::runMAD(re_turns, n=look_back)
+re_scaled <- (re_turns - med_rets)/mad_rets
+# Use HighFreq::roll_scale()
+re_scaledh <- HighFreq::roll_scale(matrix(re_turns, ncol=1), look_back=look_back, use_median=TRUE)
+re_scaledh <- drop(re_scaledh)
+# Same result up to factor of qnorm(0.75)
+tail(re_scaled)/tail(re_scaledh)
+library(microbenchmark)
+# HighFreq::roll_scale() is over twice as fast
+summary(microbenchmark(
+  h_freq=HighFreq::roll_scale(matrix(re_turns, ncol=1), look_back=look_back, use_median=TRUE),
+  rcpp_roll={
+    (re_turns - roll::roll_median(re_turns, width=look_back))/TTR::runMAD(re_turns, n=look_back)
+  },
+  times=10))[, c(1, 4, 5)]
+
+
+
+
+
+###############
 ### Prototype of function get_data() for rutils
 
 get_data <- function(sym_bols,
@@ -338,6 +417,80 @@ dygraphs::dygraph(pnl_s, main="AAPL Strategy") %>%
 
 
 
+
+############### temp
+
+in_dic <- rutils::diff_it(position_s)
+indic_buy <- (in_dic > 0)
+indic_sell <- (in_dic < 0)
+cum_sum <- cumsum(re_turns)
+
+
+pnl_s <- cbind(pnl_s, cum_sum[indic_buy], cum_sum[indic_sell])
+colnames(pnl_s)[3:4] <- c("Buy", "Sell")
+
+col_names <- colnames(pnl_s)
+dygraphs::dygraph(pnl_s, main=cap_tion) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="red") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="blue") %>%
+  dySeries(name=col_names[3], axis="y2", label=col_names[3], drawPoints=TRUE, strokeWidth=0, pointSize=5, col="orange") %>%
+  dySeries(name=col_names[4], axis="y2", label=col_names[4], drawPoints=TRUE, strokeWidth=0, pointSize=5, col="green")
+
+
+
+
+############### homework
+# Summary: Study how the dispersion of the Hampel z-scores 
+# depends on the level of volatility in the interval.
+
+oh_lc <- HighFreq::SPY["T09:31:00/T15:59:00"]
+n_rows <- NROW(oh_lc)
+clos_e <- log(Cl(oh_lc))
+# Calculate the z_scores
+medi_an <- TTR::runMedian(clos_e, n=look_back)
+medi_an[1:look_back, ] <- 1
+z_scores <- (clos_e-medi_an)
+z_scores[1:look_back, ] <- 0
+mad_zscores <- TTR::runMAD(z_scores, n=10*look_back)
+mad_zscores[1:(10*look_back), ] <- 0
+z_scores <- ifelse(mad_zscores != 0, z_scores/mad_zscores, 0)
+
+# Calculate the variance
+vari_ance <- xts::apply.daily(oh_lc, HighFreq::calc_var_ohlc)
+# x11(width=6, height=5)
+# plot(vari_ance)
+dygraphs::dygraph(vari_ance)
+
+is_high <- (vari_ance > 0.003)
+is_high <- is_high[is_high]
+high_days <- index(is_high)
+high_days <- as.Date(high_days)
+# low_days <- high_days[!high_days]
+
+date_s <- index(oh_lc)
+date_s <- as.Date(date_s)
+
+is_high <- date_s %in% high_days
+high_scores <- z_scores[is_high]
+low_scores <- z_scores[!is_high]
+
+# Plot histogram of z_scores
+range(low_scores)
+low_scores <- low_scores[low_scores > quantile(low_scores, 0.05)]
+low_scores <- low_scores[low_scores < quantile(low_scores, 0.95)]
+x11(width=6, height=5)
+hist(low_scores, xlim=c(quantile(low_scores, 0.05), quantile(low_scores, 0.95)), breaks=50, main=paste("low_scores", "look_back =", look_back))
+
+range(high_scores)
+high_scores <- high_scores[high_scores > quantile(high_scores, 0.05)]
+high_scores <- high_scores[high_scores < quantile(high_scores, 0.95)]
+x11(width=6, height=5)
+hist(high_scores, xlim=c(quantile(high_scores, 0.05), quantile(high_scores, 0.95)), breaks=50, main=paste("high_scores", "look_back =", look_back))
+
+
+
 ###############
 ### PTS AAPL features PCA dimension reduction trading strategy
 
@@ -609,7 +762,7 @@ da_ta <- lapply(sp500_env, function(oh_lc) {
   if (start(oh_lc) < star_t) {
     price_s <- quantmod::Cl(oh_lc)
     vol_ume <- quantmod::Vo(oh_lc)
-    re_turns <- rutils::diff_it(log(Cl(price_s)))
+    re_turns <- rutils::diff_it(log(price_s))
     # Calculate autocorrelations from PACF
     p_acf <- pacf(na.omit(re_turns), plot=FALSE)
     c(turnover=sum(vol_ume*price_s), dependence=sum(p_acf$acf))
@@ -1324,12 +1477,79 @@ foo <- sapply(sym_bols, function(sym_bol) {
 
 
 
+
 ###############
-### Scale minutely returns to make them closer to normal or stationary
+### Scale minutely returns by the volume to make them closer to normal or stationary.
+# Use trading time (volume clock)
+
+library(HighFreq)
+oh_lc <- HighFreq::SPY
+price_s <- drop(coredata(quantmod::Cl(oh_lc)))
+vol_ume <- drop(coredata(quantmod::Vo(oh_lc)))
+re_turns <- rutils::diff_it(log(price_s))
+re_turns <- re_turns/sd(re_turns)
+
+## wippp
+## Add to homeworks
+## Statistics for different volume scaling exponents.
+# Dividing by the square root of the volume works better
+# than dividing by the volume itself.
+statis_tic <- sapply((1:20)/20, function(ex_po) {
+  rets_scaled <- ifelse(vol_ume > 0, re_turns/(vol_ume^ex_po), 0)
+  rets_scaled <- rets_scaled/sd(rets_scaled)
+  # Calculate moments and perform JB normality tests
+  # tseries::jarque.bera.test(rets_scaled)$statistic
+  # moments::moment(rets_scaled, order=4)
+  # Calculate autocorrelations from PACF
+  # pa_cf <- pacf(as.numeric(rets_scaled), lag=10, plot=FALSE)
+  # sum(pa_cf$acf)
+  # Standard deviation of square returns is proxy for kurtosis and stationarity
+  sd(rets_scaled^2)
+})  # end sapply
+x11(width=6, height=5)
+plot(statis_tic, t="l")
+
+
+# Divide returns by the volume (volume clock).
+rets_scaled <- ifelse(vol_ume > 0, re_turns/vol_ume, 0)
+rets_scaled <- rets_scaled/sd(rets_scaled)
+ma_d <- mad(rets_scaled)
+
+# Plot densities of the returns
+x11(width=6, height=5)
+par(mar=c(3, 3, 2, 1), oma=c(1, 1, 1, 1))
+plot(density(re_turns), xlim=5*c(-ma_d, ma_d), 
+     lwd=3, mgp=c(2, 1, 0), col="blue", 
+     xlab="returns (standardized)", ylab="frequency", 
+     main="Density of Volume-scaled High Frequency SPY Returns")
+lines(density(rets_scaled, bw=0.4), lwd=3, col="red")
+curve(expr=dnorm, add=TRUE, lwd=3, col="green")
+# Add legend
+legend("topright", inset=0.05, bty="n",
+       leg=c("minutely", "scaled", "normal"),
+       lwd=6, lty=1, col=c("blue", "red", "green"))
+
+# Plot the cumulative scaled returns
+prices_scaled <- cumsum(rets_scaled)
+da_ta <- cbind(quantmod::Cl(oh_lc), prices_scaled)
+col_names <- c("SPY Prices", "Scaled by Volume")
+# da_ta <- xts::to.hourly(da_ta)
+colnames(da_ta) <- col_names
+dygraphs::dygraph(da_ta[60*(1:(NROW(da_ta) %/% 60))], main="SPY Prices") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=col_names[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyLegend(width=500)
+
+
+
+###############
+### Scale minutely returns by the price range to make them closer to normal or stationary
 
 library(HighFreq)
 
-sym_bol <- "SPY"
+# sym_bol <- "SPY"
 oh_lc <- HighFreq::SPY
 
 ## Calculate price range
@@ -1339,8 +1559,7 @@ sum(rang_e==0)/NROW(rang_e)
 # Remove bars with zero range
 # oh_lc <- oh_lc[!(rang_e==0)]
 # Remove bars with zero returns
-# re_turns <- HighFreq::diff_vec(log(drop(Cl(oh_lc))))
-# re_turns <- c(0, re_turns)
+re_turns <- rutils::diff_it(log(drop(coredata(Cl(oh_lc)))))
 # zero_rets <- (re_turns==0)
 # oh_lc <- oh_lc[!zero_rets]
 
@@ -1350,72 +1569,26 @@ end_p <- xts::endpoints(oh_lc, on="hours")
 clos_e <- Cl(oh_lc)[end_p]
 rang_e <- log(drop(coredata(Hi(oh_lc)/Lo(oh_lc))))
 rang_e <- (rang_e + c(0, rang_e[-NROW(rang_e)]))/2
-re_turns <- HighFreq::diff_vec(log(drop(Cl(oh_lc))))
-re_turns <- c(0, re_turns)
+re_turns <- rutils::diff_it(log(drop(coredata(Cl(oh_lc)))))
+# re_turns <- c(0, re_turns)
 sum(is.na(re_turns))
 sum(is.infinite(re_turns))
 
 ## Distribution of raw returns is bimodal
 x11()
 # Standardize raw returns to make later comparisons
-returns_std <- re_turns/sd(re_turns)
-ma_d <- mad(returns_std)
-range(returns_std)
-sd((returns_std/sd(returns_std))^2)
-hist(returns_std, breaks=1111, xlim=c(-3, 3), freq=FALSE)
-lines(density(returns_std, bw=0.2), col='red', lwd=2)
+re_turns <- re_turns/sd(re_turns)
+ma_d <- mad(re_turns)
+range(re_turns)
+# Standard deviation of square returns is proxy for kurtosis and stationarity
+sd((re_turns/sd(re_turns))^2)
+hist(re_turns, breaks=1111, xlim=c(-3, 3), freq=FALSE)
+lines(density(re_turns, bw=0.2), col='red', lwd=2)
 
-## Calculate moments and perform normality tests
-sapply(1:4, moments::moment, x=returns_std)
-tseries::jarque.bera.test(returns_std)
-shapiro.test(returns_std)
-
-
-## Scale returns using price range
-returns_scaled <- ifelse(rang_e>0, re_turns/rang_e, 0)
-# returns_scaled <- re_turns/rang_e
-returns_scaled <- returns_scaled/sd(returns_scaled)
-ma_d <- mad(returns_scaled)
-hist(returns_scaled, breaks=1111, xlim=c(-3, 3), freq=FALSE)
-lines(density(returns_scaled, bw=0.2), col='blue', lwd=2)
-
-# JB statistic for different range scaling exponents
-statis_tic <- sapply((1:6)/2, function(x) {
-  returns_scaled <- ifelse(rang_e>0, re_turns/(rang_e^x), 0)
-  returns_scaled <- returns_scaled/sd(returns_scaled)
-  tseries::jarque.bera.test(returns_scaled)$statistic
-})  # end sapply
-
-
-# Stationarity statistic for different scaling exponents
-statis_tic <- sapply((1:20)/10, function(x) {
-  # returns_scaled <- ifelse(vol_ume>0, re_turns/(vol_ume^x), 0)
-  returns_scaled <- ifelse(rang_e>0, re_turns/(rang_e^x), 0)
-  # returns_scaled <- re_turns/(rang_e^x)
-  # Remove zero returns
-  # returns_scaled <- returns_scaled[!(returns_scaled==0)]
-  # returns_scaled <- returns_scaled/sd(returns_scaled)
-  # Standard deviation of square returns is proxy for stationarity
-  sd((returns_scaled/sd(returns_scaled))^2)
-})  # end sapply
-
-
-## Scale returns using volume (volume clock)
-vol_ume <- drop(coredata(Vo(oh_lc)))
-returns_scaled <- ifelse(vol_ume>0, re_turns/sqrt(vol_ume), 0)
-# Scale using volatility
-returns_scaled <- returns_scaled/sd(returns_scaled)
-ma_d <- mad(returns_scaled)
-hist(returns_scaled, breaks=1111, xlim=5*c(-ma_d, ma_d), freq=FALSE)
-lines(density(returns_scaled, bw=0.2), col='blue', lwd=2)
-
-# JB statistic for different volume scaling exponents
-statis_tic <- sapply((1:20)/20, function(x) {
-  returns_scaled <- ifelse(vol_ume>0, re_turns/(vol_ume^x), 0)
-  returns_scaled <- returns_scaled/sd(returns_scaled)
-  # tseries::jarque.bera.test(returns_scaled)$statistic
-  moments::moment(returns_scaled, order=4)
-})  # end sapply
+## Calculate moments and perform JB normality tests
+sapply(1:4, moments::moment, x=re_turns)
+tseries::jarque.bera.test(re_turns)
+shapiro.test(re_turns)
 
 
 # Regress volume on range
@@ -1428,23 +1601,58 @@ plot(volume ~ range, as.data.frame(da_ta[sampl_e, ]))
 abline(foo, lwd=3, col="red")
 
 
-## Apply Manly transformation to returns to make them more normal
+## Apply Manly transformation to make returns more normal
 lamb_da <- 1.5
 
 # Modulus
-# Scale returns using volume (volume clock)
+# Divide returns by square root of volume (volume clock)
 
 
-## Calculate moments and perform normality test
-sum(is.na(returns_scaled))
-sum(is.infinite(returns_scaled))
-range(returns_scaled)
-sapply(1:4, moments::moment, x=returns_scaled)
-tseries::jarque.bera.test(returns_scaled)
+## Calculate moments and perform JB normality test
+sum(is.na(rets_scaled))
+sum(is.infinite(rets_scaled))
+range(rets_scaled)
+sapply(1:4, moments::moment, x=rets_scaled)
+tseries::jarque.bera.test(rets_scaled)
 x11()
-ma_d <- mad(returns_scaled)
-hist(returns_scaled, breaks=11111, xlim=10*c(-ma_d, ma_d), freq=FALSE)
-pacf(returns_scaled)
+ma_d <- mad(rets_scaled)
+hist(rets_scaled, breaks=11111, xlim=10*c(-ma_d, ma_d), freq=FALSE)
+pacf(rets_scaled)
+
+
+## Scale returns using price range
+rets_scaled <- ifelse(rang_e>0, re_turns/rang_e, 0)
+# rets_scaled <- re_turns/rang_e
+rets_scaled <- rets_scaled/sd(rets_scaled)
+ma_d <- mad(rets_scaled)
+hist(rets_scaled, breaks=1111, xlim=c(-3, 3), freq=FALSE)
+lines(density(rets_scaled, bw=0.2), col='blue', lwd=2)
+
+# JB statistic for different range scaling exponents
+statis_tic <- sapply((1:6)/2, function(ex_po) {
+  rets_scaled <- ifelse(rang_e>0, re_turns/(rang_e^ex_po), 0)
+  rets_scaled <- rets_scaled/sd(rets_scaled)
+  tseries::jarque.bera.test(rets_scaled)$statistic
+})  # end sapply
+
+
+# Stationarity statistic for different scaling exponents
+statis_tic <- sapply((1:20)/10, function(ex_po) {
+  # rets_scaled <- ifelse(vol_ume>0, re_turns/(vol_ume^x), 0)
+  rets_scaled <- ifelse(rang_e>0, re_turns/(rang_e^ex_po), 0)
+  # rets_scaled <- re_turns/(rang_e^ex_po)
+  # Remove zero returns
+  # rets_scaled <- rets_scaled[!(rets_scaled==0)]
+  # rets_scaled <- rets_scaled/sd(rets_scaled)
+  # Standard deviation of square returns is proxy for kurtosis and stationarity
+  sd((rets_scaled/sd(rets_scaled))^2)
+})  # end sapply
+
+
+
+###############
+### Fractional differencing
+
 
 
 
@@ -2119,15 +2327,15 @@ ohlc_log <- log(oh_lc)
 # sapply(oh_lc, class)
 # tail(oh_lc, 11)
 clos_e <- Cl(ohlc_log)
-close_num <- as.numeric(clos_e)
+close_num <- drop(coredata(clos_e))
 re_turns <- rutils::diff_it(clos_e)
 # regression with clos_e prices as response requires clos_e to be a vector
-# clos_e <- as.numeric(clos_e)
+# clos_e <- drop(coredata(clos_e)
 # plot dygraph
 dygraphs::dygraph(xts::to.hourly(clos_e), main=sym_bol)
 # random data
 # re_turns <- xts(rnorm(NROW(oh_lc), sd=0.01), index(oh_lc))
-# clos_e <- as.numeric(cumsum(re_turns))
+# clos_e <- drop(coredata(cumsum(re_turns))
 
 # Define OHLC data
 op_en <- Op(ohlc_log)
@@ -2178,7 +2386,8 @@ colnames(returns_adv) <- "returns_adv"
 # colnames(returns_adv) <- "returns_adv"
 
 
-# begin old stuff
+
+# Begin old stuff
 
 ###############
 ### Strategy using rolling z-scores over OHLC technical indicators
@@ -2302,7 +2511,8 @@ summary(microbenchmark(
 
 
 # Contrarian strategy
-po_sit <- rep(NA_integer_, NROW(oh_lc))
+n_rows <- NROW(oh_lc)
+po_sit <- rep(NA_integer_, n_rows)
 po_sit[1] <- 0
 po_sit[close_high] <- (-1)
 po_sit[close_low] <- 1
@@ -2310,7 +2520,7 @@ po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
 po_sit <- rutils::lag_it(po_sit, lagg=1)
 
 # Contrarian strategy using HighFreq::roll_count()
-po_sit <- rep(NA_integer_, NROW(oh_lc))
+po_sit <- rep(NA_integer_, n_rows)
 po_sit[1] <- 0
 po_sit[close_high_count>2] <- (-1)
 po_sit[close_low_count>2] <- 1
@@ -2318,7 +2528,7 @@ po_sit <- zoo::na.locf(po_sit, na.rm=FALSE)
 po_sit <- rutils::lag_it(po_sit, lagg=1)
 
 # Contrarian strategy using roll_cum()
-po_sit <- rep(0, NROW(oh_lc))
+po_sit <- rep(0, n_rows)
 po_sit[close_high] <- (-1)
 po_sit[close_low] <- 1
 po_sit <- roll_cum(po_sit, 2)
@@ -2341,7 +2551,7 @@ max_min <- roll_maxmin(dra_w, look_back)
 draw_max <- (dra_w == max_min[, 1])
 draw_min <- (dra_w == max_min[, 2])
 
-po_sit <- rep(NA_integer_, NROW(oh_lc))
+po_sit <- rep(NA_integer_, n_rows)
 po_sit[1] <- 0
 # po_sit[close_max] <- (-1)
 # po_sit[close_min] <- 1
@@ -2686,7 +2896,7 @@ posit_mat <- sapply(1:NROW(par_am), function(it) {
   sig_nal[1:look_short, ] <- 0
   # sig_nal <- rutils::lag_it(sig_nal, lagg=1)
   # Calculate positions, either: -1, 0, or 1
-  po_sit <- rep(NA_integer_, NROW(oh_lc))
+  po_sit <- rep(NA_integer_, n_rows)
   po_sit[1] <- 0
   po_sit[sig_nal < (-en_ter)] <- 1
   po_sit[sig_nal > en_ter] <- (-1)
