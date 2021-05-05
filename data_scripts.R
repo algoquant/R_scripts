@@ -248,10 +248,12 @@ etf_env$price_s <- price_s
 etf_env$re_turns <- re_turns
 
 # Calculate the risk-return statistics
-risk_return <- PerformanceAnalytics::table.Stats(rutils::etf_env$re_turns)
+risk_return <- PerformanceAnalytics::table.Stats(re_turns)
 # Transpose the data frame
 risk_return <- as.data.frame(t(risk_return))
-# Copy price_s and re_turns into etf_env
+# Add Name column
+risk_return$Name <- rownames(risk_return)
+# Copy risk_return into etf_env
 etf_env$risk_return <- risk_return
 
 # Save ETF data to .RData file
@@ -311,22 +313,23 @@ load("C:/Develop/lecture_slides/data/sp500.RData")
 ## Calculate prices from OHLC data
 price_s <- eapply(sp500_env, quantmod::Cl)
 price_s <- rutils::do_call(cbind, price_s)
-# Carry forward and backward non-NA prices
+# Carry forward and backward non-NA prices - no only forward because backward skews volatility
 sum(is.na(price_s))
 price_s <- zoo::na.locf(price_s, na.rm=FALSE)
-price_s <- zoo::na.locf(price_s, fromLast=TRUE)
+# price_s <- zoo::na.locf(price_s, fromLast=TRUE)
 # Modify column names
-col_names <- unname(sapply(colnames(price_s), rutils::get_name))
+col_names <- rutils::get_name(colnames(price_s))
+# col_names <- do.call(rbind, strsplit(colnames(price_s), split="[.]"))[, 1]
 colnames(price_s) <- col_names
 
 ## Calculate percentage returns of the S&P500 constituent stocks
-re_turns <- rutils::diff_it(log(price_s))
+re_turns <- xts::diff.xts(log(price_s))
 # Or
 # re_turns <- lapply(price_s, function(x)
-#   rutils::diff_it(x)/rutils::lag_it(x))
+#   xts::diff.xts(x)/rutils::lag_it(x))
 # re_turns <- rutils::do_call(cbind, re_turns)
 # Calculate percentage returns by accounting for extra time over weekends
-# re_turns <- (24*3600)*rutils::diff_it(price_s)/rutils::lag_it(price_s)/rutils::diff_it(.index(price_s))
+# re_turns <- (24*3600)*xts::diff.xts(price_s)/rutils::lag_it(price_s)/xts::diff.xts(.index(price_s))
 
 ## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
@@ -342,7 +345,7 @@ returns_scaled <- eapply(sp500_env, function(oh_lc) {
   lo_w <- quantmod::Lo(oh_lc)
   clos_e <- quantmod::Cl(oh_lc)
   # Scale returns using price range
-  re_turns <- rutils::diff_it(clos_e)
+  re_turns <- xts::diff.xts(clos_e)
   rang_e <- as.numeric(hi_gh - lo_w)
   rang_e <- ifelse(rang_e == 0, 1, rang_e)
   # re_turns <- ifelse(rang_e>0, re_turns/rang_e, 0)
@@ -366,7 +369,7 @@ save(price_s, prices_100,
      file="C:/Develop/lecture_slides/data/sp500_prices.RData")
 
 ## Save the returns
-save(re_turns, returns_scaled, returns_100, returns_100_scaled,
+save(re_turns, returns_100,
      file="C:/Develop/lecture_slides/data/sp500_returns.RData")
 
 
