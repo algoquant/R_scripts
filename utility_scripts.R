@@ -14,13 +14,35 @@ file_names <- file_names[-grep("FRE", file_names)]
 # Render *.Rnw files into *.pdf files.
 # Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
 setwd("C:/Develop/lecture_slides")
+# Render files without using error handler.
 sapply(file_names, knitr::knit2pdf, bib_engine="biber")
+
+# Render files using error handler.
+# Boolean vector of names already downloaded.
+processed_names <- NULL
+process_ed <- file_names %in% processed_names
+# Loop over the file_names and render them into *.pdf files.
+sapply(file_names, function(file_name) {
+  tryCatch(  # With error handler
+    {
+      cat("Processing: ", file_name, "\n")
+      knitr::knit2pdf(file_name, bib_engine="biber", quiet=TRUE)
+      processed_names <- c(processed_names, file_name)
+    },
+    # Error handler captures error condition
+    error=function(error_cond) {
+      cat("Error in: ", file_name, "\n")
+      print(paste("error handler: ", error_cond))
+    },  # end error handler
+    finally=print(paste("file_name=", file_name))
+  )  # end tryCatch
+})  # end sapply
 
 
 
 ###############
 # Extract R chunks from all *.Rnw files, except those that contain "FRE".
-sapply(file_names, knitr::purl, documentation=0)
+sapply(file_names, knitr::purl, documentation=0, quiet=TRUE)
 
 
 

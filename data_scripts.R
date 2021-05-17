@@ -256,6 +256,22 @@ risk_return$Name <- rownames(risk_return)
 # Copy risk_return into etf_env
 etf_env$risk_return <- risk_return
 
+# Calculate the beta, alpha, Treynor ratio, and other performance statistics
+capm_stats <- PerformanceAnalytics::table.CAPM(Ra=re_turns[, symbol_s], 
+                         Rb=re_turns[, "VTI"], scale=252)
+col_names <- strsplit(colnames(capm_stats), split=" ")
+col_names <- do.call(cbind, col_names)[1, ]
+colnames(capm_stats) <- col_names
+capm_stats <- t(capm_stats)
+capm_stats <- capm_stats[, -1]
+col_names <- colnames(capm_stats)
+whi_ch <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), col_names)
+col_names[whi_ch] <- c("Alpha", "Information", "Treynor")
+colnames(capm_stats) <- col_names
+capm_stats <- capm_stats[order(capm_stats[, "Alpha"], decreasing=TRUE), ]
+# Copy capm_stats into etf_env
+etf_env$capm_stats <- capm_stats
+
 # Save ETF data to .RData file
 save(etf_env, file="C:/Develop/lecture_slides/data/etf_data.RData")
 # Copy file to C:\Develop\R\rutils\data\etf_data.RData
