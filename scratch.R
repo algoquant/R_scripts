@@ -1,4 +1,293 @@
 ###############
+### Create trending portfolios of similar ETFs.
+
+# Load packages
+library(rutils)
+
+# Calculate ETF returns and volumes
+# VXX with SVXY
+
+# Calculate ETF returns and volumes
+sym_bols <- c("VTI", "SVXY", "VXX")
+re_turns <- na.omit(rutils::etf_env$re_turns[, sym_bols])
+date_s <- zoo::index(re_turns)
+
+look_back <- 11
+# Scale the volume by the rolling average volume
+rets_scaled <- lapply(sym_bols, function(sym_bol) {
+  oh_lc <- get(sym_bol, rutils::etf_env)
+  re_turns <- rutils::diff_it(log(quantmod::Cl(oh_lc)))
+  vol_ume <- quantmod::Vo(oh_lc)
+  volume_rolling <- roll::roll_mean(vol_ume, width=look_back)
+  volume_rolling <- zoo::na.locf(volume_rolling, fromLast=TRUE)
+  vol_ume <- vol_ume/volume_rolling
+  # Divide  the returns by the volume - use trading time (volume clock)
+  re_turns/vol_ume
+})  # end lapply
+
+# Scale by the High minus Low range
+rets_scaled <- lapply(sym_bols, function(sym_bol) {
+  oh_lc <- log(get(sym_bol, rutils::etf_env))
+  re_turns <- rutils::diff_it(quantmod::Cl(oh_lc))
+  rang_e <- (quantmod::Hi(oh_lc) - quantmod::Lo(oh_lc))
+  re_turns/rang_e
+})  # end lapply
+
+# Scale by the rolling volatility
+rets_scaled <- lapply(sym_bols, function(sym_bol) {
+  oh_lc <- log(get(sym_bol, rutils::etf_env))
+  re_turns <- rutils::diff_it(quantmod::Cl(oh_lc))
+  vari_ance <- HighFreq::roll_var_ohlc(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE)
+  colnames(vari_ance) <- "variance"
+  vol_at <- sqrt(vari_ance)
+  re_turns/vol_at
+})  # end lapply
+
+rets_scaled <- do.call(cbind, rets_scaled)
+colnames(rets_scaled) <- do.call(rbind,(strsplit(colnames(rets_scaled), split="[.]")))[, 1]
+rets_scaled <- na.omit(rets_scaled)
+rets_scaled <- rets_scaled[date_s]
+
+weight_s <- 1/sapply(rets_scaled, sd)/100
+port_f <- rets_scaled %*% weight_s
+
+# PACF of AR(1) process
+x11(width=6, height=5)
+pac_f <- pacf(port_f, lag=10, xlab="", ylab="", main="")
+abs(sum(pac_f$acf))
+
+sum_pacf <- function(weight_s) {
+  port_f <- rets_scaled %*% weight_s
+  pac_f <- pacf(port_f, lag=10, plot=FALSE)
+  -sum(pac_f$acf) - sum(port_f) + (1-sum(weight_s^2))^2
+}  # end sum_pacf
+
+
+# Calculate end points
+inter_val <- 21
+n_rows <- NROW(rets_scaled)
+num_agg <- n_rows %/% inter_val
+end_p <- c(0, n_rows - num_agg*inter_val + (0:num_agg)*inter_val)
+
+# Calculate Hurst
+hurs_t <- function(weight_s) {
+  port_f <- rets_scaled %*% weight_s
+  price_s <- cumsum(port_f)
+  r_s <- sapply(2:NROW(end_p), function(ep) {
+    in_dex <- end_p[ep-1]:end_p[ep]
+    diff(range(price_s[in_dex]))/sd(port_f[in_dex])
+  })  # end sapply
+  # Calculate Hurst from single data point
+  -log(mean(r_s))/log(inter_val) - sum(port_f) + (1-sum(weight_s^2))^2
+}  # end sum_pacf
+
+op_tim <- optim(par=c(0.1, 0.1, 0.1), 
+                fn=hurs_t,
+                method="L-BFGS-B",
+                upper=c(10, 10, 10),
+                lower=c(0, 0, 0))
+# Optimal parameters and value
+weight_s <- op_tim$par
+port_f <- rets_scaled %*% weight_s
+pacf(port_f, lag=10, xlab="", ylab="", main="")
+port_f <- xts::xts(port_f, date_s)
+
+da_ta <- cbind(re_turns$VTI, port_f)
+sharp_e <- sqrt(252)*sapply(da_ta, function(x) mean(x)/sd(x[x<0]))
+
+colnames(pnl_s) <- c(paste(input$sym_bol, "Returns"), "Strategy", "Buy", "Sell")
+
+cap_tion <- paste("Strategy for", input$sym_bol, "Returns Scaled by the Trading Volumes / \n", 
+                  paste0(c("Index SR=", "Strategy SR="), sharp_e, collapse=" / "), "/ \n",
+                  "Number of trades=", n_trades)
+
+col_names <- colnames(da_ta)
+dygraphs::dygraph(cumsum(da_ta), main="Autoregressive Portfolio") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="red")
+
+dygraphs::dygraph(da_ta, main="Autoregressive Portfolio") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(width=500)
+
+
+
+###############
+### Autoregressive strategy using the principal components  
+# of average returns as predictors.
+# Mostly in app_ar_pca_strat.R
+
+# Load packages
+library(rutils)
+
+# Calculate ETF returns and volumes
+sym_bol <- "VTI"
+oh_lc <- get(sym_bol, rutils::etf_env)
+date_s <- zoo::index(oh_lc)
+n_rows <- NROW(oh_lc)
+clos_e <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clos_e)
+cum_rets <- cumsum(re_turns)
+vol_ume <- quantmod::Vo(oh_lc)
+
+in_sample <- 1:(n_rows %/% 4)
+out_sample <- (n_rows %/% 4 + 1):n_rows
+
+# Scale the volume by the rolling average volume
+look_back <- 11
+volume_rolling <- roll::roll_mean(vol_ume, width=look_back)
+volume_rolling <- zoo::na.locf(volume_rolling, fromLast=TRUE)
+vol_ume <- vol_ume/volume_rolling
+
+# Divide  the returns by the volume - use trading time (volume clock)
+# rets_scaled <- ifelse(vol_ume > 0, re_turns/vol_ume, 0)
+rets_scaled <- re_turns/vol_ume
+
+## Aersion using only recent returns
+
+# First version
+look_backs <- 2:25
+de_sign <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(rets_scaled, x))
+de_sign <- do.call(cbind, de_sign)
+de_sign[1, ] <- 0
+de_sign <- zoo::na.locf(de_sign)
+# sum(is.na(de_sign))
+de_sign <- cbind(rets_scaled, de_sign)
+max_back <- last(look_backs)
+# res_ponse <- rutils::lag_it(de_sign[, max_back], lagg=(-max_back))
+res_ponse <- sqrt(max_back)*roll::roll_mean(re_turns, max_back)
+res_ponse[1:(max_back-1)] <- 0
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-max_back))
+
+# Second version
+# Define predictor matrix for forecasting
+order_max <- 10
+de_sign <- lapply(1:order_max, rutils::lag_it, in_put=re_turns)
+de_sign <- do.call(cbind, de_sign)
+colnames(de_sign) <- paste0("pred_", 1:NCOL(de_sign))
+# res_ponse <- re_turns
+res_ponse <- rutils::lag_it(de_sign[, order_max], lagg=(-order_max))
+
+
+###########
+## Old version
+# Calculate de_sign equal to the rolling means
+look_backs <- c(5, 20, 80, 250)
+# de_sign <- lapply(look_backs, roll::roll_mean, x=re_turns)
+# Scale the rolling means so they have similar volatities
+de_sign <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(re_turns, x))
+# de_sign <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(re_turns, x)/sqrt(roll::roll_var(re_turns, x)))
+de_sign <- do.call(cbind, de_sign)
+de_sign[1, ] <- 0
+de_sign <- zoo::na.locf(de_sign)
+# sum(is.na(de_sign))
+colnames(de_sign) <- paste0("back_", look_backs)
+sapply(de_sign, sd)
+# Standardize (de-mean and scale) the de_sign
+# de_sign <- lapply(de_sign, function(x) {(x - mean(x))/sd(x)})
+# de_sign <- rutils::do_call(cbind, de_sign)
+
+# Define response as a rolling sum and shift it forward out-of-sample
+res_ponse <- rutils::lag_it(de_sign[, 1], lagg=(-look_backs[1]))
+
+###########
+## End Old version
+
+# Calculate covariance matrix of de_sign
+cov_mat <- cov(de_sign)
+# Calculate eigenvectors and eigenvalues
+ei_gen <- eigen(cov_mat)
+
+# Define predictors as the principal components of de_sign
+# eigen_vec <- ei_gen$vectors
+predic_tor <- xts::xts(de_sign %*% ei_gen$vectors, order.by=date_s)
+colnames(predic_tor) <- paste0("pc", 1:NCOL(predic_tor))
+# round(cov(predic_tor), 3)
+predic_tor <- rutils::lag_it(predic_tor)
+predic_tor <- cbind(rep(1, n_rows), predic_tor)
+colnames(predic_tor)[1] <- "unit"
+
+# Calculate in-sample fitted coefficients
+max_eigen <- 4
+in_verse <- MASS::ginv(predic_tor[in_sample, 1:max_eigen])
+coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
+# Calculate out-sample forecasts of re_turns
+# forecast_s <- drop(predic_tor[out_sample, 1:3] %*% coeff_fit[1:3])
+forecast_s <- drop(predic_tor[out_sample, 1:max_eigen] %*% coeff_fit)
+mean((re_turns[out_sample, ] - forecast_s)^2)
+drop(cor(re_turns[out_sample, ], forecast_s))
+
+# Lag the positions to trade in next period
+position_s <- sign(rutils::lag_it(forecast_s))
+
+# Calculate strategy pnl_s
+pnl_s <- cumsum(position_s*re_turns[out_sample])
+pnl_s <- cbind(cumsum(re_turns[out_sample]), pnl_s)
+colnames(pnl_s) <- c(sym_bol, "Strategy")
+dygraphs::dygraph(pnl_s, main="Autoregressive Strategy Performance") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(width=500)
+
+
+###############
+# Case for look_backs = 2
+
+# Calculate ETF returns and volumes
+sym_bol <- "VTI"
+oh_lc <- get(sym_bol, rutils::etf_env)
+date_s <- zoo::index(oh_lc)
+n_rows <- NROW(oh_lc)
+clos_e <- log(quantmod::Cl(oh_lc))
+re_turns <- rutils::diff_it(clos_e)
+cum_rets <- cumsum(re_turns)
+vol_ume <- quantmod::Vo(oh_lc)
+
+in_sample <- 1:(n_rows %/% 2)
+out_sample <- (n_rows %/% 2 + 1):n_rows
+
+# Scale the volume by the rolling average volume
+look_back <- 11
+volume_rolling <- roll::roll_mean(vol_ume, width=look_back)
+volume_rolling <- zoo::na.locf(volume_rolling, fromLast=TRUE)
+vol_ume <- vol_ume/volume_rolling
+# Divide  the returns by the volume - use trading time (volume clock)
+rets_scaled <- re_turns/vol_ume
+
+look_backs <- 2:5
+de_sign <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(rets_scaled, x))
+de_sign <- do.call(cbind, de_sign)
+# look_backs <- 2
+# de_sign <- sqrt(2)*roll::roll_mean(rets_scaled, 2)
+de_sign[1, ] <- 0
+de_sign <- zoo::na.locf(de_sign)
+de_sign <- cbind(rets_scaled, de_sign)
+max_back <- last(look_backs)
+
+res_ponse <- sqrt(max_back)*roll::roll_mean(re_turns, max_back)
+res_ponse[1:(max_back-1)] <- 0
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-max_back))
+cov_mat <- cov(de_sign)
+ei_gen <- eigen(cov_mat)
+predic_tor <- xts::xts(de_sign %*% ei_gen$vectors, order.by=date_s)
+predic_tor <- rutils::lag_it(predic_tor)
+# predic_tor <- cbind(rep(1, n_rows), predic_tor)
+in_verse <- MASS::ginv(predic_tor[in_sample, ])
+coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
+forecast_s <- drop(predic_tor[out_sample, ] %*% coeff_fit)
+forecast_s <- roll::roll_mean(sign(forecast_s), width=max_back)
+forecast_s[1:(max_back-1)] <- 1
+pnl_s <- cumsum(forecast_s*re_turns[out_sample])
+pnl_s <- cbind(cumsum(re_turns[out_sample]), pnl_s)
+colnames(pnl_s) <- c(sym_bol, "Strategy")
+dygraphs::dygraph(pnl_s, main="Autoregressive Strategy Performance") %>%
+dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+dyLegend(width=500)
+
+
+
+###############
 ### PTS Sentiment SPY trading strategy
 # Load packages
 
@@ -1509,7 +1798,7 @@ re_turns <- rutils::diff_it(log(price_s))
 re_turns <- re_turns/sd(re_turns)
 price_s <- cumsum(re_turns)
 
-# Need to scale the volume by the rolling average volume
+# Scale the volume by the rolling average volume
 look_back <- 111
 volume_rolling <- rutils::roll_sum(x_ts=vol_ume, look_back=look_back)
 vol_ume <- look_back*vol_ume/volume_rolling
@@ -2386,7 +2675,7 @@ re_turns <- rutils::diff_it(log(com_bo[, paste(sym_bol, "Close", sep=".")]))
 
 # vari_ance <- (hi_gh - lo_w)^2
 look_back <- 11
-vari_ance <- HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE)
+vari_ance <- HighFreq::roll_var_ohlc(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE)
 colnames(vari_ance) <- "variance"
 vol_at <- sqrt(vari_ance)
 colnames(vol_at) <- "volat"
@@ -2566,7 +2855,7 @@ look_back <- 11
 max_min <- roll_maxmin(close_num, look_back)
 close_max <- (close_num == max_min[, 1])
 close_min <- (close_num == max_min[, 2])
-vol_at <- HighFreq::roll_variance(oh_lc=ohlc_log, look_back=5*look_back, scal_e=FALSE)
+vol_at <- HighFreq::roll_var_ohlc(oh_lc=ohlc_log, look_back=5*look_back, scal_e=FALSE)
 vol_at <- sqrt(vol_at)
 vol_at[1] <- vol_at[2]
 colnames(vol_at) <- "volat"
@@ -2829,7 +3118,7 @@ indicator_s <- c("ES1.Close", "TY1.Close", "TU1.Close", "UX1.Close", "UX2.Close"
 dygraphs::dygraph(oh_lc[, indicator_s[2]]-oh_lc[, indicator_s[3]])
 indicator_s <- lapply(indicator_s, function(col_umn) {
   col_umn <- oh_lc[, col_umn]
-  sig_nal <- rutils::diff_it(clos_e, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_variance(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE))
+  sig_nal <- rutils::diff_it(clos_e, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_var_ohlc(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE))
   HighFreq::roll_sum(indicator_s[, col_umn], look_back=look_back)/look_back
 })  # end lapply
 indicator_s <- rutils::do_call(cbind, indicator_s)
