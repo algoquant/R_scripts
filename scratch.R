@@ -1,4 +1,423 @@
 ###############
+### Backtest an AR strategy with design as z-scores.
+# Comment: The z-scores have low predictive power.
+
+# Load packages
+library(rutils)
+
+# Calculate SVXY and VXX prices
+svx_y <- log(rutils::etf_env$SVXY)
+svxy_close <- quantmod::Cl(svx_y)
+n_rows <- NROW(svx_y)
+date_s <- zoo::index(svx_y)
+vx_x <- log(rutils::etf_env$VXX[date_s])
+vxx_close <- quantmod::Cl(vx_x)
+
+look_back <- 21
+
+# Extract log OHLC prices
+sym_bol <- "VTI"
+oh_lc <- get(sym_bol, rutils::etf_env)[date_s]
+clos_e <- log(quantmod::Cl(oh_lc))
+vol_ume <- quantmod::Vo(oh_lc)
+re_turns <- rutils::diff_it(clos_e)
+
+
+# Define res_ponse as a rolling mean
+n_agg <- 5
+res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
+# Shift the res_ponse forward out-of-sample
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg))
+
+# Calculate SVXY z-scores
+in_deks <- matrix(1:n_rows, nc=1)
+svxy_scores <- drop(HighFreq::roll_zscores(res_ponse=svxy_close, de_sign=in_deks, look_back=look_back))
+svxy_scores[1:look_back] <- 0
+svxy_scores[is.infinite(svxy_scores)] <- 0
+svxy_scores[is.na(svxy_scores)] <- 0
+svxy_scores <- svxy_scores/sqrt(look_back)
+# roll_svxy <- roll::roll_mean(svxy_close, width=look_back, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(svx_y, look_back=look_back, scal_e=FALSE))
+# svxy_scores <- (svxy_close - roll_svxy)/var_rolling
+
+# Calculate VXX z-scores
+vxx_scores <- drop(HighFreq::roll_zscores(res_ponse=vxx_close, de_sign=in_deks, look_back=look_back))
+vxx_scores[1:look_back] <- 0
+vxx_scores[is.infinite(vxx_scores)] <- 0
+vxx_scores[is.na(vxx_scores)] <- 0
+vxx_scores <- vxx_scores/sqrt(look_back)
+# roll_vxx <- roll::roll_mean(vxx_close, width=look_back, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(vx_x, look_back=look_back, scal_e=FALSE))
+# vxx_scores <- (vxx_close - roll_vxx)/var_rolling
+
+# Calculate price z-scores
+price_scores <- drop(HighFreq::roll_zscores(res_ponse=clos_e, de_sign=in_deks, look_back=look_back))
+price_scores[1:look_back] <- 0
+price_scores[is.infinite(price_scores)] <- 0
+price_scores[is.na(price_scores)] <- 0
+price_scores <- price_scores/sqrt(look_back)
+# roll_stock <- roll::roll_mean(clos_e, width=look_back, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(oh_lc, look_back=look_back, scal_e=FALSE))
+# price_scores <- (clos_e - roll_stock)/var_rolling
+
+# Calculate volatility z-scores
+vol_at <- log(quantmod::Hi(oh_lc))-log(quantmod::Lo(oh_lc))
+volat_scores <- drop(HighFreq::roll_zscores(res_ponse=vol_at, de_sign=in_deks, look_back=look_back))
+volat_scores[1:look_back] <- 0
+volat_scores[is.infinite(volat_scores)] <- 0
+volat_scores[is.na(volat_scores)] <- 0
+volat_scores <- volat_scores/sqrt(look_back)
+# roll_vol <- roll::roll_mean(vol_at, width=look_back, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var(rutils::diff_it(vol_at), look_back=look_back))
+# volat_scores <- (vol_at - roll_vol)/var_rolling
+
+# Calculate volume z-scores
+volume_scores <- drop(HighFreq::roll_zscores(res_ponse=vol_ume, de_sign=in_deks, look_back=look_back))
+volume_scores[1:look_back] <- 0
+volume_scores[is.infinite(volume_scores)] <- 0
+volume_scores[is.na(volume_scores)] <- 0
+volume_scores <- volume_scores/sqrt(look_back)
+# volume_mean <- roll::roll_mean(vol_ume, width=look_back, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var(rutils::diff_it(vol_ume), look_back=look_back))
+# volume_scores <- (vol_ume - volume_mean)/var_rolling
+
+# Define design matrix
+de_sign <- cbind(vxx_scores - svxy_scores, volat_scores, price_scores, volume_scores)
+colnames(de_sign) <- c("vxx", "stock", "volat", "volume")
+
+# Invert the predictor matrix
+design_inv <- MASS::ginv(de_sign)
+# Calculate fitted coefficients
+coeff_fit <- drop(design_inv %*% res_ponse)
+names(coeff_fit) <- c("vxx", "stock", "volat", "volume")
+barplot(coeff_fit)
+# Calculate forecast
+forecast_s <- drop(de_sign %*% coeff_fit)
+forecast_s <- rutils::lag_it(forecast_s)
+pnl_s <- sign(forecast_s)*re_turns
+# forecast_s <- xts::xts(forecast_s, date_s)
+dygraph(cumsum(pnl_s))
+
+# Define in-sample and out-of-sample intervals
+in_sample <- 1:(n_rows %/% 2)
+out_sample <- (n_rows %/% 2 + 1):n_rows
+
+# Invert the predictor matrix in-sample
+design_inv <- MASS::ginv(de_sign[in_sample, ])
+# Calculate in-sample fitted coefficients
+coeff_fit <- drop(design_inv %*% res_ponse[in_sample, ])
+names(coeff_fit) <- c("vxx", "stock", "volat", "volume")
+barplot(coeff_fit)
+# Calculate out-of-sample forecasts
+forecast_s <- drop(de_sign[out_sample, ] %*% coeff_fit)
+forecast_s <- rutils::lag_it(forecast_s)
+pnl_s <- sign(forecast_s)*re_turns[out_sample, ]
+# forecast_s <- xts::xts(forecast_s, date_s)
+dygraph(cumsum(pnl_s))
+
+
+
+###############
+### Backtest a strategy trading at oversold and overbought 
+# extreme price points using weights optimization.
+# Comment: The z-scores have low predictive power.
+
+# Define z-score weights
+weight_s <- c(15, -15, 0, 0)
+names(weight_s) <- c("vxx", "stock", "volat", "volume")
+
+co_eff <- 1
+lagg <- 1
+thresh_top <- 0.3
+thresh_bot <- (-0.1)
+
+# Define back_test as function of thresholds
+back_test <- function(weight_s=c(25, 0, 0, 0),
+                      n_rows,
+                      thresh_top=0.1,
+                      thresh_bot=0.1,
+                      de_sign,
+                      re_turns,
+                      lagg,
+                      co_eff=co_eff) {
+  sig_nal <- drop(de_sign %*% weight_s)
+  top_s <- (sig_nal > thresh_top)
+  bottom_s <- (sig_nal < thresh_bot)
+  in_dic <- rep(NA_integer_, n_rows)
+  in_dic[1] <- 0
+  in_dic[bottom_s] <- co_eff
+  in_dic[top_s] <- (-co_eff)
+  in_dic <- zoo::na.locf(in_dic, na.rm=FALSE)
+  indic_sum <- roll::roll_sum(in_dic, width=lagg, min_obs=1)
+  indic_sum[1:lagg] <- 0
+  position_s <- rep(NA_integer_, n_rows)
+  position_s[1] <- 0
+  position_s <- ifelse(indic_sum == lagg, 1, position_s)
+  position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+  position_s[1:lagg] <- 0
+  position_s <- rutils::lag_it(position_s, lagg=1)
+  position_s
+}  # end back_test
+
+# Objective function equal to minus strategy returns
+objec_tive <- function(weight_s, FUN, re_turns, ...) {
+  -sum(re_turns*FUN(weight_s, ...))
+}  # end objec_tive
+
+# Perform weights optimization
+op_tim <- optim(par=weight_s,
+                fn=objec_tive,
+                FUN=back_test,
+                n_rows=n_rows,
+                # thresh_top=thresh_top,
+                # thresh_bot=thresh_bot,
+                de_sign=de_sign,
+                re_turns=re_turns,
+                lagg=lagg,
+                co_eff=co_eff,
+                method="L-BFGS-B",
+                upper=rep(25, 4),
+                lower=rep(-25, 4))
+weight_s <- op_tim$par
+names(weight_s) <- c("vxx", "stock", "volat", "volume")
+back_test(weight_s, 
+          n_rows=n_rows,
+          # thresh_top=thresh_top,
+          # thresh_bot=thresh_bot,
+          de_sign=de_sign,
+          re_turns=re_turns,
+          lagg=lagg,
+          co_eff=co_eff)
+
+# Objective function equal to minus strategy returns
+# For DEoptim only way to make it work.
+objec_tive <- function(weight_s=c(25, 0, 0, 0),
+                      n_rows,
+                      thresh_top=0.1,
+                      thresh_bot=0.1,
+                      de_sign,
+                      re_turns,
+                      lagg,
+                      co_eff=co_eff) {
+  sig_nal <- drop(de_sign %*% weight_s)
+  top_s <- (sig_nal > thresh_top)
+  bottom_s <- (sig_nal < thresh_bot)
+  in_dic <- rep(NA_integer_, n_rows)
+  in_dic[1] <- 0
+  in_dic[bottom_s] <- co_eff
+  in_dic[top_s] <- (-co_eff)
+  in_dic <- zoo::na.locf(in_dic, na.rm=FALSE)
+  indic_sum <- roll::roll_sum(in_dic, width=lagg, min_obs=1)
+  indic_sum[1:lagg] <- 0
+  position_s <- rep(NA_integer_, n_rows)
+  position_s[1] <- 0
+  position_s <- ifelse(indic_sum == lagg, 1, position_s)
+  position_s <- ifelse(indic_sum == (-lagg), -1, position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+  position_s[1:lagg] <- 0
+  position_s <- rutils::lag_it(position_s, lagg=1)
+  -sum(position_s*re_turns)
+}  # end objec_tive
+
+# Perform portfolio optimization using DEoptim
+op_tim <- DEoptim::DEoptim(fn=objec_tive,
+                           n_rows=n_rows,
+                           # thresh_top=thresh_top,
+                           # thresh_bot=thresh_bot,
+                           de_sign=de_sign,
+                           re_turns=re_turns,
+                           lagg=lagg,
+                           co_eff=co_eff,
+                           upper=rep(25, 4),
+                           lower=rep(-25, 4),
+                           control=list(trace=FALSE, itermax=1e3, parallelType=1))
+weight_s <- op_tim$optim$bestmem/sum(abs(op_tim$optim$bestmem))
+names(weight_s) <- c("vxx", "stock", "volat", "volume")
+# names(weight_s) <- c("vxx", "svxy", "volat", "volume")
+
+# Calculate strategy positions
+position_s <- back_test(weight_s, 
+          n_rows=n_rows,
+          # thresh_top=thresh_top,
+          # thresh_bot=thresh_bot,
+          de_sign=de_sign,
+          re_turns=re_turns,
+          lagg=lagg,
+          co_eff=co_eff)
+
+# Number of trades
+sum(abs(rutils::diff_it(position_s)))
+# Calculate strategy returns
+pnl_s <- position_s*re_turns
+dygraph(cumsum(pnl_s))
+
+
+
+###############
+### Label the turning points in prices.
+
+# Extract log OHLC prices
+sym_bol <- "VTI"
+oh_lc <- get(sym_bol, rutils::etf_env)
+clos_e <- log(quantmod::Cl(oh_lc))
+vol_ume <- quantmod::Vo(oh_lc)
+re_turns <- rutils::diff_it(clos_e)
+n_rows <- NROW(oh_lc)
+
+# Calculate the centered volatility
+look_back <- 21
+half_back <- look_back %/% 2
+vol_at <- roll::roll_sd(re_turns, width=look_back, min_obs=1)
+vol_at <- rutils::lag_it(vol_at, lagg=(-half_back))
+
+# Calculate the z-scores of prices
+mid_p <- 1:n_rows  # mid point
+start_p <- (mid_p - half_back)  # start point
+start_p[1:half_back] <- 1
+end_p <- (mid_p + half_back)  # end point
+end_p[(n_rows-half_back+1):n_rows] <- n_rows
+clos_e <- as.numeric(clos_e)
+z_scores <- (2*clos_e[mid_p] - clos_e[start_p] - clos_e[end_p])
+z_scores <- ifelse(vol_at > 0, z_scores/vol_at, 0)
+dygraph(z_scores)
+hist(z_scores)
+
+# Plot dygraph of z-scores of VTI prices
+price_s <- cbind(clos_e, z_scores)
+colnames(price_s) <- c(sym_bol, paste(sym_bol, "Z-Score"))
+col_names <- colnames(price_s)
+dygraphs::dygraph(price_s["2009"], main=paste(sym_bol, "Z-Score")) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
+
+# Calculate thresholds for labeling tops and bottoms
+threshold_s <- quantile(z_scores, c(0.1, 0.9))
+# Calculate the vectors of tops and bottoms
+top_s <- (z_scores > threshold_s[2])
+colnames(top_s) <- "tops"
+bottom_s <- (z_scores < threshold_s[1])
+colnames(bottom_s) <- "bottoms"
+
+# Backtest in-sample VTI strategy
+position_s <- rep(NA_integer_, n_rows)
+position_s[1] <- 0
+position_s[top_s] <- (-1)
+position_s[bottom_s] <- 1
+position_s <- zoo::na.locf(position_s)
+# position_s <- rutils::lag_it(position_s, 1)
+pnl_s <- cumsum(re_turns*position_s)
+# Number of trades
+sum(abs(rutils::diff_it(position_s))) / NROW(position_s)
+
+# Plot dygraph of in-sample VTI strategy
+price_s <- cbind(clos_e, pnl_s)
+colnames(price_s) <- c(sym_bol, paste(sym_bol, "Strategy"))
+col_names <- colnames(price_s)
+dygraphs::dygraph(price_s, main=paste(sym_bol, "In-sample Strategy")) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
+
+
+###############
+### Apply logistic regression using bar labels as the response.
+# Comment: The z-scores have low predictive power.
+
+# Calculate SVXY and VXX prices
+svx_y <- log(quantmod::Cl(rutils::etf_env$SVXY))
+n_rows <- NROW(svx_y)
+date_s <- zoo::index(svx_y)
+vx_x <- log(quantmod::Cl(rutils::etf_env$VXX))
+vx_x <- vx_x[date_s]
+
+# Calculate rolling VTI volatility
+# vol_at <- HighFreq::roll_var_ohlc(oh_lc=log(oh_lc), look_back=look_back, scal_e=FALSE)
+# vol_at <- xts::xts(sqrt(vol_at), dates_vti)
+
+# Calculate trailing z-scores of SVXY
+# de_sign <- cbind(vol_at[date_s], vx_x, clos_e[date_s])
+# res_ponse <- svx_y
+# z_scores <- drop(HighFreq::roll_zscores(res_ponse=res_ponse, de_sign=de_sign, look_back=look_back))
+# z_scores[1:look_back] <- 0
+# z_scores[is.infinite(z_scores)] <- 0
+# z_scores[is.na(z_scores)] <- 0
+# z_scores <- z_scores/sqrt(look_back)
+
+# Calculate SVXY z-scores
+roll_svxy <- roll::roll_mean(svx_y, width=look_back, min_obs=1)
+svxy_scores <- (svx_y - roll_svxy)/roll_svxy
+
+# Calculate VXX z-scores
+roll_vxx <- roll::roll_mean(vx_x, width=look_back, min_obs=1)
+vxx_scores <- (vx_x - roll_vxx)/roll_vxx
+
+# Calculate volatility z-scores
+vol_at <- log(quantmod::Hi(oh_lc))-log(quantmod::Lo(oh_lc))
+roll_vol <- roll::roll_mean(vol_at, width=look_back, min_obs=1)
+volat_scores <- (vol_at - roll_vol)/roll_vol
+
+# Calculate volume z-scores
+vol_ume <- quantmod::Vo(oh_lc)
+volume_mean <- roll::roll_mean(vol_ume, width=look_back, min_obs=1)
+volume_sd <- roll::roll_sd(rutils::diff_it(vol_ume), width=look_back, min_obs=1)
+volume_scores <- (vol_ume - volume_mean)/volume_sd
+
+# Define design matrix
+de_sign <- cbind(vxx_scores, svxy_scores, volat_scores[date_s], volume_scores[date_s])
+colnames(de_sign) <- c("vxx", "svxy", "volat", "volume")
+
+# Define in-sample and out-of-sample intervals
+in_sample <- 1:(n_rows %/% 2)
+out_sample <- (n_rows %/% 2 + 1):n_rows
+
+# Fit in-sample logistic regression for tops
+res_ponse <- top_s[date_s][in_sample]
+glm_tops <- glm(res_ponse ~ de_sign[in_sample], family=binomial(logit))
+summary(glm_tops)
+
+# Fit in-sample logistic regression for bottoms
+res_ponse <- bottom_s[date_s][in_sample]
+glm_bottoms <- glm(res_ponse ~ de_sign[in_sample], family=binomial(logit))
+summary(glm_bottoms)
+
+n_rows <- NROW(res_ponse)
+date_s <- zoo::index(res_ponse)
+re_turns <- rutils::diff_it(log(quantmod::Cl(oh_lc[date_s])))
+fitted_bottoms <- glm_bottoms$fitted.values
+fitted_tops <- glm_tops$fitted.values
+
+# Define back_test as function of confidence levels
+back_test <- function(con_fi=c(0.1, 0.9)) {
+  thresh_old <- quantile(fitted_bottoms, con_fi[1])
+  bottom_s <- (fitted_bottoms < thresh_old)
+  thresh_old <- quantile(fitted_tops, con_fi[2])
+  top_s <- (fitted_tops > thresh_old)
+  position_s <- rep(NA_integer_, n_rows)
+  position_s[1] <- 0
+  position_s[top_s] <- (-1)
+  position_s[bottom_s] <- 1
+  position_s <- zoo::na.locf(position_s)
+  -sum(re_turns*position_s)
+}  # end back_test
+
+back_test()
+con_fi <- c(0.5, 0.6)
+names(con_fi) <- c("bottom", "top")
+# Find weights with maximum variance
+op_tim <- optim(par=con_fi,
+                fn=back_test,
+                method="L-BFGS-B",
+                upper=rep(1, 2),
+                lower=rep(0, 2))
+con_fi <- op_tim$par
+
+
+
+###############
 ### Create trending portfolios of similar ETFs.
 
 # Load packages
@@ -95,9 +514,9 @@ port_f <- xts::xts(port_f, date_s)
 da_ta <- cbind(re_turns$VTI, port_f)
 sharp_e <- sqrt(252)*sapply(da_ta, function(x) mean(x)/sd(x[x<0]))
 
-colnames(pnl_s) <- c(paste(input$sym_bol, "Returns"), "Strategy", "Buy", "Sell")
+colnames(pnl_s) <- c(paste(sym_bol, "Returns"), "Strategy", "Buy", "Sell")
 
-cap_tion <- paste("Strategy for", input$sym_bol, "Returns Scaled by the Trading Volumes / \n", 
+cap_tion <- paste("Strategy for", sym_bol, "Returns Scaled by the Trading Volumes / \n", 
                   paste0(c("Index SR=", "Strategy SR="), sharp_e, collapse=" / "), "/ \n",
                   "Number of trades=", n_trades)
 
@@ -145,7 +564,7 @@ vol_ume <- vol_ume/volume_rolling
 # rets_scaled <- ifelse(vol_ume > 0, re_turns/vol_ume, 0)
 rets_scaled <- re_turns/vol_ume
 
-## Aersion using only recent returns
+## Version using only recent returns
 
 # First version
 look_backs <- 2:25
@@ -213,7 +632,7 @@ colnames(predic_tor)[1] <- "unit"
 max_eigen <- 4
 in_verse <- MASS::ginv(predic_tor[in_sample, 1:max_eigen])
 coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
-# Calculate out-sample forecasts of re_turns
+# Calculate out-of-sample forecasts of re_turns
 # forecast_s <- drop(predic_tor[out_sample, 1:3] %*% coeff_fit[1:3])
 forecast_s <- drop(predic_tor[out_sample, 1:max_eigen] %*% coeff_fit)
 mean((re_turns[out_sample, ] - forecast_s)^2)
@@ -3157,12 +3576,12 @@ for_mula <- as.formula(paste(col_names[1], paste(paste(col_names[-1], collapse="
 
 
 # find extreme returns
-ex_treme <- which(returns_adv > quantile(returns_adv, 0.99) | returns_adv < quantile(returns_adv, 0.01))
-ex_treme <- sort(unique(c(ex_treme, ex_treme+1, ex_treme-1)))
+ex_cess <- which(returns_adv > quantile(returns_adv, 0.99) | returns_adv < quantile(returns_adv, 0.01))
+ex_cess <- sort(unique(c(ex_cess, ex_cess+1, ex_cess-1)))
 
 # perform regression
 mod_el <- lm(for_mula, data=de_sign)
-# mod_el <- lm(returns_adv[-ex_treme] ~ de_sign[-ex_treme, ])
+# mod_el <- lm(returns_adv[-ex_cess] ~ de_sign[-ex_cess, ])
 model_sum <- summary(mod_el)
 model_sum$coefficients
 weight_s <- model_sum$coefficients[, 1]
@@ -3413,11 +3832,11 @@ col_names <- colnames(foo)
 for_mula <- as.formula(paste(col_names[1], paste(col_names[-1], collapse=" + "), sep="~"))
 # perform regression
 # returns_adv <- plogis(returns_adv, scale=-quantile(foo, 0.1))
-ex_treme <- ((foo[, 2]>quantile(foo[, 2], 0.05)) & (foo[, 2]<quantile(foo[, 2], 0.95)))
-mod_el <- lm(for_mula, data=foo[ex_treme])
+ex_cess <- ((foo[, 2]>quantile(foo[, 2], 0.05)) & (foo[, 2]<quantile(foo[, 2], 0.95)))
+mod_el <- lm(for_mula, data=foo[ex_cess])
 model_sum <- summary(mod_el)
 model_sum
-plot(for_mula, data=foo[ex_treme])
+plot(for_mula, data=foo[ex_cess])
 abline(mod_el, lwd=2, col="red")
 
 # perform optimization
@@ -3524,7 +3943,7 @@ sig_nal <- rutils::lag_it(sig_nal)
 
 # perform regression
 mod_el <- lm(for_mula, data=design_in)
-# mod_el <- lm(returns_adv[-ex_treme] ~ de_sign[-ex_treme, ])
+# mod_el <- lm(returns_adv[-ex_cess] ~ de_sign[-ex_cess, ])
 model_sum <- summary(mod_el)
 weight_s <- model_sum$coefficients[, 1][-1]
 
