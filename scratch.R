@@ -1,4 +1,198 @@
 ###############
+### Backtest an AR strategy for VTI using IR yield curve
+# Comment: IR yield curve has very little forecasting power for VTI
+
+# Load packages
+library(rutils)
+
+# Calculate VTI prices
+price_s <- quantmod::Cl(rutils::etf_env$VTI)
+
+# Load constant maturity Treasury rates
+load(file="C:/Develop/lecture_slides/data/rates_data.RData")
+# Combine rates into xts
+rate_s <- do.call(cbind, as.list(rates_env))
+# Sort the columns of name_s according bond maturity
+name_s <- colnames(rate_s)
+name_s <- substr(name_s, start=4, stop=10)
+name_s <- as.numeric(name_s)
+in_deks <- order(name_s)
+rate_s <- rate_s[, in_deks]
+tail(rate_s)
+# Align rates with VTI prices
+date_s <- zoo::index(price_s)
+rate_s <- na.omit(rate_s[date_s])
+price_s <- price_s[zoo::index(rate_s)]
+date_s <- zoo::index(price_s)
+all.equal(date_s, zoo::index(rate_s))
+# Calculate VTI returns
+re_turns <- rutils::diff_it(log(price_s))
+n_rows <- NROW(re_turns)
+
+# Calculate change in rates
+rates_diff <- rutils::diff_it(rate_s)
+
+# Calculate eigen decomposition of covariance matrix
+ei_gen <- eigen(cov(rates_diff))
+rates_pca <- rates_diff %*% ei_gen$vectors
+
+
+foo <- apply(rates_pca, 2, function(x) {
+  pac_f <- pacf(x, lag=10, plot=FALSE)
+  sum(pac_f$acf)
+})  # end sapply
+barplot(foo, main="PACF of Interest Rate PCs")
+
+
+# Plot principal components of rates
+rates_pca <- rate_s %*% ei_gen$vectors[, 1:3]
+
+da_ta <- cbind(price_s, rates_pca)
+colnames(da_ta) <- c("VTI", "FirstPC", "Steepener", "Butterfly")
+col_names <- colnames(da_ta)[c(1, 3)]
+dygraphs::dygraph(da_ta[, c(1, 3)], main=paste(colnames(da_ta)[1], "and IR", colnames(da_ta)[3])) %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="red")
+
+
+
+# Calculate res_ponse as the re_turns
+res_ponse <- re_turns
+# Calculate predictor as the lagged change in rates
+predic_tor <- rutils::lag_it(rates_diff)
+
+
+# Pure in-sample with aggregations
+n_agg <- 10
+predic_tor <- rutils::lag_it(rates_diff)
+predic_tor <- roll::roll_mean(predic_tor, width=n_agg, min_obs=1)
+res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg))
+in_verse <- MASS::ginv(predic_tor)
+co_eff <- drop(in_verse %*% res_ponse)
+forecast_s <- predic_tor %*% co_eff
+pnl_s <- cumsum(sign(forecast_s)*res_ponse)
+pnl_s <- xts::xts(pnl_s, date_s)
+colnames(pnl_s) <- "VTI"
+dygraphs::dygraph(pnl_s, main="Autoregressive Strategy Using Yield Curve") %>%
+  dyOptions(colors="blue", strokeWidth=2) %>%
+  dyLegend(width=500)
+
+
+# Define in-sample and out-of-sample intervals
+in_sample <- 1:(n_rows %/% 2)
+out_sample <- (n_rows %/% 2 + 1):n_rows
+
+# Calculate in-sample fitted coefficients
+in_verse <- MASS::ginv(predic_tor[in_sample])
+co_eff <- drop(in_verse %*% res_ponse[in_sample])
+names(co_eff) <- colnames(predic_tor)
+
+
+# Calculate regularized inverse using RcppArmadillo
+eigen_max <- 3
+in_verse <- HighFreq::calc_inv(predic_tor[in_sample], eigen_max=eigen_max)
+co_eff <- drop(in_verse %*% res_ponse[in_sample])
+names(co_eff) <- colnames(predic_tor)
+
+## Define predictor as a rolling mean
+n_agg <- 10
+predic_tor <- roll::roll_mean(predic_tor, width=n_agg, min_obs=1)
+# Shift the res_ponse forward out-of-sample
+res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg))
+# Calculate in-sample fitted coefficients
+in_verse <- MASS::ginv(predic_tor[in_sample])
+co_eff <- drop(in_verse %*% res_ponse[in_sample])
+names(co_eff) <- colnames(predic_tor)
+
+
+# Calculate in-sample PnLs
+forecast_s <- predic_tor[in_sample] %*% co_eff
+pnl_s <- cumsum(sign(forecast_s)*re_turns[in_sample])
+pnl_s <- xts::xts(pnl_s, date_s[in_sample])
+colnames(pnl_s) <- "VTI"
+# Calculate out-of-sample PnLs
+forecast_s <- predic_tor[out_sample] %*% co_eff
+pnl_s <- cumsum(sign(forecast_s)*re_turns[out_sample])
+pnl_s <- xts::xts(pnl_s, date_s[out_sample])
+colnames(pnl_s) <- "VTI"
+# Plot dygraph of out-of-sample PnLs
+dygraphs::dygraph(pnl_s, main="Autoregressive Strategy Using Yield Curve") %>%
+  dyOptions(colors="blue", strokeWidth=2) %>%
+  dyLegend(width=500)
+
+
+u_til <- function(co_eff) {
+  forecast_s <- predic_tor %*% co_eff
+  -sum(sign(forecast_s)*re_turns)
+}  # end u_til
+
+# Optimize with respect to vector argument
+op_tim <- optim(fn=u_til, 
+                par=rnorm(6),
+                method="L-BFGS-B",
+                upper=rep(10, 6),
+                lower=rep(-10, 6))
+# Weights
+co_eff <- op_tim$par
+
+
+# Calculate eigen decomposition of covariance matrix
+ei_gen <- eigen(cov(rates_diff))
+pc_a <- ei_gen$vectors[, 1:2]
+pc_a %*% c(1, -1)
+
+u_til <- function(coeffpc) {
+  co_eff <- pc_a %*% coeffpc
+  forecast_s <- predic_tor %*% co_eff
+  -sum(sign(forecast_s)*re_turns)
+}  # end u_til
+
+# Optimize with respect to vector argument
+op_tim <- optim(fn=u_til, 
+                par=rnorm(2),
+                method="L-BFGS-B",
+                upper=rep(10, 2),
+                lower=rep(-10, 2))
+coeffpc <- op_tim$par
+co_eff <- pc_a %*% coeffpc
+forecast_s <- drop(predic_tor %*% co_eff)
+pnl_s <- cumsum(sign(forecast_s)*re_turns)
+pnl_s <- xts::xts(pnl_s, date_s)
+colnames(pnl_s) <- "VTI"
+dygraphs::dygraph(pnl_s, main="Autoregressive Strategy Using Yield Curve") %>%
+  dyOptions(colors="blue", strokeWidth=2) %>%
+  dyLegend(width=500)
+
+
+## Define predictor as a rolling mean
+n_agg <- 5
+predic_tor <- roll::roll_mean(predic_tor, width=n_agg, min_obs=1)
+# Shift the res_ponse forward out-of-sample
+res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg))
+# Calculate in-sample fitted coefficients
+in_verse <- MASS::ginv(predic_tor[in_sample])
+co_eff <- drop(in_verse %*% re_turns[in_sample])
+names(co_eff) <- colnames(predic_tor)
+
+foo <- sapply(1*(1:20), function(n_agg) {
+  predic_tor <- roll::roll_mean(predic_tor, width=n_agg, min_obs=1)
+  res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
+  res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg))
+  in_verse <- MASS::ginv(predic_tor)
+  co_eff <- drop(in_verse %*% res_ponse)
+  forecast_s <- predic_tor %*% co_eff
+  sum(sign(forecast_s)*re_turns)
+})  # end sapply
+
+
+
+
+###############
 ### Backtest an AR strategy with design as z-scores.
 # Comment: The z-scores have low predictive power.
 
@@ -88,11 +282,11 @@ colnames(de_sign) <- c("vxx", "stock", "volat", "volume")
 # Invert the predictor matrix
 design_inv <- MASS::ginv(de_sign)
 # Calculate fitted coefficients
-coeff_fit <- drop(design_inv %*% res_ponse)
-names(coeff_fit) <- c("vxx", "stock", "volat", "volume")
-barplot(coeff_fit)
+co_eff <- drop(design_inv %*% res_ponse)
+names(co_eff) <- c("vxx", "stock", "volat", "volume")
+barplot(co_eff)
 # Calculate forecast
-forecast_s <- drop(de_sign %*% coeff_fit)
+forecast_s <- drop(de_sign %*% co_eff)
 forecast_s <- rutils::lag_it(forecast_s)
 pnl_s <- sign(forecast_s)*re_turns
 # forecast_s <- xts::xts(forecast_s, date_s)
@@ -105,11 +299,11 @@ out_sample <- (n_rows %/% 2 + 1):n_rows
 # Invert the predictor matrix in-sample
 design_inv <- MASS::ginv(de_sign[in_sample, ])
 # Calculate in-sample fitted coefficients
-coeff_fit <- drop(design_inv %*% res_ponse[in_sample, ])
-names(coeff_fit) <- c("vxx", "stock", "volat", "volume")
-barplot(coeff_fit)
+co_eff <- drop(design_inv %*% res_ponse[in_sample, ])
+names(co_eff) <- c("vxx", "stock", "volat", "volume")
+barplot(co_eff)
 # Calculate out-of-sample forecasts
-forecast_s <- drop(de_sign[out_sample, ] %*% coeff_fit)
+forecast_s <- drop(de_sign[out_sample, ] %*% co_eff)
 forecast_s <- rutils::lag_it(forecast_s)
 pnl_s <- sign(forecast_s)*re_turns[out_sample, ]
 # forecast_s <- xts::xts(forecast_s, date_s)
@@ -417,6 +611,7 @@ con_fi <- op_tim$par
 
 
 
+
 ###############
 ### Create trending portfolios of similar ETFs.
 
@@ -623,7 +818,7 @@ ei_gen <- eigen(cov_mat)
 # eigen_vec <- ei_gen$vectors
 predic_tor <- xts::xts(de_sign %*% ei_gen$vectors, order.by=date_s)
 colnames(predic_tor) <- paste0("pc", 1:NCOL(predic_tor))
-# round(cov(predic_tor), 3)
+# round(cov(rates_diff), 3)
 predic_tor <- rutils::lag_it(predic_tor)
 predic_tor <- cbind(rep(1, n_rows), predic_tor)
 colnames(predic_tor)[1] <- "unit"
@@ -631,10 +826,10 @@ colnames(predic_tor)[1] <- "unit"
 # Calculate in-sample fitted coefficients
 max_eigen <- 4
 in_verse <- MASS::ginv(predic_tor[in_sample, 1:max_eigen])
-coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
+co_eff <- drop(in_verse %*% res_ponse[in_sample])
 # Calculate out-of-sample forecasts of re_turns
-# forecast_s <- drop(predic_tor[out_sample, 1:3] %*% coeff_fit[1:3])
-forecast_s <- drop(predic_tor[out_sample, 1:max_eigen] %*% coeff_fit)
+# forecast_s <- drop(predic_tor[out_sample, 1:3] %*% co_eff[1:3])
+forecast_s <- drop(predic_tor[out_sample, 1:max_eigen] %*% co_eff)
 mean((re_turns[out_sample, ] - forecast_s)^2)
 drop(cor(re_turns[out_sample, ], forecast_s))
 
@@ -693,8 +888,8 @@ predic_tor <- xts::xts(de_sign %*% ei_gen$vectors, order.by=date_s)
 predic_tor <- rutils::lag_it(predic_tor)
 # predic_tor <- cbind(rep(1, n_rows), predic_tor)
 in_verse <- MASS::ginv(predic_tor[in_sample, ])
-coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
-forecast_s <- drop(predic_tor[out_sample, ] %*% coeff_fit)
+co_eff <- drop(in_verse %*% res_ponse[in_sample])
+forecast_s <- drop(predic_tor[out_sample, ] %*% co_eff)
 forecast_s <- roll::roll_mean(sign(forecast_s), width=max_back)
 forecast_s[1:(max_back-1)] <- 1
 pnl_s <- cumsum(forecast_s*re_turns[out_sample])
@@ -1047,9 +1242,9 @@ colnames(predic_tor) <- paste0("pred_", 1:NCOL(predic_tor))
 forecast_s <- lapply(2:NCOL(predic_tor), function(or_der) {
   # Calculate fitted coefficients
   in_verse <- MASS::ginv(predic_tor[in_sample, 1:or_der])
-  coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
+  co_eff <- drop(in_verse %*% res_ponse[in_sample])
   # Calculate out-of-sample forecasts of re_turns
-  drop(predic_tor[out_of_sample, 1:or_der] %*% coeff_fit)
+  drop(predic_tor[out_of_sample, 1:or_der] %*% co_eff)
 })  # end lapply
 names(forecast_s) <- paste0("p=", 2:NCOL(predic_tor))
 
@@ -1532,8 +1727,8 @@ back_test <- function(sym_bol) {
   predic_tor <- cbind(rep(1, n_rows), predic_tor)
   colnames(predic_tor) <- paste0("pred_", 1:NCOL(predic_tor))
   in_verse <- MASS::ginv(predic_tor[in_sample, 1:or_der])
-  coeff_fit <- drop(in_verse %*% res_ponse[in_sample])
-  forecast_s <- drop(predic_tor[out_of_sample, 1:or_der] %*% coeff_fit)
+  co_eff <- drop(in_verse %*% res_ponse[in_sample])
+  forecast_s <- drop(predic_tor[out_of_sample, 1:or_der] %*% co_eff)
   sign(forecast_s)*re_turns[out_of_sample]
 }  # end back_test
 
