@@ -1,4 +1,42 @@
 ###############
+### Download from Polygon
+
+# Download minutes SPY prices in JSON format from Polygon
+download.file("https://api.polygon.io/v2/aggs/ticker/SPY/range/1/minute/2020-01-01/2021-07-20?adjusted=true&sort=asc&limit=50000&apiKey=J2M4jq6ltDM7c9VlboKAFIUklyxvpIdX", "C:/Develop/data/polygon/spy.json")
+# Read SPY prices from json file
+oh_lc <- jsonlite::read_json("C:/Develop/data/polygon/spy.json")
+class(oh_lc)
+NROW(oh_lc)
+names(oh_lc)
+# Coerce from json to data frame
+oh_lc <- oh_lc$results
+oh_lc <- jsonlite::toJSON(oh_lc)
+oh_lc <- jsonlite::fromJSON(oh_lc)
+sapply(oh_lc, class)
+# Coerce from data frame to matrix
+oh_lc <- lapply(oh_lc, unlist)
+oh_lc <- do.call(cbind, oh_lc)
+class(oh_lc)
+# Coerce time from milliseconds to date time
+date_s <- oh_lc[, "t"]/1e3
+date_s <- as.POSIXct(date_s, origin="1970-01-01")
+tail(date_s)
+# Coerce from matrix to xts
+oh_lc <- oh_lc[, c("o","h","l","c","v","vw")]
+colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+oh_lc <- xts::xts(oh_lc, order.by=date_s)
+tail(oh_lc)
+# Copy and repeat the download
+ohlc1 <- oh_lc
+# Join all the xts
+oh_lc <- lapply(1:6, function(it) get(paste0("ohlc", it)))
+oh_lc <- do.call(rbind, oh_lc)
+oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
+save(oh_lc, file="C:/Develop/data/polygon/spy_minutes.RData")
+
+
+
+###############
 ### Backtest an AR strategy for VTI using IR yield curve
 # Comment: IR yield curve has very little forecasting power for VTI
 
