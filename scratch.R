@@ -1,5 +1,121 @@
 ###############
-### Download from Polygon
+### Test running functions
+
+
+# re_turns <- na.omit(rutils::etf_env$re_turns$VTI)
+re_turns <- na.omit(rutils::etf_env$re_turns[, c("IEF", "VTI")])
+price_s <- na.omit(rutils::etf_env$price_s[, c("IEF", "VTI")])
+
+
+foo <- run_max(price_s, lambda=0.9)
+foo <- run_mean(re_turns, lambda=0.9)
+# ari_ma <- 0.1*HighFreq::sim_arima(re_turns, 0.9)
+ari_ma <- 0.1*sapply(re_turns, HighFreq::sim_arima, coeff=0.9)
+
+cbind(tail(foo), tail(ari_ma))
+all.equal(tail(foo, 1111), tail(ari_ma, 1111), check.attributes=FALSE)
+arima_fastest <- 0.1*.Call(stats:::C_rfilter, re_turns, 0.9, double(1 + NROW(re_turns)))[-(1:3)]
+all.equal(tail(arima_fastest, 1111), tail(drop(ari_ma), 1111), check.attributes=FALSE)
+
+summary(microbenchmark(
+  run=run_mean(re_turns, lambda=0.9),
+  hf=HighFreq::sim_arima(re_turns, 0.9),
+  rfilter=.Call(stats:::C_rfilter, re_turns, 0.9, double(1 + NROW(re_turns))),
+  times=10))[, c(1, 4, 5)]
+
+
+foo <- run_var(re_turns, lambda=0.9)
+vari_ance <- 0.1*HighFreq::sim_arima(re_turns^2, 0.9)
+vari_ance <- HighFreq::roll_var(re_turns, step=1, look_back=21)
+all.equal(tail(foo, 1111), tail(vari_ance, 1111), check.attributes=FALSE)
+
+summary(microbenchmark(
+  ro_ll=roll::roll_median(clos_e, width=look_back),
+  rcpp_roll=RcppRoll::roll_median(clos_e, n=look_back),
+  tt_r=TTR::runMedian(clos_e, n=look_back),
+  times=10))[, c(1, 4, 5)]
+
+
+da_ta <- cbind(price_s[, 1], foo[, 1])
+colnames(da_ta) <- c("prices", "max")
+col_names <- colnames(da_ta)
+dygraphs::dygraph(da_ta, main="prices and max") %>%
+  dySeries(name=col_names[1], label=col_names[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=col_names[2], label=col_names[2], strokeWidth=2, col="red")
+
+dygraphs::dygraph(da_ta, main="prices and max") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
+
+
+
+###############
+### Stock Forecasting Using Interest Rate Data
+
+# Load FRED data from csv file
+# da_ta <- data.table::fread(file="C:/Develop/predictive/data/FRED_data.csv", stringsAsFactors=FALSE)
+
+da_ta <- read.csv(file="C:/Develop/predictive/data/FRED_data.csv")
+col_names <- colnames(da_ta)[-1]
+sapply(da_ta, class)
+da_ta <- lapply(da_ta[, -1], as.numeric)
+da_ta <- rutils::do_call(cbind, da_ta)
+apply(da_ta, 2, class)
+
+num_nona <- apply(da_ta, 2, function(x) sum(!is.na(x)))
+col_names <- col_names[num_nona > 0]
+da_ta <- lapply(1:NCOL(da_ta), function(x) {
+  if (sum(!is.na(da_ta[, x])) > 0)
+    da_ta[, x]
+  else
+    NULL
+})  # end lapply
+da_ta <- rutils::do_call(cbind, da_ta)
+head(da_ta)
+tail(da_ta)
+
+diff_data <- rutils::diff_it(da_ta, pad_zeros=FALSE)
+bar <- var(diff_data, na.rm=TRUE)
+
+
+corr_el <- sapply(2:NCOL(diff_data), function(x) {
+  di_ff <- na.omit(diff_data[, c(1, x)])
+  cor(di_ff[, 1], rutils::lag_it(di_ff[, 2], pad_zeros=FALSE))
+})  # end lapply
+names(corr_el) <- col_names[-1]
+sort(corr_el)
+
+
+
+#################
+sum(!is.na(da_ta[, 1]))
+
+which(!is.null(da_ta[, BAMLH0A0HYM2SY]))
+
+
+
+da_ta <- lapply(da_ta[, -1], rutils::diff_it)
+da_ta <- rutils::do_call(cbind, da_ta)
+
+
+
+re_turns <- lapply(da_ta[, -1], rutils::diff_it)
+re_turns <- rutils::do_call(cbind, re_turns)
+colnames(re_turns) <- c("sentiment", "SPY")
+cor(rutils::lag_it(re_turns[, 1]), re_turns[, 2])
+
+
+da_ta <- da_ta[, c("date", "sentiment", "close")]
+colnames(da_ta) <- c("date", "sentiment", "SPY")
+da_ta <- xts::xts(da_ta[, 2:3], as.Date.IDate(da_ta[, date]))
+
+
+
+
+###############
+### Download Data from Polygon
 
 # Download minutes SPY prices in JSON format from Polygon
 download.file("https://api.polygon.io/v2/aggs/ticker/SPY/range/1/minute/2020-01-01/2021-07-20?adjusted=true&sort=asc&limit=50000&apiKey=J2M4jq6ltDM7c9VlboKAFIUklyxvpIdX", "C:/Develop/data/polygon/spy.json")
