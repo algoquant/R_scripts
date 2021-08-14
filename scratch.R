@@ -1,53 +1,56 @@
 ###############
-### Test running functions
+### Test for app_zscore_returns_strat.R
+
+load(file="C:/Develop/data/polygon/spy_minutes.RData")
+oh_lc <- oh_lc["T09:00:00/T16:30:00"]
+re_turns <- rutils::diff_it(log(Cl(oh_lc)))
+n_rows <- NROW(re_turns)
+
+lamb_da <- 0.15
+lagg <- 1
+thresh_old <- 1.0
+long_back <- 100
+
+refvar <- rep(1, NROW(re_turns))
+tseries <- cbind(re_turns, refvar)
+
+# Run the model
+calc_sharpe <- function(lamb_da, thresh_old) {
+  z_scores <- HighFreq::run_zscore(tseries, lambda=lamb_da)
+  z_scores <- z_scores[, 1, drop=FALSE]
+  z_scores <- HighFreq::roll_scale(z_scores, look_back=long_back, use_median=TRUE)
+  z_scores[is.na(z_scores) | is.infinite(z_scores)] <- 0
+  z_scores <- HighFreq::lag_it(z_scores, pad_zeros=TRUE)
+  in_dic <- rep(0, n_rows)
+  in_dic <- ifelse(z_scores > thresh_old, -1, in_dic)
+  in_dic <- ifelse(z_scores < (-thresh_old), 1, in_dic)
+  indic_sum <- HighFreq::roll_vec(tseries=in_dic, look_back=lagg)
+  indic_sum[1:lagg] <- 0
+  position_s <- rep(NA_integer_, n_rows)
+  position_s[1] <- 0
+  position_s <- ifelse(indic_sum >= lagg, 1, position_s)
+  position_s <- ifelse(indic_sum <= (-lagg), -1, position_s)
+  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+  position_s <- rutils::lag_it(position_s, lagg=1)
+  pnl_s <- position_s*re_turns
+  mean(pnl_s)/sd(pnl_s[pnl_s<0])
+}  # end calc_sharpe
+
+calc_sharpe(0.3)
 
 
-# re_turns <- na.omit(rutils::etf_env$re_turns$VTI)
-re_turns <- na.omit(rutils::etf_env$re_turns[, c("IEF", "VTI")])
-price_s <- na.omit(rutils::etf_env$price_s[, c("IEF", "VTI")])
+# Calculate heatmaps 
+lamb_das <- seq(0.1, 0.3, 0.01)
+thresh_old <- 1.0
+sharpes <- sapply(lamb_das, calc_sharpe, thresh_old=thresh_old)
+plot(lamb_das, sharpes)
+
+thresh_olds <- seq(0.5, 4, 0.2)
+lamb_da <- 0.25
+sharpes <- sapply(thresh_olds, calc_sharpe, lamb_da=lamb_da)
+plot(thresh_olds, sharpes)
 
 
-foo <- run_max(price_s, lambda=0.9)
-foo <- run_mean(re_turns, lambda=0.9)
-# ari_ma <- 0.1*HighFreq::sim_arima(re_turns, 0.9)
-ari_ma <- 0.1*sapply(re_turns, HighFreq::sim_arima, coeff=0.9)
-
-cbind(tail(foo), tail(ari_ma))
-all.equal(tail(foo, 1111), tail(ari_ma, 1111), check.attributes=FALSE)
-arima_fastest <- 0.1*.Call(stats:::C_rfilter, re_turns, 0.9, double(1 + NROW(re_turns)))[-(1:3)]
-all.equal(tail(arima_fastest, 1111), tail(drop(ari_ma), 1111), check.attributes=FALSE)
-
-summary(microbenchmark(
-  run=run_mean(re_turns, lambda=0.9),
-  hf=HighFreq::sim_arima(re_turns, 0.9),
-  rfilter=.Call(stats:::C_rfilter, re_turns, 0.9, double(1 + NROW(re_turns))),
-  times=10))[, c(1, 4, 5)]
-
-
-foo <- run_var(re_turns, lambda=0.9)
-vari_ance <- 0.1*HighFreq::sim_arima(re_turns^2, 0.9)
-vari_ance <- HighFreq::roll_var(re_turns, step=1, look_back=21)
-all.equal(tail(foo, 1111), tail(vari_ance, 1111), check.attributes=FALSE)
-
-summary(microbenchmark(
-  ro_ll=roll::roll_median(clos_e, width=look_back),
-  rcpp_roll=RcppRoll::roll_median(clos_e, n=look_back),
-  tt_r=TTR::runMedian(clos_e, n=look_back),
-  times=10))[, c(1, 4, 5)]
-
-
-da_ta <- cbind(price_s[, 1], foo[, 1])
-colnames(da_ta) <- c("prices", "max")
-col_names <- colnames(da_ta)
-dygraphs::dygraph(da_ta, main="prices and max") %>%
-  dySeries(name=col_names[1], label=col_names[1], strokeWidth=2, col="blue") %>%
-  dySeries(name=col_names[2], label=col_names[2], strokeWidth=2, col="red")
-
-dygraphs::dygraph(da_ta, main="prices and max") %>%
-  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
-  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=2, col="blue") %>%
-  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
 
 
 
@@ -6045,6 +6048,5 @@ plot_ly(data=df, x=df$Date, y=df$Value, type="scatter", mode="lines") %>%
                       rangeslider=list(type="date")  ))
 
 ###
-
 
 
