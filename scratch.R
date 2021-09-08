@@ -1,5 +1,6 @@
 ###############
 ### Test for app_zscore_returns_strat.R
+# Find optimal parameters
 
 load(file="C:/Develop/data/polygon/spy_minutes.RData")
 oh_lc <- oh_lc["T09:00:00/T16:30:00"]

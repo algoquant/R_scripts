@@ -4,7 +4,7 @@
 
 ###############
 # Get all file names with *.Rnw in the lecture_slides directory
-file_names <- Sys.glob("C:/Develop/lecture_slides/*.Rnw")
+file_names <- Sys.glob("/Users/jerzy/Develop/lecture_slides/*.Rnw")
 # Get all *.Rnw files in the lecture_slides directory, except those that contain "FRE"
 file_names <- file_names[-grep("FRE", file_names)]
 
@@ -12,13 +12,16 @@ file_names <- file_names[-grep("FRE", file_names)]
 
 ###############
 # Render *.Rnw files into *.pdf files.
+# Render single file
+knitr::knit2pdf("data_management.Rnw", bib_engine="biber")
+
 # Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
-setwd("C:/Develop/lecture_slides")
+setwd("/Users/jerzy/Develop/lecture_slides")
 # Render files without using error handler.
 sapply(file_names, knitr::knit2pdf, bib_engine="biber")
 
 # Render files using error handler.
-# Boolean vector of names already downloaded.
+# Boolean vector of names already processed.
 processed_names <- NULL
 process_ed <- file_names %in% processed_names
 # Loop over the file_names and render them into *.pdf files.
@@ -41,6 +44,9 @@ sapply(file_names, function(file_name) {
 
 
 ###############
+# Extract R chunks from single *.Rnw file
+knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture_1.Rnw", documentation=0, quiet=TRUE)
+
 # Extract R chunks from all *.Rnw files, except those that contain "FRE".
 sapply(file_names, knitr::purl, documentation=0, quiet=TRUE)
 
@@ -59,10 +65,10 @@ sapply(Sys.glob("*.Rmd"),
 # Read the RData file sp500.RData, and write all the time series into 
 # separate CSV files using function data.table::fwrite()
 
-dir_name <- "C:/Develop/lecture_slides/data/SP500/"
-load("C:/Develop/lecture_slides/data/sp500.RData")
+dir_name <- "/Users/jerzy/Develop/lecture_slides/data/SP500/"
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
-dir_name <- "C:/Develop/data/"
+dir_name <- "/Users/jerzy/Develop/data/"
 # Using lapply() and zoo::write.zoo()
 file_names <- lapply(ls(etf_env), function(sym_bol) {
   x_ts <- get(sym_bol, envir=etf_env)
@@ -100,8 +106,8 @@ names(file_names)
 ###############
 # Compare contents of all the files in two different directories, assuming same file names
 
-dir_1 <- "C:/Develop/R/statarb/results"
-dir_2 <- "C:/Users/Jerzy/Downloads/results"
+dir_1 <- "/Users/jerzy/Develop/R/statarb/results"
+dir_2 <- "/Users/jerzy/Users/Jerzy/Downloads/results"
 # compare all files in two directories assuming file names are the same
 sapply(dir(dir_1), function(fil_e) {
   all.equal(
@@ -128,7 +134,7 @@ sapply(seq_along(foo), function(x) {
 ###############
 # Extract futures symbols from file names
 
-file_names <- Sys.glob("C:/Develop/data_def/hull_data/dec_2017/raw/*")
+file_names <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec_2017/raw/*")
 
 name_s <- sapply(file_names, function(x) {
   foo <- strsplit(x, split='/')
@@ -148,7 +154,7 @@ install.packages("readxl")
 library(readxl)
 
 # Read names of all the sheets from the Excel spreadsheet
-fil_e <- "C:/Develop/R/capstone/Xuewan_Zhao/SP500 5Y Fundamental data.xlsx"
+fil_e <- "/Users/jerzy/Develop/R/capstone/Xuewan_Zhao/SP500 5Y Fundamental data.xlsx"
 name_s <- readxl::excel_sheets(fil_e)
 
 # Read all the sheets from the Excel spreadsheet - takes very long time
@@ -207,8 +213,8 @@ hist(num_na_s)
 # Read binary data files
 
 # Create a connection object to read the file in binary mode using "rb".
-si_ze <- file.info("C:/Users/Jerzy/Downloads/ESH7.bin")$size
-connect_ion <- file("C:/Users/Jerzy/Downloads/ESH7.bin", open="rb")
+si_ze <- file.info("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin")$size
+connect_ion <- file("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin", open="rb")
 
 # reset position of pointer
 seek(connect_ion, where=(si_ze-12), origin="start")
@@ -239,8 +245,8 @@ close(connect_ion)
 
 # Read compressed files directly
 
-connect_ion <- gzfile("C:/Users/Jerzy/Downloads/ESH8_20171213.bin.gz", open="rb")
-connect_ion <- gzfile("C:/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
+connect_ion <- gzfile("/Users/jerzy/Users/Jerzy/Downloads/ESH8_20171213.bin.gz", open="rb")
+connect_ion <- gzfile("/Users/jerzy/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
 
 col_names <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
                "pB1r", "sB1r", "pA1r", "sA1r", "pB1c", "sB1c", "pA1c",
