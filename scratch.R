@@ -53,8 +53,6 @@ plot(thresh_olds, sharpes)
 
 
 
-
-
 ###############
 ### Stock Forecasting Using Interest Rate Data
 
@@ -93,7 +91,7 @@ sort(corr_el)
 
 
 
-#################
+###############
 sum(!is.na(da_ta[, 1]))
 
 which(!is.null(da_ta[, BAMLH0A0HYM2SY]))
@@ -174,8 +172,8 @@ rate_s <- do.call(cbind, as.list(rates_env))
 name_s <- colnames(rate_s)
 name_s <- substr(name_s, start=4, stop=10)
 name_s <- as.numeric(name_s)
-in_deks <- order(name_s)
-rate_s <- rate_s[, in_deks]
+indeks <- order(name_s)
+rate_s <- rate_s[, indeks]
 tail(rate_s)
 # Align rates with VTI prices
 date_s <- zoo::index(price_s)
@@ -382,39 +380,39 @@ res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
 res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg))
 
 # Calculate SVXY z-scores
-in_deks <- matrix(1:n_rows, nc=1)
-svxy_scores <- drop(HighFreq::roll_zscores(res_ponse=svxy_close, de_sign=in_deks, look_back=look_back))
+indeks <- matrix(1:n_rows, nc=1)
+svxy_scores <- drop(HighFreq::roll_zscores(response=svxy_close, design=indeks, look_back=look_back))
 svxy_scores[1:look_back] <- 0
 svxy_scores[is.infinite(svxy_scores)] <- 0
 svxy_scores[is.na(svxy_scores)] <- 0
 svxy_scores <- svxy_scores/sqrt(look_back)
 # roll_svxy <- roll::roll_mean(svxy_close, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var_ohlc(svx_y, look_back=look_back, scal_e=FALSE))
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(svx_y, look_back=look_back, scale=FALSE))
 # svxy_scores <- (svxy_close - roll_svxy)/var_rolling
 
 # Calculate VXX z-scores
-vxx_scores <- drop(HighFreq::roll_zscores(res_ponse=vxx_close, de_sign=in_deks, look_back=look_back))
+vxx_scores <- drop(HighFreq::roll_zscores(response=vxx_close, design=indeks, look_back=look_back))
 vxx_scores[1:look_back] <- 0
 vxx_scores[is.infinite(vxx_scores)] <- 0
 vxx_scores[is.na(vxx_scores)] <- 0
 vxx_scores <- vxx_scores/sqrt(look_back)
 # roll_vxx <- roll::roll_mean(vxx_close, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var_ohlc(vx_x, look_back=look_back, scal_e=FALSE))
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(vx_x, look_back=look_back, scale=FALSE))
 # vxx_scores <- (vxx_close - roll_vxx)/var_rolling
 
 # Calculate price z-scores
-price_scores <- drop(HighFreq::roll_zscores(res_ponse=clos_e, de_sign=in_deks, look_back=look_back))
+price_scores <- drop(HighFreq::roll_zscores(response=clos_e, design=indeks, look_back=look_back))
 price_scores[1:look_back] <- 0
 price_scores[is.infinite(price_scores)] <- 0
 price_scores[is.na(price_scores)] <- 0
 price_scores <- price_scores/sqrt(look_back)
 # roll_stock <- roll::roll_mean(clos_e, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var_ohlc(oh_lc, look_back=look_back, scal_e=FALSE))
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(oh_lc, look_back=look_back, scale=FALSE))
 # price_scores <- (clos_e - roll_stock)/var_rolling
 
 # Calculate volatility z-scores
 vol_at <- log(quantmod::Hi(oh_lc))-log(quantmod::Lo(oh_lc))
-volat_scores <- drop(HighFreq::roll_zscores(res_ponse=vol_at, de_sign=in_deks, look_back=look_back))
+volat_scores <- drop(HighFreq::roll_zscores(response=vol_at, design=indeks, look_back=look_back))
 volat_scores[1:look_back] <- 0
 volat_scores[is.infinite(volat_scores)] <- 0
 volat_scores[is.na(volat_scores)] <- 0
@@ -424,7 +422,7 @@ volat_scores <- volat_scores/sqrt(look_back)
 # volat_scores <- (vol_at - roll_vol)/var_rolling
 
 # Calculate volume z-scores
-volume_scores <- drop(HighFreq::roll_zscores(res_ponse=vol_ume, de_sign=in_deks, look_back=look_back))
+volume_scores <- drop(HighFreq::roll_zscores(response=vol_ume, design=indeks, look_back=look_back))
 volume_scores[1:look_back] <- 0
 volume_scores[is.infinite(volume_scores)] <- 0
 volume_scores[is.na(volume_scores)] <- 0
@@ -524,7 +522,7 @@ op_tim <- optim(par=weight_s,
                 n_rows=n_rows,
                 # thresh_top=thresh_top,
                 # thresh_bot=thresh_bot,
-                de_sign=de_sign,
+                design=de_sign,
                 re_turns=re_turns,
                 lagg=lagg,
                 co_eff=co_eff,
@@ -537,7 +535,7 @@ back_test(weight_s,
           n_rows=n_rows,
           # thresh_top=thresh_top,
           # thresh_bot=thresh_bot,
-          de_sign=de_sign,
+          design=de_sign,
           re_turns=re_turns,
           lagg=lagg,
           co_eff=co_eff)
@@ -577,7 +575,7 @@ op_tim <- DEoptim::DEoptim(fn=objec_tive,
                            n_rows=n_rows,
                            # thresh_top=thresh_top,
                            # thresh_bot=thresh_bot,
-                           de_sign=de_sign,
+                           design=de_sign,
                            re_turns=re_turns,
                            lagg=lagg,
                            co_eff=co_eff,
@@ -593,7 +591,7 @@ position_s <- back_test(weight_s,
           n_rows=n_rows,
           # thresh_top=thresh_top,
           # thresh_bot=thresh_bot,
-          de_sign=de_sign,
+          design=de_sign,
           re_turns=re_turns,
           lagg=lagg,
           co_eff=co_eff)
@@ -630,13 +628,13 @@ start_p[1:half_back] <- 1
 end_p <- (mid_p + half_back)  # end point
 end_p[(n_rows-half_back+1):n_rows] <- n_rows
 clos_e <- as.numeric(clos_e)
-z_scores <- (2*clos_e[mid_p] - clos_e[start_p] - clos_e[end_p])
-z_scores <- ifelse(vol_at > 0, z_scores/vol_at, 0)
-dygraph(z_scores)
-hist(z_scores)
+price_scores <- (2*clos_e[mid_p] - clos_e[start_p] - clos_e[end_p])
+price_scores <- ifelse(vol_at > 0, price_scores/vol_at, 0)
+dygraph(price_scores)
+hist(price_scores)
 
 # Plot dygraph of z-scores of VTI prices
-price_s <- cbind(clos_e, z_scores)
+price_s <- cbind(clos_e, price_scores)
 colnames(price_s) <- c(sym_bol, paste(sym_bol, "Z-Score"))
 col_names <- colnames(price_s)
 dygraphs::dygraph(price_s["2009"], main=paste(sym_bol, "Z-Score")) %>%
@@ -646,11 +644,11 @@ dygraphs::dygraph(price_s["2009"], main=paste(sym_bol, "Z-Score")) %>%
   dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
 
 # Calculate thresholds for labeling tops and bottoms
-threshold_s <- quantile(z_scores, c(0.1, 0.9))
+threshold_s <- quantile(price_scores, c(0.1, 0.9))
 # Calculate the vectors of tops and bottoms
-top_s <- (z_scores > threshold_s[2])
+top_s <- (price_scores > threshold_s[2])
 colnames(top_s) <- "tops"
-bottom_s <- (z_scores < threshold_s[1])
+bottom_s <- (price_scores < threshold_s[1])
 colnames(bottom_s) <- "bottoms"
 
 # Backtest in-sample VTI strategy
@@ -675,9 +673,34 @@ dygraphs::dygraph(price_s, main=paste(sym_bol, "In-sample Strategy")) %>%
   dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=2, col="red")
 
 
+
 ###############
 ### Apply logistic regression using bar labels as the response.
 # Comment: The z-scores have low predictive power.
+
+# Calculate log VTI prices
+oh_lc <- log(rutils::etf_env$VTI)
+clos_e <- quantmod::Cl(oh_lc)
+re_turns <- rutils::diff_it(clos_e)
+
+# Calculate the centered volatility
+look_back <- 21
+half_back <- look_back %/% 2
+re_turns <- rutils::diff_it(clos_e)
+vol_at <- roll::roll_sd(re_turns, width=look_back, min_obs=1)
+vol_at <- rutils::lag_it(vol_at, lagg=(-half_back))
+# Calculate the z-scores of prices
+price_scores <- (2*clos_e - rutils::lag_it(clos_e, half_back, pad_zeros=FALSE) - 
+                   rutils::lag_it(clos_e, -half_back, pad_zeros=FALSE))
+price_scores <- ifelse(vol_at > 0, price_scores/vol_at, 0)
+
+# Calculate thresholds for labeling tops and bottoms
+threshold_s <- quantile(price_scores, c(0.2, 0.8))
+# Calculate the vectors of tops and bottoms
+top_s <- (price_scores > threshold_s[2])
+colnames(top_s) <- "tops"
+bottom_s <- (price_scores < threshold_s[1])
+colnames(bottom_s) <- "bottoms"
 
 # Calculate SVXY and VXX prices
 svx_y <- log(quantmod::Cl(rutils::etf_env$SVXY))
@@ -687,25 +710,37 @@ vx_x <- log(quantmod::Cl(rutils::etf_env$VXX))
 vx_x <- vx_x[date_s]
 
 # Calculate rolling VTI volatility
-# vol_at <- HighFreq::roll_var_ohlc(oh_lc=log(oh_lc), look_back=look_back, scal_e=FALSE)
-# vol_at <- xts::xts(sqrt(vol_at), dates_vti)
+vol_at <- HighFreq::roll_var_ohlc(ohlc=oh_lc, look_back=look_back, scale=FALSE)
+vol_at <- xts::xts(sqrt(vol_at), zoo::index(oh_lc))
+colnames(vol_at) <- "vol_at"
 
 # Calculate trailing z-scores of SVXY
-# de_sign <- cbind(vol_at[date_s], vx_x, clos_e[date_s])
-# res_ponse <- svx_y
-# z_scores <- drop(HighFreq::roll_zscores(res_ponse=res_ponse, de_sign=de_sign, look_back=look_back))
-# z_scores[1:look_back] <- 0
-# z_scores[is.infinite(z_scores)] <- 0
-# z_scores[is.na(z_scores)] <- 0
+de_sign <- cbind(vol_at[date_s], vx_x, clos_e[date_s])
+res_ponse <- svx_y
+z_scores <- drop(HighFreq::roll_zscores(response=res_ponse, design=de_sign, look_back=look_back))
+z_scores[1:look_back] <- 0
+z_scores[is.infinite(z_scores)] <- 0
+z_scores[is.na(z_scores)] <- 0
 # z_scores <- z_scores/sqrt(look_back)
 
+# Calculate SVXY medians
+# medi_an <- roll::roll_median(svx_y, width=look_back, min_obs=1)
+# Calculate SVXY MAD
+# ma_d <- HighFreq::roll_var(svx_y, look_back=look_back, method="nonparametric")
+# Calculate SVXY Hampel z-scores
+# svxy_scores <- ifelse(ma_d > 0, (svx_y - medi_an)/ma_d, 0)
+# svxy_scores[1:look_back, ] <- 0
 # Calculate SVXY z-scores
 roll_svxy <- roll::roll_mean(svx_y, width=look_back, min_obs=1)
-svxy_scores <- (svx_y - roll_svxy)/roll_svxy
+svxy_sd <- roll::roll_sd(rutils::diff_it(svx_y), width=look_back, min_obs=1)
+svxy_sd[1] <- 0
+svxy_scores <- ifelse(svxy_sd > 0, (svx_y - roll_svxy)/svxy_sd, 0)
 
 # Calculate VXX z-scores
 roll_vxx <- roll::roll_mean(vx_x, width=look_back, min_obs=1)
-vxx_scores <- (vx_x - roll_vxx)/roll_vxx
+vxx_sd <- roll::roll_sd(rutils::diff_it(vx_x), width=look_back, min_obs=1)
+vxx_sd[1] <- 0
+vxx_scores <- ifelse(vxx_sd > 0, (vx_x - roll_vxx)/vxx_sd, 0)
 
 # Calculate volatility z-scores
 vol_at <- log(quantmod::Hi(oh_lc))-log(quantmod::Lo(oh_lc))
@@ -721,29 +756,101 @@ volume_scores <- (vol_ume - volume_mean)/volume_sd
 # Define design matrix
 de_sign <- cbind(vxx_scores, svxy_scores, volat_scores[date_s], volume_scores[date_s])
 colnames(de_sign) <- c("vxx", "svxy", "volat", "volume")
+de_sign <- zoo::coredata(de_sign)
+top_s <- top_s[date_s]
+
+res_ponse <- as.numeric(top_s[date_s])
+
 
 # Define in-sample and out-of-sample intervals
 in_sample <- 1:(n_rows %/% 2)
 out_sample <- (n_rows %/% 2 + 1):n_rows
 
 # Fit in-sample logistic regression for tops
-res_ponse <- top_s[date_s][in_sample]
-glm_tops <- glm(res_ponse ~ de_sign[in_sample], family=binomial(logit))
+# Only volat is significant
+res_ponse <- as.numeric((top_s[date_s][in_sample]))
+
+glm_tops <- glm(res_ponse[in_sample] ~ de_sign[in_sample], family=binomial(logit))
+glm_tops <- glm(res_ponse ~ de_sign[in_sample], 
+                data=de_sign[in_sample],
+                family=binomial(logit))
 summary(glm_tops)
 
+####################
+# by hand
+
+co_eff <- glm_bottoms$coefficients
+prob_s <- function(coeff) {
+  plogis(drop(cbind(intercept=rep(1, NROW(in_sample)), de_sign[in_sample]) %*% coeff))
+}  # end prob_s
+prob_s(rep(1, 5))
+
+
+
+# Define likelihood function
+likeli_hood <- function(coeff, res_ponse, de_sign) {
+  probs <- plogis(drop(de_sign %*% coeff))
+  -sum(res_ponse*log(probs) + (1-res_ponse)*log((1-probs)))
+}  # end likeli_hood
+# Run likelihood function
+likeli_hood(rep(1, 5), 
+            res_ponse=res_ponse, 
+            de_sign=cbind(intercept=rep(1, NROW(in_sample)), de_sign[in_sample]))
+
+
+# Initial parameters
+par_init <- rep(1, 5)
+# Find max likelihood parameters using steepest descent optimizer
+optim_fit <- optim(par=par_init,
+                   fn=likeli_hood, # Log-likelihood function
+                   method="L-BFGS-B", # Quasi-Newton method
+                   res_ponse=res_ponse,
+                   de_sign=cbind(intercept=rep(1, NROW(in_sample)), de_sign[in_sample]), 
+                   upper=rep(2, 5), # Upper constraint
+                   lower=rep(-2, 5), # Lower constraint
+                   hessian=TRUE)
+
+# Optimal and actual parameters
+optim_fit$par
+unname(glm_tops$coefficients)
+
+# Standard errors of parameters
+sqrt(diag(solve(optim_fit$hessian)))
+model_sum <- summary(glm_tops)
+model_sum$coefficients[, 2]
+
+
+
+# Find max likelihood parameters using DEoptim
+op_tim <- DEoptim::DEoptim(fn=likeli_hood,
+                           upper=rep(2, 5), # Upper constraint
+                           lower=rep(-2, 5), # Lower constraint
+                           res_ponse=res_ponse,
+                           de_sign=cbind(intercept=rep(1, NROW(in_sample)), de_sign[in_sample]), 
+                           control=list(trace=FALSE, itermax=1000, parallelType=1))
+# Optimal and actual parameters
+op_tim$optim$bestmem
+unname(glm_tops$coefficients)
+
+
+
+####################
+
 # Fit in-sample logistic regression for bottoms
+# Nothing is significant!
 res_ponse <- bottom_s[date_s][in_sample]
 glm_bottoms <- glm(res_ponse ~ de_sign[in_sample], family=binomial(logit))
 summary(glm_bottoms)
 
+# Find best in-sample thresholds
 n_rows <- NROW(res_ponse)
 date_s <- zoo::index(res_ponse)
-re_turns <- rutils::diff_it(log(quantmod::Cl(oh_lc[date_s])))
+re_turns <- re_turns[date_s]
 fitted_bottoms <- glm_bottoms$fitted.values
 fitted_tops <- glm_tops$fitted.values
 
-# Define back_test as function of confidence levels
-back_test <- function(con_fi=c(0.1, 0.9)) {
+# Define run_simu as function of confidence levels
+run_simu <- function(con_fi=c(0.1, 0.9)) {
   thresh_old <- quantile(fitted_bottoms, con_fi[1])
   bottom_s <- (fitted_bottoms < thresh_old)
   thresh_old <- quantile(fitted_tops, con_fi[2])
@@ -754,18 +861,38 @@ back_test <- function(con_fi=c(0.1, 0.9)) {
   position_s[bottom_s] <- 1
   position_s <- zoo::na.locf(position_s)
   -sum(re_turns*position_s)
-}  # end back_test
+}  # end run_simu
 
-back_test()
+run_simu()
 con_fi <- c(0.5, 0.6)
 names(con_fi) <- c("bottom", "top")
 # Find weights with maximum variance
 op_tim <- optim(par=con_fi,
-                fn=back_test,
+                fn=run_simu,
                 method="L-BFGS-B",
                 upper=rep(1, 2),
                 lower=rep(0, 2))
 con_fi <- op_tim$par
+
+
+# Run out-of-sample
+position_s <- rep(NA_integer_, NROW(out_sample))
+position_s[1] <- 0
+
+# Forecast over test data out-of-sample
+co_eff <- glm_bottoms$coefficients
+forecast_s <- plogis(drop(cbind(intercept=rep(1, NROW(out_sample)), de_sign[out_sample]) %*% co_eff))
+thresh_old <- quantile(fitted_bottoms, con_fi[1])
+bottom_s <- (fitted_bottoms < thresh_old)
+
+co_eff <- glm_tops$coefficients
+forecast_s <- plogis(drop(cbind(intercept=rep(1, NROW(out_sample)), de_sign[out_sample]) %*% co_eff))
+thresh_old <- quantile(fitted_tops, con_fi[2])
+top_s <- (forecast_s > thresh_old)
+
+position_s[top_s] <- (-1)
+position_s[bottom_s] <- 1
+position_s <- zoo::na.locf(position_s)
 
 
 
@@ -809,7 +936,7 @@ rets_scaled <- lapply(sym_bols, function(sym_bol) {
 rets_scaled <- lapply(sym_bols, function(sym_bol) {
   oh_lc <- log(get(sym_bol, rutils::etf_env))
   re_turns <- rutils::diff_it(quantmod::Cl(oh_lc))
-  vari_ance <- HighFreq::roll_var_ohlc(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE)
+  vari_ance <- HighFreq::roll_var_ohlc(ohlc=oh_lc, look_back=look_back, scale=FALSE)
   colnames(vari_ance) <- "variance"
   vol_at <- sqrt(vari_ance)
   re_turns/vol_at
@@ -1527,7 +1654,7 @@ z_scores <- ifelse(mad_zscores != 0, z_scores/mad_zscores, 0)
 vari_ance <- xts::apply.daily(oh_lc, HighFreq::calc_var_ohlc)
 # For VTI
 # vari_ance <- sapply((2*look_back):n_rows, function(ro_w) {
-#   HighFreq::calc_var_ohlc(oh_lc[(ro_w-look_back+1):ro_w, ], scal_e=FALSE)
+#   HighFreq::calc_var_ohlc(oh_lc[(ro_w-look_back+1):ro_w, ], scale=FALSE)
 # })  # end sapply
 # vari_ance <- c(vari_ance[1]+numeric(2*look_back-1), vari_ance)
 # x11(width=6, height=5)
@@ -1677,7 +1804,7 @@ library(HighFreq)
 roll_range <- function(oh_lc, look_back=11) {
   re_turns <- rutils::diff_it(oh_lc[, 4])
   ran_ge <- HighFreq::roll_sum(re_turns, look_back=look_back)
-  var_rolling <- sqrt(HighFreq::roll_var_ohlc(oh_lc, look_back=look_back, scal_e=FALSE))
+  var_rolling <- sqrt(HighFreq::roll_var_ohlc(oh_lc, look_back=look_back, scale=FALSE))
   look_back <- sqrt(look_back)
   hurst_rolling <- ifelse((var_rolling==0) | (ran_ge==0),
                           0.0,
@@ -1708,9 +1835,9 @@ dim(re_turns) <- c(n_rows, 1)
 
 
 # Calculate rolling Hurst for SPY
-hurst_rolling <- HighFreq::roll_hurst(oh_lc=HighFreq::SPY, look_back=7)
+hurst_rolling <- HighFreq::roll_hurst(ohlc=HighFreq::SPY, look_back=7)
 # Calculate rolling rescaled range
-hurst_rolling <- roll_range(oh_lc=HighFreq::SPY, look_back=5)
+hurst_rolling <- roll_range(ohlc=HighFreq::SPY, look_back=5)
 hurst_rolling <- roll_range(re_turns=re_turns, look_back=5)
 # chart_Series(hurst_rolling["2009-03-10/2009-03-12"], name="SPY hurst_rolling")
 
@@ -2248,7 +2375,7 @@ da_ta <- xts(da_ta, date_s)
 
 interval_s <- seq.int(from=1e2, to=1e3, by=1e2)
 vol_s <- sapply(interval_s, function(inter_val) {
-  # spy_agg <- rutils::to_period(oh_lc=da_ta, k=inter_val)
+  # spy_agg <- rutils::to_period(ohlc=da_ta, k=inter_val)
   # HighFreq::calc_var_ohlc(spy_agg)
   end_p <- rutils::calc_endpoints(da_ta, inter_val=inter_val)
   sd(rutils::diff_it(log(da_ta[end_p])))
@@ -2258,8 +2385,8 @@ interval_s <- c("seconds", "minutes", "hours", "days")
 inter_log <- log(c(1, 60, 3600, 6.5*3600))
 inter_log <- log(c(1, 60, 3600, 24*3600))
 vol_s <- sapply(interval_s, function(inter_val) {
-  spy_agg <- rutils::to_period(oh_lc=HighFreq::SPY, k=inter_val)
-  # spy_agg <- rutils::to_period(oh_lc=HighFreq::SPY, period=inter_val)
+  spy_agg <- rutils::to_period(ohlc=HighFreq::SPY, k=inter_val)
+  # spy_agg <- rutils::to_period(ohlc=HighFreq::SPY, period=inter_val)
   # HighFreq::calc_var_ohlc(spy_agg)
   re_turns <- rutils::diff_it(spy_agg[, 4])
   sd(re_turns)
@@ -3214,7 +3341,7 @@ weights_r <- (weights_r - mean(weights_r))
 # weights_r <- 0.01*weight_s/arma::stddev(re_turns*weight_s)
 
 ## Calculate weights using RcppArmadillo
-weight_s <- drop(calc_weights(ret_s, model_type="rank_sharpe", scal_e=FALSE))
+weight_s <- drop(calc_weights(ret_s, model_type="rank_sharpe", scale=FALSE))
 all.equal(weight_s, weights_r, check.attributes=FALSE)
 
 
@@ -3238,7 +3365,7 @@ n_col <- NCOL(ret_s)
 weights_r <- weights_r*sd(ret_s %*% rep(1/n_col, n_col))/sd(ret_s %*% weights_r)
 
 ## Calculate weights using RcppArmadillo
-weight_s <- drop(calc_weights(ret_s, model_type="max_sharpe", al_pha=al_pha, max_eigen=3, scal_e=FALSE))
+weight_s <- drop(calc_weights(ret_s, model_type="max_sharpe", al_pha=al_pha, max_eigen=3, scale=FALSE))
 all.equal(weight_s, drop(weights_r), check.attributes=FALSE)
 
 
@@ -3276,7 +3403,7 @@ calc_weights <- function(re_turns) {
 weight_s <- calc_weights(ret_sub)
 
 
-foo <- drop(calc_weights(re_turns[((n_rows-500):n_rows)], typ_e="rankrob", al_pha=0, scal_e=FALSE))
+foo <- drop(calc_weights(re_turns[((n_rows-500):n_rows)], typ_e="rankrob", al_pha=0, scale=FALSE))
 
 
 all.equal(weight_s, foo)
@@ -3447,7 +3574,7 @@ re_turns <- rutils::diff_it(log(com_bo[, paste(sym_bol, "Close", sep=".")]))
 
 # vari_ance <- (hi_gh - lo_w)^2
 look_back <- 11
-vari_ance <- HighFreq::roll_var_ohlc(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE)
+vari_ance <- HighFreq::roll_var_ohlc(ohlc=oh_lc, look_back=look_back, scale=FALSE)
 colnames(vari_ance) <- "variance"
 vol_at <- sqrt(vari_ance)
 colnames(vol_at) <- "volat"
@@ -3486,12 +3613,12 @@ colnames(returns_adv) <- "returns_adv"
 in_dex <- 1:NROW(oh_lc)
 de_sign <- matrix(in_dex, nc=1)
 
-mod_el <- HighFreq::calc_lm(res_ponse=as.numeric(returns_adv), de_sign=cbind(re_turns, vari_ance))
+mod_el <- HighFreq::calc_lm(response=as.numeric(returns_adv), design=cbind(re_turns, vari_ance))
 mod_el$coefficients
 
 # old: calculate sig_nal as the residual of the regression of the time series of clos_e prices
 look_back <- 11
-sig_nal <- HighFreq::roll_zscores(res_ponse=close_num, de_sign=de_sign, look_back=look_back)
+sig_nal <- HighFreq::roll_zscores(response=close_num, design=de_sign, look_back=look_back)
 colnames(sig_nal) <- "sig_nal"
 sig_nal[1:look_back] <- 0
 # or
@@ -3505,7 +3632,7 @@ library(parallel)
 num_cores <- detectCores()
 clus_ter <- makeCluster(num_cores-1)
 # clusterExport(clus_ter, varlist=c("clos_e", "de_sign"))
-signal_s <- parLapply(clus_ter, X=look_backs, fun=calc_signal, clos_e=close_num, de_sign=de_sign)
+signal_s <- parLapply(clus_ter, X=look_backs, fun=calc_signal, clos_e=close_num, design=de_sign)
 
 
 # trade entry and exit levels
@@ -3627,7 +3754,7 @@ look_back <- 11
 max_min <- roll_maxmin(close_num, look_back)
 close_max <- (close_num == max_min[, 1])
 close_min <- (close_num == max_min[, 2])
-vol_at <- HighFreq::roll_var_ohlc(oh_lc=ohlc_log, look_back=5*look_back, scal_e=FALSE)
+vol_at <- HighFreq::roll_var_ohlc(ohlc=ohlc_log, look_back=5*look_back, scale=FALSE)
 vol_at <- sqrt(vol_at)
 vol_at[1] <- vol_at[2]
 colnames(vol_at) <- "volat"
@@ -3788,8 +3915,8 @@ date_s <- xts::.index(oh_lc)
 de_sign <- matrix(date_s, nc=1)
 # foo <- MASS::ginv(de_sign)
 look_back <- 11
-z_scores <- HighFreq::roll_zscores(res_ponse=clos_e,
-                                   de_sign=de_sign,
+z_scores <- HighFreq::roll_zscores(response=clos_e,
+                                   design=de_sign,
                                    look_back=look_back)
 colnames(z_scores) <- "z_scores"
 z_scores[1:3] <- 0
@@ -3890,7 +4017,7 @@ indicator_s <- c("ES1.Close", "TY1.Close", "TU1.Close", "UX1.Close", "UX2.Close"
 dygraphs::dygraph(oh_lc[, indicator_s[2]]-oh_lc[, indicator_s[3]])
 indicator_s <- lapply(indicator_s, function(col_umn) {
   col_umn <- oh_lc[, col_umn]
-  sig_nal <- rutils::diff_it(clos_e, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_var_ohlc(oh_lc=oh_lc, look_back=look_back, scal_e=FALSE))
+  sig_nal <- rutils::diff_it(clos_e, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_var_ohlc(ohlc=oh_lc, look_back=look_back, scale=FALSE))
   HighFreq::roll_sum(indicator_s[, col_umn], look_back=look_back)/look_back
 })  # end lapply
 indicator_s <- rutils::do_call(cbind, indicator_s)
@@ -3946,7 +4073,7 @@ sig_nal <- rutils::lag_it(sig_nal)
 # Signal from z-scores (t-values) of trailing slope
 de_sign <- matrix(xts::.index(oh_lc), nc=1)
 look_back <- 3
-sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_back)
+sig_nal <- HighFreq::roll_zscores(response=clos_e, design=de_sign, look_back=look_back)
 sig_nal <- roll::roll_scale(data=sig_nal, width=look_back, min_obs=1)
 sig_nal[1:look_back, ] <- 0
 sig_nal[is.infinite(sig_nal)] <- NA
@@ -3964,9 +4091,9 @@ plot(sig_nal, t="l")
 # par_am <- cbind(6:10, rep((3:12)/10, each=NROW(6:10)))
 posit_mat <- sapply(4:8, function(look_short) {
   # mean reverting signal
-  sig_nal_short <- calc_signal(oh_lc=ohlc_log,
+  sig_nal_short <- calc_signal(ohlc=ohlc_log,
                                clos_e=close_num,
-                               de_sign=de_sign,
+                               design=de_sign,
                                look_short=look_short, high_freq=FALSE)
   # Simulate the positions of mean reverting strategy
   sim_revert(sig_nal_short, re_turns, close_high, close_low, en_ter, ex_it, trade_lag=1)
@@ -3975,7 +4102,7 @@ par_am <- cbind(8:12, rep((3:12)/10, each=NROW(8:12)))
 posit_mat <- sapply(1:NROW(par_am), function(it) {
   look_short <- par_am[it, 1]
   en_ter <- par_am[it, 2]
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_short)
+  sig_nal <- HighFreq::roll_zscores(response=clos_e, design=de_sign, look_back=look_short)
   sig_nal[1:look_short, ] <- 0
   # Scale sig_nal using roll_scale()
   sig_nal <- roll::roll_scale(data=sig_nal, width=look_short, min_obs=1)
@@ -4056,7 +4183,7 @@ run_signal <- function(look_back, re_turns) {
 }  # end run_signal
 sig_nal <- run_signal(look_back, re_turns)
 run_signal <- function(look_back, clos_e, de_sign) {
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e, de_sign=de_sign, look_back=look_back)
+  sig_nal <- HighFreq::roll_zscores(response=clos_e, design=de_sign, look_back=look_back)
   sig_nal[1:look_back, ] <- 0
   # sig_nal <- HighFreq::roll_scale(mat_rix=sig_nal, look_back=look_back, use_median=TRUE)
   # sig_nal[1:look_back, ] <- 0
@@ -4074,7 +4201,7 @@ look_backs <- 15:35
 library(parallel)
 clus_ter <- makeCluster(num_cores-1)
 clusterExport(clus_ter, varlist=c("clos_e", "de_sign"))
-signal_s <- parLapply(clus_ter, X=look_backs, fun=run_signal, clos_e=clos_e, de_sign=de_sign)
+signal_s <- parLapply(clus_ter, X=look_backs, fun=run_signal, clos_e=clos_e, design=de_sign)
 
 
 # close_high and close_low are Boolean vectors which are TRUE if the close price is at the high or low price
@@ -4127,8 +4254,8 @@ dygraphs::dygraph(cbind(clos_e, pnl_s)[endpoints(pnl_s, on="days")], main="OHLC 
 # trade ensemble of strategies using slope as technical indicator
 # mean-reverting strategies
 foo <- sapply(2:15, function(look_back) {
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e,
-                          de_sign=de_sign,
+  sig_nal <- HighFreq::roll_zscores(response=clos_e,
+                          design=de_sign,
                           look_back=look_back)
   sig_nal[1:3, ] <- 0
   # sig_nal <- rutils::lag_it(sig_nal)
@@ -4136,8 +4263,8 @@ foo <- sapply(2:15, function(look_back) {
 })  # end sapply
 # trending strategies
 bar <- sapply(10*(10:15), function(look_back) {
-  sig_nal <- HighFreq::roll_zscores(res_ponse=clos_e,
-                          de_sign=de_sign,
+  sig_nal <- HighFreq::roll_zscores(response=clos_e,
+                          design=de_sign,
                           look_back=look_back)
   sig_nal[1:3, ] <- 0
   # sig_nal <- rutils::lag_it(sig_nal)
@@ -5634,7 +5761,7 @@ op_tim <- optim(par=rep(0.5, 2*NCOL(de_sign)),
                 method="L-BFGS-B",
                 upper=rep(2, 2*NCOL(de_sign)),
                 lower=rep(-2, 2*NCOL(de_sign)),
-                de_sign=de_sign[date_s],
+                design=de_sign[date_s],
                 re_turns=returns_running[date_s],
                 lamb_da=lamb_da)
 
@@ -5643,7 +5770,7 @@ names(beta_s) <- c(paste0(colnames(de_sign), "_long"), paste0(colnames(de_sign),
 
 
 ## cum_pnl vectorized function for contrarian strategy with threshold
-cum_pnl <- function(beta_s, la_g=15, de_sign=de_sign, re_turns=returns_running, lamb_da=0) {
+cum_pnl <- function(beta_s, la_g=15, design=de_sign, re_turns=returns_running, lamb_da=0) {
   n_col <- NCOL(de_sign)
   position_s <- rep.int(NA, NROW(de_sign))
   position_s[1] <- 0
@@ -5663,13 +5790,13 @@ cum_pnl <- function(beta_s, la_g=15, de_sign=de_sign, re_turns=returns_running, 
   -((exp(sum(position_s*re_turns))-1) - lamb_da*sum(abs(beta_s)))
 }  # end cum_pnl
 
-cum_pnl(beta_s=beta_s, de_sign=de_sign[date_s], re_turns=returns_running[date_s])
+cum_pnl(beta_s=beta_s, design=de_sign[date_s], re_turns=returns_running[date_s])
 
 # perform calibration over oh_lc interval
 op_tim <- DEoptim::DEoptim(fn=cum_pnl,
                            upper=rep(2, NCOL(de_sign)),
                            lower=rep(-2, NCOL(de_sign)),
-                           de_sign=de_sign[date_s],
+                           design=de_sign[date_s],
                            re_turns=returns_running[date_s],
                            lamb_da=lamb_da,
                            control=list(trace=FALSE, itermax=500, parallelType=1, packages="rutils"))
@@ -5679,7 +5806,7 @@ beta_s <- op_tim$optim$bestmem
 names(beta_s) <- colnames(de_sign)
 # names(beta_s) <- colnames(de_sign)
 op_tim$optim$bestval
-cum_pnl(beta_s, de_sign=de_sign[date_s])
+cum_pnl(beta_s, design=de_sign[date_s])
 
 
 bu_y <- (de_sign %*% beta_s[1:n_col] < -1)
@@ -5868,7 +5995,7 @@ roll_agg <- function(x_ts, end_p, look_back, FUN, ...) {
 agg_regate <- function(oh_lc, lamb_das, ...) {
   sapply(lamb_das, function(lamb_da) {
     # Simulate EWMA strategy and calculate Sharpe ratio
-    re_turns <- simu_ewma(oh_lc=oh_lc, lamb_da=lamb_da, ...)[, "re_turns"]
+    re_turns <- simu_ewma(ohlc=oh_lc, lamb_da=lamb_da, ...)[, "re_turns"]
     sqrt(260)*sum(re_turns)/sd(re_turns)/NROW(re_turns)
   })  # end sapply
 }  # end agg_regate
