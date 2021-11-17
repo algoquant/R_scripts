@@ -13,7 +13,7 @@ file_names <- file_names[-grep("FRE", file_names)]
 ###############
 # Render *.Rnw files into *.pdf files.
 # Render single file
-knitr::knit2pdf("data_management.Rnw", bib_engine="biber")
+knitr::knit2pdf("/Users/jerzy/Develop/lecture_slides/data_management.Rnw", bib_engine="biber")
 
 # Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
 setwd("/Users/jerzy/Develop/lecture_slides")
@@ -30,17 +30,20 @@ sapply(file_names, function(file_name) {
     {
       cat("Processing: ", file_name, "\n")
       knitr::knit2pdf(file_name, bib_engine="biber", quiet=TRUE)
-      processed_names <- c(processed_names, file_name)
+      processed_names <<- c(processed_names, file_name)
     },
     # Error handler captures error condition
     error=function(error_cond) {
-      cat("Error in: ", file_name, "\n")
+      # Reference to file_name produces error and tryCatch() fails
+      # cat("Error in: ", file_name, "\n")
       print(paste("error handler: ", error_cond))
-    },  # end error handler
-    finally=print(paste("file_name=", file_name))
+    }  # end error handler
+    # finally=print(paste("file_name=", file_name))
   )  # end tryCatch
 })  # end sapply
-
+# See files that have not been processed
+process_ed <- file_names %in% processed_names
+file_names[!process_ed]
 
 
 ###############

@@ -1,15 +1,214 @@
 ###############
-### Tune parameters of AR strategies
+### Benchmark of HighFreq::run_reg() against R code
 
-pnl_s <- lapply(eigen_max, function(x) {
-  cat("x=", x, "\n")
-  in_verse <- HighFreq::calc_inv(predic_tor[in_sample, ], eigen_max=x)
-  co_eff <- drop(in_verse %*% res_ponse[in_sample, ])
-  forecast_s <- (predic_tor[out_sample, ] %*% co_eff)
-  sign(forecast_s)*re_turns[out_sample, ]
+# Load ETF returns
+re_turns <- na.omit(rutils::etf_env$re_turns[, c("XLF", "VTI", "IEF")])
+# Response equals XLF returns
+res_ponse <- re_turns[, 1]
+# Predictor matrix equals VTI and IEF returns
+predic_tor <- re_turns[, -1]
+# Calculate the rolling regressions
+lamb_da <- 0.9
+regs <- HighFreq::run_reg(response=res_ponse, predictor=predic_tor, lambda=lamb_da)
+# Plot the rolling alphas
+da_ta <- cbind(cumsum(res_ponse), regs[, 2])
+colnames(da_ta) <- c("XLF", "alphas")
+col_names <- colnames(da_ta)
+dygraphs::dygraph(da_ta, main="Alphas of XLF Versus VTI and IEF") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="red")
+
+res_ponse <- zoo::coredata(res_ponse)
+predic_tor <- zoo::coredata(predic_tor)
+num_rows <- NROW(predic_tor)
+num_cols <- NCOL(predic_tor)
+means_resp <- matrix(nrow=num_rows)
+means_pred <- matrix(nrow=num_rows, ncol=num_cols)
+vars <- predic_tor^2
+covars <- matrix(rep(0, num_rows*num_cols), nrow=num_rows, ncol=num_cols)
+betas <- matrix(rep(0, num_rows*num_cols), nrow=num_rows, ncol=num_cols)
+alphas <- matrix(rep(0, num_rows), nrow=num_rows)
+resids <- matrix(rep(0, num_rows), nrow=num_rows)
+# varz <- matrix(rep(1, num_rows), nrow=num_rows)
+# meanz <- matrix(rep(0, num_rows), nrow=num_rows)
+lambda1 <- 1-lamb_da
+
+# Perform loop over rows
+means_resp[1, ] <- res_ponse[1, ]
+means_pred[1, ] <- predic_tor[1, ]
+for (it in 2:num_rows) {
+  # Calculate the mean as the weighted sum
+  means_resp[it, ] <- lambda1*res_ponse[it, ] + lamb_da*means_resp[it-1, ]
+  means_pred[it, ] <- lambda1*predic_tor[it, ] + lamb_da*means_pred[it-1, ]
+  vars[it, ] <- lambda1*(vars[it, ] - means_pred[it, ]^2) + lamb_da*vars[it-1, ]
+  covars[it, ] <- lambda1*((res_ponse[it, ]-means_resp[it, ])*(predic_tor[it, ]-means_pred[it, ])) + lamb_da*covars[it-1, ]
+  betas[it, ] <- lambda1*covars[it, ]/vars[it, ] + lamb_da*betas[it-1, ]
+  alphas[it, ] <- lambda1*(means_resp[it, drop=FALSE] - betas[it, ] %*% means_pred[it, ]) + lamb_da*alphas[it-1, ]
+  # Calculate the z-score as the weighted sum of products of returns.
+  resids[it, ] <- lambda1*(res_ponse[it, drop=FALSE] - betas[it, ] %*% predic_tor[it, ]) + lamb_da*resids[it-1, ]
+  # Calculate the mean and variance of the z-scores.
+  # meanz[it, ] <- lambda1*resids[it, ] + lamb_da*meanz[it-1, ]
+  # varz[it, ] <- lambda1*(resids[it, ] - resids[it-1, ])^2 + lamb_da*varz[it-1, ]
+}  # end for
+
+# regdatar <- cbind(alphas, betas, vars, (resids - meanz)/sqrt(varz))
+regdatar <- cbind(resids, alphas, betas)
+regdata <- HighFreq::run_reg(response=res_ponse, predictor=predic_tor, lambda=lamb_da)
+all.equal(regdatar, regdata, check.attributes=FALSE)
+
+
+
+###############
+### Portfolio optimization of VTI, VXX, and SVXY
+
+# Select ETFs
+sym_bols <- c("VTI", "VXX", "SVXY")
+re_turns <- na.omit(rutils::etf_env$re_turns[, sym_bols])
+date_s <- zoo::index(re_turns)
+price_s <- na.omit(rutils::etf_env$price_s[, sym_bols])
+
+# dygraph plot of VXX prices versus SVXY
+dygraphs::dygraph(price_s["2018-01-01/", 2:3], main="Returns of VXX and SVXY") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=1) %>%
+  dyLegend(show="always", width=500)
+
+# dygraph plot of VXX returns versus SVXY
+dygraphs::dygraph(cumsum(cbind(re_turns["2018-01-01/", 2], -2*re_turns["2018-01-01/", 3])), 
+                  main="Returns of VXX and SVXY") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=1) %>%
+  dyLegend(show="always", width=500)
+
+# In-sample returns
+returns_in <- rbind(re_turns["/2018-02-01"], re_turns["2018-02-07/"])
+returns_in <- re_turns["2018-03-01/"]
+
+# Portfolio objective function
+calc_perf <- function(x) {
+  weight_s <- c(1, x[1], x[2])
+  pnl_s <- (returns_in %*% weight_s)
+  -mean(pnl_s)/sd(pnl_s[pnl_s < 0])
+}  # end calc_perf
+
+## Calculate in-sample weights
+# 1-dim case
+op_tim <- optimize(calc_perf, c(-2, 1))
+weight_s <- c(-1, op_tim$minimum)
+
+# 2-dim case
+op_tim <- optim(fn=calc_perf, 
+                par=c(-1, -1),
+                method="L-BFGS-B",
+                upper=c(2, 2),
+                lower=c(-5, -5))
+
+# Portfolio weights - static dollars not shares
+weight_s <- c(1, op_tim$par)
+
+weight_s <- c(1, -2, -2)
+
+weight_s <- c(1, -2.1, -4.6)
+
+# Calculate out-of-sample pnls
+pnl_s <- (re_turns %*% weight_s)
+pnl_s <- xts::xts(cumsum(pnl_s), zoo::index(re_turns))
+dygraphs::dygraph(pnl_s, main="Static Portfolio of ETFs")
+
+
+## VTI AR strategy with VXX and SVXY as predictors
+
+# Define response as the rolling sum of re_turns
+# res_ponse <- re_turns[, "VTI"]
+n_agg <- 5
+res_ponse <- roll::roll_mean(re_turns[, "VTI"], width=n_agg, min_obs=1)
+res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg+1))
+
+# Define predictor
+# predic_tor <- rutils::lag_it(re_turns)
+order_max <- 2
+predic_tor <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
+predic_tor <- lapply(1:order_max, rutils::lag_it, in_put=predic_tor)
+predic_tor <- do.call(cbind, predic_tor)
+# colnames(predic_tor) <- paste0("pred_", 1:NCOL(predic_tor))
+n_rows <- NROW(predic_tor)
+predic_tor <- cbind(rep(1, n_rows), predic_tor)
+colnames(predic_tor)[1] <- "intercept"
+mod_el <- lm(res_ponse ~ predic_tor - 1)
+model_sum <- summary(mod_el)
+
+
+# In-Sample
+eigen_max <- 6
+# in_verse <- MASS::ginv(predic_tor)
+in_verse <- HighFreq::calc_inv(predic_tor, eigen_max=eigen_max)
+co_eff <- drop(in_verse %*% res_ponse)
+forecast_s <- (predic_tor %*% co_eff)
+pnl_s <- sign(forecast_s)*re_turns[, "VTI"]
+weal_th <- cbind(re_turns[, "VTI"], pnl_s)
+colnames(weal_th) <- c("VTI", "Strategy")
+sqrt(252)*sapply(weal_th, function(x) mean(x)/sd(x[x<0]))
+col_names <- colnames(weal_th)
+dygraphs::dygraph(cumsum(weal_th), main="VIX Strategy In-Sample") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", col="blue", strokeWidth=2) %>%
+  dySeries(name=col_names[2], axis="y2", col="red", strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
+
+
+# Out-of-Sample
+in_sample <- (date_s < as.Date("2018-01-01"))
+out_sample <- (date_s >= as.Date("2018-01-01"))
+# in_verse <- MASS::ginv(predic_tor[in_sample, ])
+eigen_max <- 4
+in_verse <- HighFreq::calc_inv(predic_tor[in_sample, ], eigen_max=eigen_max)
+co_eff <- drop(in_verse %*% res_ponse[in_sample, ])
+forecast_s <- (predic_tor[out_sample, ] %*% co_eff)
+pnl_s <- sign(forecast_s)*re_turns[out_sample, "VTI"]
+weal_th <- cbind(re_turns[out_sample, "VTI"], pnl_s)
+colnames(weal_th) <- c("VTI", "Strategy")
+sqrt(252)*sapply(weal_th, function(x) mean(x)/sd(x[x<0]))
+col_names <- colnames(weal_th)
+dygraphs::dygraph(cumsum(weal_th), main="VIX Strategy Out-of-Sample") %>%
+dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+dySeries(name=col_names[1], axis="y", col="blue", strokeWidth=2) %>%
+dySeries(name=col_names[2], axis="y2", col="red", strokeWidth=2) %>%
+dyLegend(show="always", width=500)
+
+
+eigen_maxs <- 2:7
+pnl_s <- lapply(eigen_maxs, function(eigen_max) {
+cat("eigen_max =", eigen_max, "\n")
+in_verse <- HighFreq::calc_inv(predic_tor[in_sample, ], eigen_max=eigen_max)
+co_eff <- drop(in_verse %*% res_ponse[in_sample, ])
+forecast_s <- (predic_tor[out_sample, ] %*% co_eff)
+sign(forecast_s)*res_ponse[out_sample, ]
 })
 pnl_s <- do.call(cbind, pnl_s)
 colnames(pnl_s) <- paste0("eigen", eigen_max)
+colnames(pnl_s) <- paste0("eigen", eigen_maxs)
+col_ors <- colorRampPalette(c("blue", "red"))(NCOL(pnl_s))
+dygraphs::dygraph(cumsum(pnl_s), main="Cumulative Returns of AR Strategies") %>%
+dyOptions(colors=col_ors, strokeWidth=1) %>%
+dyLegend(show="always", width=500)
+
+
+
+###############
+### Tune parameters of AR strategies
+
+eigen_maxs <- 2:7
+pnl_s <- lapply(eigen_maxs, function(eigen_max) {
+  cat("eigen_max =", eigen_max, "\n")
+  in_verse <- HighFreq::calc_inv(predic_tor[in_sample, ], eigen_max=eigen_max)
+  co_eff <- drop(in_verse %*% res_ponse[in_sample, ])
+  forecast_s <- (predic_tor[out_sample, ] %*% co_eff)
+  sign(forecast_s)*res_ponse[out_sample, ]
+})
+pnl_s <- do.call(cbind, pnl_s)
+colnames(pnl_s) <- paste0("eigen", eigen_maxs)
 
 col_ors <- colorRampPalette(c("blue", "red"))(NCOL(pnl_s))
 dygraphs::dygraph(cumsum(pnl_s), main="Cumulative Returns of AR Strategies") %>%
@@ -112,7 +311,7 @@ names(forecast_s) <- paste0("n=", 2:5)
 
 
 ###############
-## Kitchen sink
+## Multifactor AR rates
 
 load(file="/Users/jerzy/Develop/lecture_slides/data/rates_data.RData")
 rate_s <- do.call(cbind, as.list(rates_env))
@@ -338,9 +537,9 @@ dygraphs::dygraph(cumsum(weal_th), main="Butterfly Strategy In-sample") %>%
 
 ###############
 ### Test for app_zscore_returns_strat.R
-# Find optimal parameters
+# Find optimal parameters for SPY minutes data
 
-load(file="C:/Develop/data/polygon/spy_minutes.RData")
+load(file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 oh_lc <- oh_lc["T09:00:00/T16:30:00"]
 re_turns <- rutils::diff_it(log(Cl(oh_lc)))
 n_rows <- NROW(re_turns)
@@ -458,9 +657,9 @@ da_ta <- xts::xts(da_ta[, 2:3], as.Date.IDate(da_ta[, date]))
 ### Download Data from Polygon
 
 # Download minutes SPY prices in JSON format from Polygon
-download.file("https://api.polygon.io/v2/aggs/ticker/SPY/range/1/minute/2020-01-01/2021-07-20?adjusted=true&sort=asc&limit=50000&apiKey=J2M4jq6ltDM7c9VlboKAFIUklyxvpIdX", "C:/Develop/data/polygon/spy.json")
+download.file("https://api.polygon.io/v2/aggs/ticker/SPY/range/1/minute/2020-01-01/2021-07-20?adjusted=true&sort=asc&limit=50000&apiKey=J2M4jq6ltDM7c9VlboKAFIUklyxvpIdX", "/Volumes/external/Develop/data/polygon/spy.json")
 # Read SPY prices from json file
-oh_lc <- jsonlite::read_json("C:/Develop/data/polygon/spy.json")
+oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/spy.json")
 class(oh_lc)
 NROW(oh_lc)
 names(oh_lc)
@@ -488,7 +687,7 @@ ohlc1 <- oh_lc
 oh_lc <- lapply(1:6, function(it) get(paste0("ohlc", it)))
 oh_lc <- do.call(rbind, oh_lc)
 oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
-save(oh_lc, file="C:/Develop/data/polygon/spy_minutes.RData")
+save(oh_lc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
 
@@ -558,7 +757,7 @@ dygraphs::dygraph(cumsum(da_ta[, c(1, 3)]), main=paste(colnames(da_ta)[1], "and 
 
 # Pure in-sample with aggregations
 n_agg <- 40
-# Calculate res_ponse as the rolling re_turns
+# Define response as the rolling sum of re_turns
 # res_ponse <- re_turns
 res_ponse <- roll::roll_mean(re_turns, width=n_agg, min_obs=1)
 res_ponse <- rutils::lag_it(res_ponse, lagg=(-n_agg+1))
@@ -2467,7 +2666,7 @@ vr_s <- sapply(pca_rets, function(re_turn) {
 })  # end sapply
 vr_s <- sort(unlist(vr_s), decreasing=TRUE)
 pca_rets <- pca_rets[, names(vr_s)]
-save(pca_rets, file="C:/Develop/data/pca_rets.RData")
+save(pca_rets, file="/Volumes/external/Develop/data/pca_rets.RData")
 x11()
 dygraphs::dygraph(cumsum(pca_rets[, "PC2"]))
 barplot(sort(pc_a$rotation[, "PC2"]))
@@ -3650,7 +3849,7 @@ plot(foo)
 library(HighFreq)
 source("C:/Develop/R/scripts/market_making.R")
 
-data_dir <- "C:/Develop/data/ib_data/"
+data_dir <- "/Volumes/external/Develop/data/ib_data/"
 sym_bol <- "ES"
 load(paste0(data_dir, sym_bol, "_ohlc.RData"))
 n_rows <- NROW(oh_lc)
@@ -3735,7 +3934,7 @@ weights_r <- sapply(ret_s, function(x) mean(x)/sd(x))
 weights_r <- rank(weights_r)
 weights_r <- (weights_r - mean(weights_r))
 
-# weights_r <- 0.01*weight_s/arma::stddev(re_turns*weight_s)
+# weights_r <- 0.01*weight_s/stddev(re_turns*weight_s)
 
 ## Calculate weights using RcppArmadillo
 weight_s <- drop(calc_weights(ret_s, model_type="rank_sharpe", scale=FALSE))
@@ -3838,7 +4037,7 @@ dygraphs::dygraph(pnl_s, main=cap_tion) %>%
 ###############
 ### Strategy for market making using limit orders
 
-data_dir <- "C:/Develop/data/ib_data"
+data_dir <- "/Volumes/external/Develop/data/ib_data"
 setwd(dir=data_dir)
 load("oh_lc.RData")
 ohlc_data <- coredata(oh_lc)
@@ -3917,16 +4116,16 @@ source("C:/Develop/R/scripts/backtest_functions.R")
 # oh_lc <- HighFreq::SPY["2010-10/2010-11"]
 # oh_lc <- rutils::etf_env$VTI
 # load recent ES1 futures data
-# load(file="C:/Develop/data/ES1.RData")
+# load(file="/Volumes/external/Develop/data/ES1.RData")
 # or
-# oh_lc <- read.zoo(file="C:/Develop/data/new_bar/ES1.csv", header=TRUE, sep=",",
+# oh_lc <- read.zoo(file="/Volumes/external/Develop/data/new_bar/ES1.csv", header=TRUE, sep=",",
 #                   drop=FALSE, format="%Y-%m-%d %H:%M",
 #                   FUN=as.POSIXct, tz="America/New_York")
 # oh_lc <- as.xts(oh_lc)
 # oh_lc <- oh_lc["T09:00:00/T16:30:00"]
-# save(oh_lc, file="C:/Develop/data/ES1.RData")
+# save(oh_lc, file="/Volumes/external/Develop/data/ES1.RData")
 # load recent combined futures data
-load(file="C:/Develop/data/combined.RData")
+load(file="/Volumes/external/Develop/data/combined.RData")
 
 # set up data for signal
 sym_bol <- "UX1"
@@ -4303,7 +4502,7 @@ summary(microbenchmark(
 # with regression and dimension reduction
 
 # Load OHLC futures data
-load(file="C:/Develop/data/combined.RData")
+load(file="/Volumes/external/Develop/data/combined.RData")
 
 # Define OHLC technical indicators
 # residuals of the regression of the time series of clos_e prices
@@ -6143,9 +6342,9 @@ plot(foo[, 1]/foo[, 2], t="l")
 
 
 ###############
-### portfolio optimization using quadratic solver
+### Portfolio optimization using quadratic solver
 
-load("C:/Develop/data/etf_data.RData")
+load("/Volumes/external/Develop/data/etf_data.RData")
 ls(etf_env)
 dim(etf_env$re_turns)
 colnames(etf_env$re_turns)
