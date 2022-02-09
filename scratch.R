@@ -1,3 +1,57 @@
+# Calculate trailing z-scores of SVXY
+predic_tor <- cbind(sqrt(vari_ance), vx_x, vti_close)
+res_ponse <- svx_y
+rollzscores <- drop(HighFreq::roll_zscores(response=res_ponse, predictor=predic_tor, look_back=look_back))
+rollzscores[is.infinite(rollzscores)] <- 0
+
+rollreg <- HighFreq::roll_reg(response=res_ponse, predictor=predic_tor, intercept=TRUE, look_back=look_back)
+rollregscores <- rollreg[, NCOL(rollreg), drop=TRUE]
+all.equal(rollregscores, rollzscores)
+
+library(microbenchmark)
+# HighFreq::roll_reg() is faster than roll_zscores()
+summary(microbenchmark(
+  roll_zscores=HighFreq::roll_zscores(response=res_ponse, predictor=predic_tor, look_back=look_back),
+  roll_reg=HighFreq::roll_reg(response=res_ponse, predictor=predic_tor, intercept=TRUE, look_back=look_back),
+  times=10))[, c(1, 4, 5)]
+
+runreg <- HighFreq::run_reg(response=res_ponse, predictor=predic_tor, lambda=lamb_da, method="scale")
+runzscores <- HighFreq::run_zscores(response=res_ponse, predictor=predic_tor, lambda=lamb_da, demean=FALSE)
+# runzscores <- runreg[, 1, drop=TRUE]
+
+runreg <- rutils::lag_it(rutils::diff_it(cbind(res_ponse, predic_tor)))
+
+runreg[is.infinite(runreg)] <- 0
+runreg[abs(runreg) > 1e8] <- 0
+runreg[1:11, ] <- 0
+
+
+# Portfolio objective function
+calc_perf <- function(x) {
+  forecast_s <- sign(runreg %*% x)
+  pnl_s <- (re_turns*forecast_s)["/2017"]
+  -mean(pnl_s)/sd(pnl_s[pnl_s < 0])
+}  # end calc_perf
+
+# 2-dim case
+op_tim <- optim(fn=calc_perf, 
+                par=rep(1, NCOL(runreg)),
+                method="L-BFGS-B",
+                upper=rep(100, NCOL(runreg)),
+                lower=rep(-100, NCOL(runreg)))
+
+# Portfolio weights - static dollars not shares
+weight_s <- op_tim$par
+
+# Calculate out-of-sample pnls
+forecast_s <- runreg %*% weight_s
+pnl_s <- (re_turns*forecast_s)
+pnl_s <- xts::xts(cumsum(pnl_s), zoo::index(re_turns))
+dygraphs::dygraph(pnl_s, main="VTI Stategy Using RunReg")
+forecast_s <- xts::xts(forecast_s, zoo::index(re_turns))
+dygraphs::dygraph(forecast_s, main="VTI RunReg Forecasts")
+
+
 ###############
 ### Benchmark of HighFreq::run_reg() against R code
 
@@ -42,7 +96,7 @@ for (it in 2:num_rows) {
   # Calculate the mean as the weighted sum
   means_resp[it, ] <- lambda1*res_ponse[it, ] + lamb_da*means_resp[it-1, ]
   means_pred[it, ] <- lambda1*predic_tor[it, ] + lamb_da*means_pred[it-1, ]
-  vars[it, ] <- lambda1*(vars[it, ] - means_pred[it, ]^2) + lamb_da*vars[it-1, ]
+  vars[it, ] <- lambda1*(predic_tor[it, ]-means_pred[it, ])^2 + lamb_da*vars[it-1, ]
   covars[it, ] <- lambda1*((res_ponse[it, ]-means_resp[it, ])*(predic_tor[it, ]-means_pred[it, ])) + lamb_da*covars[it-1, ]
   betas[it, ] <- lambda1*covars[it, ]/vars[it, ] + lamb_da*betas[it-1, ]
   alphas[it, ] <- lambda1*(means_resp[it, drop=FALSE] - betas[it, ] %*% means_pred[it, ]) + lamb_da*alphas[it-1, ]
@@ -649,45 +703,6 @@ cor(rutils::lag_it(re_turns[, 1]), re_turns[, 2])
 da_ta <- da_ta[, c("date", "sentiment", "close")]
 colnames(da_ta) <- c("date", "sentiment", "SPY")
 da_ta <- xts::xts(da_ta[, 2:3], as.Date.IDate(da_ta[, date]))
-
-
-
-
-###############
-### Download Data from Polygon
-
-# Download minutes SPY prices in JSON format from Polygon
-download.file("https://api.polygon.io/v2/aggs/ticker/SPY/range/1/minute/2020-01-01/2021-07-20?adjusted=true&sort=asc&limit=50000&apiKey=J2M4jq6ltDM7c9VlboKAFIUklyxvpIdX", "/Volumes/external/Develop/data/polygon/spy.json")
-# Read SPY prices from json file
-oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/spy.json")
-class(oh_lc)
-NROW(oh_lc)
-names(oh_lc)
-# Coerce from json to data frame
-oh_lc <- oh_lc$results
-oh_lc <- jsonlite::toJSON(oh_lc)
-oh_lc <- jsonlite::fromJSON(oh_lc)
-sapply(oh_lc, class)
-# Coerce from data frame to matrix
-oh_lc <- lapply(oh_lc, unlist)
-oh_lc <- do.call(cbind, oh_lc)
-class(oh_lc)
-# Coerce time from milliseconds to date time
-date_s <- oh_lc[, "t"]/1e3
-date_s <- as.POSIXct(date_s, origin="1970-01-01")
-tail(date_s)
-# Coerce from matrix to xts
-oh_lc <- oh_lc[, c("o","h","l","c","v","vw")]
-colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
-oh_lc <- xts::xts(oh_lc, order.by=date_s)
-tail(oh_lc)
-# Copy and repeat the download
-ohlc1 <- oh_lc
-# Join all the xts
-oh_lc <- lapply(1:6, function(it) get(paste0("ohlc", it)))
-oh_lc <- do.call(rbind, oh_lc)
-oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
-save(oh_lc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
 

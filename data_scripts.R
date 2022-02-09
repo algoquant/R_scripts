@@ -2,6 +2,9 @@
 # Scripts for downloading data from external sources,
 # and for loading data from files.
 
+# Suppress spurious timezone warning message: "timezone of object is different than current timezone"
+Sys.setenv(TZ=Sys.timezone())
+# Load HighFreq
 library(HighFreq)
 
 
@@ -38,7 +41,7 @@ cat(etf_gvkeys, file="C:/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
 ###############
 # Read .csv file with S&P500 constituents
 
-sp500_table <- read.csv(file="C:/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
+sp500_table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
 duplicate_s <- table(sp500_table$gvkey)
 duplicate_s <- duplicate_s[duplicate_s > 1]
 duplicate_s <- sp500_table[match(as.numeric(names(duplicate_s)), sp500_table$gvkey), ]
@@ -76,7 +79,7 @@ sp500_tickers <- unique(sp500_table$co_tic)
 # ajexdi and trfd columns are adjustment factors.
 
 # Read .csv file with TAP OHLC prices
-oh_lc <- read.csv(file="C:/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
+oh_lc <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
 # oh_lc contains cusips not in sp500_cusips
 cusip_s <- unique(oh_lc$cusip)
 cusip_s %in% sp500_cusips
@@ -162,9 +165,228 @@ etf_env <- new.env()
 process_ed <- lapply(split(etf_prices, etf_prices$tic), format_ohlc, environ_ment=etf_env)
 plot(quantmod::Cl(etf_env$USO))
 # Save OHLC prices to .RData file
-save(etf_env, file="C:/Develop/lecture_slides/data/etf_data.RData")
+save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 # Load OHLC prices from .RData file
-load("C:/Develop/lecture_slides/data/etf_data.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+
+
+
+
+###############
+### Download Data from Polygon
+
+### Download single file of OHLC bars from Polygon
+
+# Setup code
+sym_bol <- "SPY"
+start_date <- as.Date("2019-01-01")
+# start_date <- as.Date("2021-05-01")
+to_day <- Sys.Date()
+rang_e <- "minute"
+# rang_e <- "day"
+apikey <- "0Q2f8j8CwAbdY4M8VYt_8pwdP0V4TunxbvRVC_"
+
+# Download OHLC bars from Polygon into JSON format file
+ur_l <- paste0("https://api.polygon.io/v2/aggs/ticker/", sym_bol, "/range/1/", rang_e, "/", start_date, "/", to_day, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
+download.file(ur_l, destfile="/Volumes/external/Develop/data/polygon/data.json")
+# Read OHLC bars from json file
+oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
+class(oh_lc)
+NROW(oh_lc)
+names(oh_lc)
+# Extract list of prices from json object
+oh_lc <- oh_lc$results
+# Coerce from list to matrix
+oh_lc <- lapply(oh_lc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
+oh_lc <- do.call(rbind, oh_lc)
+# Coerce time from milliseconds to date time
+date_s <- oh_lc[, "t"]/1e3
+date_s <- as.POSIXct(date_s, origin="1970-01-01")
+head(date_s)
+tail(date_s)
+# Coerce from matrix to xts
+oh_lc <- oh_lc[, -1]
+colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+oh_lc <- xts::xts(oh_lc, order.by=date_s)
+head(oh_lc)
+tail(oh_lc)
+# Save to file
+spyohlc <- oh_lc
+save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+rm(spyohlc)
+
+# Candlestick plot of OHLC prices
+dygraphs::dygraph(oh_lc[, 1:4], main=paste("Candlestick Plot of", sym_bol, "OHLC prices")) %>% 
+  dygraphs::dyCandlestick()
+# Dygraphs plot of Close prices
+dygraphs::dygraph(oh_lc[, 4], main=paste(sym_bol, "Close prices")) %>%
+  dySeries(colnames(oh_lc[, 4]), label=sym_bol) %>%
+  dyOptions(colors="blue", strokeWidth=1) %>%
+  dyLegend(show="always", width=500)
+
+
+### Download daily OHLC bars for multiple symbols in a loop
+
+# Setup code
+start_date <- as.Date("1990-01-01")
+# start_date <- as.Date("2021-05-01")
+to_day <- Sys.Date()
+rang_e <- "day"
+apikey <- "SDpnrBpiRzONMJdl48r6dOo0_mjmCu6r"
+
+# Select ETF symbols for asset allocation
+sym_bols <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
+              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
+              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
+              "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
+# Setup code
+etf_env <- new.env()  # New environment for data
+# Boolean vector of symbols already downloaded
+down_loaded <- sym_bols %in% ls(etf_env)
+
+# Download data from Polygon using while loop
+while (sum(!down_loaded) > 0) {
+  for (sym_bol in sym_bols[!down_loaded]) {
+    cat("Processing:", sym_bol, "\n")
+    tryCatch({  # With error handler
+      # Download OHLC bars from Polygon into JSON format file
+      ur_l <- paste0("https://api.polygon.io/v2/aggs/ticker/", sym_bol, "/range/1/", rang_e, "/", start_date, "/", to_day, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
+      download.file(ur_l, destfile="/Volumes/external/Develop/data/polygon/data.json")
+      # Read OHLC bars from json file
+      oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
+      # Extract list of prices from json object
+      oh_lc <- oh_lc$results
+      # Coerce from list to matrix
+      oh_lc <- lapply(oh_lc, unlist)
+      oh_lc <- do.call(rbind, oh_lc)
+      # Coerce time from milliseconds to dates
+      date_s <- oh_lc[, "t"]/1e3
+      date_s <- as.POSIXct(date_s, origin="1970-01-01")
+      date_s <- as.Date(date_s)
+      # Coerce from matrix to xts
+      oh_lc <- oh_lc[, c("o","h","l","c","v","vw")]
+      colnames(oh_lc) <- paste0(sym_bol, ".", c("Open", "High", "Low", "Close", "Volume", "VWAP"))
+      oh_lc <- xts::xts(oh_lc, order.by=date_s)
+      # Save to environment
+      assign(sym_bol, oh_lc, envir=etf_env)
+      Sys.sleep(1)
+    },
+    error={function(error_cond) print(paste("Error handler:", error_cond))},
+    finally=print(paste0("sym_bol=", sym_bol))
+    )  # end tryCatch
+  }  # end for
+  # Update vector of symbols already downloaded
+  down_loaded <- sym_bols %in% ls(etf_env)
+}  # end while
+
+save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+
+### Add stats to etf_env
+
+# Extract Close prices
+price_s <- eapply(etf_env, quantmod::Cl)
+price_s <- do.call(cbind, price_s)
+# Drop ".Close" from colnames
+colnames(price_s) <- do.call(rbind, strsplit(colnames(price_s), split="[.]"))[, 1]
+# Calculate the log returns
+re_turns <- xts::diff.xts(log(price_s))
+# Copy price_s and re_turns into etf_env
+etf_env$price_s <- price_s
+etf_env$re_turns <- re_turns
+# Copy sym_bols into etf_env
+etf_env$sym_bols <- sym_bols
+# Calculate the risk-return statistics
+risk_return <- PerformanceAnalytics::table.Stats(re_turns)
+# Transpose the data frame
+risk_return <- as.data.frame(t(risk_return))
+# Add Name column
+risk_return$Name <- rownames(risk_return)
+# Copy risk_return into etf_env
+etf_env$risk_return <- risk_return
+# Calculate the beta, alpha, Treynor ratio, and other performance statistics
+capm_stats <- PerformanceAnalytics::table.CAPM(Ra=re_turns[, sym_bols], 
+                                               Rb=re_turns[, "VTI"], scale=252)
+col_names <- strsplit(colnames(capm_stats), split=" ")
+col_names <- do.call(cbind, col_names)[1, ]
+colnames(capm_stats) <- col_names
+capm_stats <- t(capm_stats)
+capm_stats <- capm_stats[, -1]
+col_names <- colnames(capm_stats)
+whi_ch <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), col_names)
+col_names[whi_ch] <- c("Alpha", "Information", "Treynor")
+colnames(capm_stats) <- col_names
+capm_stats <- capm_stats[order(capm_stats[, "Alpha"], decreasing=TRUE), ]
+# Copy capm_stats into etf_env
+etf_env$capm_stats <- capm_stats
+save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+
+
+### Download minute bars for single symbol in a loop
+# Has to be performed in batches since data limit=50000
+
+# Setup code
+sym_bol <- "SPY"
+start_date <- as.Date("2019-01-01")
+# start_date <- as.Date("2021-05-01")
+to_day <- Sys.Date()
+rang_e <- "minute"
+# rang_e <- "day"
+apikey <- "SDpnrBpiRzONMJdl48r6dOo0_mjmCu6r"
+da_ta <- new.env()
+iter <- 1
+
+# Run loop
+while (start_date < to_day) {
+  ur_l <- paste0("https://api.polygon.io/v2/aggs/ticker/", sym_bol, "/range/1/", rang_e, "/", start_date, "/", to_day, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
+  download.file(ur_l, destfile="/Volumes/external/Develop/data/polygon/data.json")
+  oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
+  oh_lc <- oh_lc$results
+  # oh_lc <- lapply(oh_lc, unlist)
+  oh_lc <- lapply(oh_lc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
+  oh_lc <- do.call(rbind, oh_lc)
+  date_s <- oh_lc[, "t"]/1e3
+  # Polygon seconds are moment in time in UTC
+  date_s <- as.POSIXct(date_s, origin="1970-01-01", tz="America/New_York")
+  oh_lc <- oh_lc[, -1]
+  colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+  oh_lc <- xts::xts(oh_lc, order.by=date_s)
+  start_date <- as.Date(end(oh_lc))-1
+  # oh_lc <- rbind(oh_lc, da_ta)
+  # oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
+  # da_ta <- oh_lc
+  assign(paste0("ohlc", iter), oh_lc, envir=da_ta)
+  iter <- iter + 1
+  cat("Sleeping for 1 sec ... \n")
+  Sys.sleep(1)
+}  # end while
+
+# Combine xts
+oh_lc <- do.call(rbind, as.list(da_ta))
+oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
+# Save xts to file
+spyohlc <- oh_lc
+save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+rm(spyohlc)
+
+
+# Load existing minute bars of SPY prices
+loadd <- load(file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+# Or
+loadd <- load(file="/Volumes/external/Develop/data/polygon/spyvxx_minutes.RData")
+# Plot the SPY and VXX Returns
+col_names <- colnames(re_turns)
+dygraphs::dygraph(cumsum(re_turns), main="SPY and VXX Returns") %>%
+  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
+  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="red")
+
+
+# Old code
+# Coerce from json to data frame
+# oh_lc <- jsonlite::toJSON(oh_lc)
+# oh_lc <- jsonlite::fromJSON(oh_lc)
+# sapply(oh_lc, class)
 
 
 
@@ -257,7 +479,7 @@ risk_return$Name <- rownames(risk_return)
 etf_env$risk_return <- risk_return
 
 # Calculate the beta, alpha, Treynor ratio, and other performance statistics
-capm_stats <- PerformanceAnalytics::table.CAPM(Ra=re_turns[, symbol_s], 
+capm_stats <- PerformanceAnalytics::table.CAPM(Ra=re_turns[, sym_bols], 
                          Rb=re_turns[, "VTI"], scale=252)
 col_names <- strsplit(colnames(capm_stats), split=" ")
 col_names <- do.call(cbind, col_names)[1, ]
@@ -273,7 +495,7 @@ capm_stats <- capm_stats[order(capm_stats[, "Alpha"], decreasing=TRUE), ]
 etf_env$capm_stats <- capm_stats
 
 # Save ETF data to .RData file
-save(etf_env, file="C:/Develop/lecture_slides/data/etf_data.RData")
+save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 # Copy file to C:\Develop\R\rutils\data\etf_data.RData
 
 
@@ -283,7 +505,7 @@ save(etf_env, file="C:/Develop/lecture_slides/data/etf_data.RData")
 # Read .csv file with S&P500 OHLC prices
 
 # Read .csv file with S&P500 constituents
-sp500_table <- read.csv(file="C:/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
+sp500_table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
 # Select unique cusips and remove empty cusips
 sp500_cusips <- unique(sp500_table$co_cusip)
 sp500_cusips <- sp500_cusips[-which(sp500_cusips == "")]
@@ -311,9 +533,9 @@ plot(quantmod::Cl(sp500_env$MSFT))
 foo <- eapply(sp500_env, function(x) xts::isOrdered(index(x)))
 sum(!unlist(foo))
 # Save OHLC prices to .RData file
-save(sp500_env, file="C:/Develop/lecture_slides/data/sp500.RData")
+save(sp500_env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 # Load OHLC prices from .RData file
-load("C:/Develop/lecture_slides/data/sp500.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
 
@@ -324,7 +546,7 @@ load("C:/Develop/lecture_slides/data/sp500.RData")
 # and calculate the percentage daily returns scaled
 # by their intraday range.
 
-load("C:/Develop/lecture_slides/data/sp500.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 ## Calculate prices from OHLC data
 price_s <- eapply(sp500_env, quantmod::Cl)
@@ -382,12 +604,38 @@ returns_100_scaled <- returns_scaled[, sam_ple]
 
 ## Save the data
 save(price_s, prices_100,
-     file="C:/Develop/lecture_slides/data/sp500_prices.RData")
+     file="/Users/jerzy/Develop/lecture_slides/data/sp500_prices.RData")
 
 ## Save the returns
 save(re_turns, returns_100,
-     file="C:/Develop/lecture_slides/data/sp500_returns.RData")
+     file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 
+
+
+###############
+# Read minute OHLC stock prices from CSV files and coerce them into xts.
+
+# Load time series data from CSV file
+oh_lc <- data.table::fread("/Volumes/external/Develop/data/polygon/spy_minutes.csv")
+date_s <- unname(unlist(oh_lc[, 2]/1e3))
+date_s <- as.POSIXct(date_s, tz="UTC", origin="1970-01-01")
+date_s <- lubridate::force_tz(date_s, "America/New_York")
+oh_lc <- xts::xts(oh_lc[, -(1:2)], order.by=date_s)
+save(oh_lc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+
+
+###############
+# Coerce time zones
+# Index had America/New_York time zone while the clock time was actually UTC
+
+load("/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+date_s <- zoo::index(spyohlc)
+# Get same moment of time in UTC time zone
+date_s <- lubridate::with_tz(date_s, "UTC")
+# Get same clock time in America/New_York time zone
+date_s <- lubridate::force_tz(date_s, "America/New_York")
+zoo::index(spyohlc) <- date_s
+save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
 ###############
@@ -405,10 +653,10 @@ setwd(dir=data_dir)
 file_names <- Sys.glob(paste(data_dir, "*.csv", sep="/"))
 # Subset to only sym_bol file names
 file_names <- file_names[grep(sym_bol, file_names)]
-# Subset to only files createed after "2018-10-01"
+# Subset to only files created after "2018-10-01"
 cut_off <- as.POSIXct("2018-10-01", tz="America/New_York", origin="1970-01-01")
 file_names <- file_names[file.info(file_names)$mtime > cut_off]
-# Subset to only files createed before "2019-06-30"
+# Subset to only files created before "2019-06-30"
 cut_off <- as.POSIXct("2019-06-30", tz="America/New_York", origin="1970-01-01")
 file_names <- file_names[file.info(file_names)$mtime < cut_off]
 # Exclude "ESTSY"
@@ -572,7 +820,7 @@ file_names <- file.path(data_dir,
 #                 fields = bbg_fields,
 #                 start.date = start_date)
 
-# Download data from Bloomberg in loop
+# Download data from Bloomberg in a loop
 lapply(seq_along(bbg_symbols), function(in_dex) {
   sym_bol <- bbg_symbols[in_dex]
   bbg_data <- xts::as.xts(Rblpapi::bdh(securities = sym_bol,
@@ -598,8 +846,8 @@ prices_ts <- xts::as.xts(zoo::read.zoo(
 # overwrite NA values
 prices_ts <- rutils::na_locf(prices_ts)
 prices_ts <- rutils::na_locf(prices_ts, from_last=TRUE)
-symbol_s <- c("XLP", "XLU")
-prices_ts <- prices_ts[, symbol_s]
+sym_bols <- c("XLP", "XLU")
+prices_ts <- prices_ts[, sym_bols]
 
 
 
@@ -733,7 +981,7 @@ file_names <- file.path(data_dir, paste0(sym_bols, ".csv"))
 log_file <- file.path(data_dir, "log_file.txt")
 cboe_url <- "https://markets.cboe.com/us/futures/market_statistics/historical_data/products/csv/VX/"
 url_s <- paste0(cboe_url, date_s[se_lect, 1])
-# Download files in loop
+# Download files in a loop
 for (it in seq_along(url_s)) {
   tryCatch(  # Warning and error handler
     download.file(url_s[it],
@@ -900,8 +1148,4 @@ zoo::write.zoo(bbg_data, file="bbg_data.csv", sep=",")
 
 
 # Bloomberg script for a list of symbols
-
-
-
-
 
