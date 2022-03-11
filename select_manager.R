@@ -39,41 +39,41 @@ foo <- t(foo)
 
 # Calculate the probability by summing over all possible 
 # combinations of obtaining heads or tails for both coins. 
-probab_1 <- function(nu_m, p1, p2) {
-  binom_1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
-  binom_2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
-  out_er <- binom_1 %o% binom_2
+probab1 <- function(nu_m, p1, p2) {
+  binom1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
+  binom2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
+  out_er <- binom1 %o% binom2
   sum(out_er[lower.tri(out_er)]) + sum(diag(out_er))/2
-}  # end probab_1
+}  # end probab1
 
 # Simplify the calculation by calculating the cumulative 
 # probability, without calculating the outer product.
-probab_2 <- function(nu_m, p1, p2) {
-  binom_1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
-  binom_2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
-  cum_binom_2 <- cumsum(binom_2)
-  cum_binom_2 <- c(0, cum_binom_2[-NROW(cum_binom_2)])
-  sum(binom_1 * (cum_binom_2 + binom_2/2))
-}  # end probab_2
+probab2 <- function(nu_m, p1, p2) {
+  binom1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
+  binom2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
+  cum_binom2 <- cumsum(binom2)
+  cum_binom2 <- c(0, cum_binom2[-NROW(cum_binom2)])
+  sum(binom1 * (cum_binom2 + binom2/2))
+}  # end probab2
 
 # Use normal approximation for the binomial coefficient.
-probab_3 <- function(nu_m, p1, p2) {
+probab3 <- function(nu_m, p1, p2) {
   if (p1^nu_m > 1e-10)
-    binom_1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
+    binom1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
   else
-    binom_1 <- dnorm(0:nu_m, mean=nu_m*p1, sd=sqrt(nu_m*p1*(1-p1)))
+    binom1 <- dnorm(0:nu_m, mean=nu_m*p1, sd=sqrt(nu_m*p1*(1-p1)))
   if (p2^nu_m > 1e-10)
-    binom_2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
+    binom2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
   else
-    binom_2 <- dnorm(0:nu_m, mean=nu_m*p2, sd=sqrt(nu_m*p2*(1-p2)))
-  cum_binom_2 <- cumsum(binom_2)
-  cum_binom_2 <- c(0, cum_binom_2[-NROW(cum_binom_2)])
-  sum(binom_1 * (cum_binom_2 + binom_2/2))
-}  # end probab_3
+    binom2 <- dnorm(0:nu_m, mean=nu_m*p2, sd=sqrt(nu_m*p2*(1-p2)))
+  cum_binom2 <- cumsum(binom2)
+  cum_binom2 <- c(0, cum_binom2[-NROW(cum_binom2)])
+  sum(binom1 * (cum_binom2 + binom2/2))
+}  # end probab3
 
-probab_3(5, 0.6, 0.5)
+probab3(5, 0.6, 0.5)
 
-prob_s <- sapply(1:500, probab_3, p1=0.6, p2=0.5)
+prob_s <- sapply(1:500, probab3, p1=0.6, p2=0.5)
 
 # plot in window
 x11()
@@ -108,10 +108,10 @@ sharpe_ratio <- 0.4
 prob_ab <- (sharpe_ratio/sqrt(250)+1)/2
 
 # probability of selecting correct manager with 20 years of data
-probab_3(20*250, prob_ab, 0.5)
+probab3(20*250, prob_ab, 0.5)
 
 # annual probabilities of selecting correct manager
-prob_s <- sapply(250*(1:50), probab_3, p1=prob_ab, p2=0.5)
+prob_s <- sapply(250*(1:50), probab3, p1=prob_ab, p2=0.5)
 
 # Years of data needed to select the correct manager, with 95% confidence
 findInterval(0.95, prob_s)

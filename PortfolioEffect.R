@@ -65,26 +65,26 @@ util_plot2d(position_sharpeRatio(port_folio, "AAPL"), title="Sharpe Ratio, daily
 
 # create function for moving average over a vector
 mov_avg <- function(x, win_dow){
-  out_put <- x
+  output <- x
   n_row <- NROW(x)
-  cum_sum <- cumsum(x)
-  out_put[(win_dow+1):n_row] <- 
-    (cum_sum[-(1:win_dow)]-cum_sum[-((n_row-win_dow+1):n_row)])/win_dow
-  out_put[1:win_dow] <- cumsum(x[1:win_dow])/(1:win_dow)
-  return(out_put-0.0000000001)
+  cumsumv <- cumsum(x)
+  output[(win_dow+1):n_row] <- 
+    (cumsumv[-(1:win_dow)]-cumsumv[-((n_row-win_dow+1):n_row)])/win_dow
+  output[1:win_dow] <- cumsum(x[1:win_dow])/(1:win_dow)
+  return(output-0.0000000001)
 }  # end mov_avg
 
 
-sym_bol <- "GOOG"
-date_start <- "2014-10-13 09:30:00"
+symbol <- "GOOG"
+datestart <- "2014-10-13 09:30:00"
 date_end <- "2014-10-14 16:00:00"
 
-highFrequencyPortfolio <- portfolio_create(fromTime=date_start, toTime=date_end)
-lowFrequencyPortfolio <- portfolio_create(fromTime=date_start, toTime=date_end)
+highFrequencyPortfolio <- portfolio_create(fromTime=datestart, toTime=date_end)
+lowFrequencyPortfolio <- portfolio_create(fromTime=datestart, toTime=date_end)
 
 # add position "GOOG" to portfolios
-portfolio_addPosition(highFrequencyPortfolio, sym_bol, 1)
-price <- position_price(highFrequencyPortfolio, sym_bol)
+portfolio_addPosition(highFrequencyPortfolio, symbol, 1)
+price <- position_price(highFrequencyPortfolio, symbol)
 printTime <- price[, 1]
 
 # create vector of portfolio weights depending on rules
@@ -96,12 +96,12 @@ lowFrequencyStrategy[price[, "value"] > mov_avg(price[, "value"], 800)] <- 100
 # add portfolio weights to strategies
 portfolio_addPosition(
   portfolio=highFrequencyPortfolio, 
-  symbol=sym_bol, 
+  symbol=symbol, 
   quantity=highFrequencyStrategy, 
   time=printTime)
 portfolio_addPosition(
   portfolio=lowFrequencyPortfolio, 
-  symbol=sym_bol, 
+  symbol=symbol, 
   quantity=lowFrequencyStrategy, 
   time=printTime)
 
@@ -110,8 +110,8 @@ print(highFrequencyPortfolio)
 print(lowFrequencyPortfolio)
 
 # ggplot the strategies
-plot1 <- util_ggplot(util_plot2d(position_quantity(highFrequencyPortfolio, sym_bol), title="High Frequency Portfolio Strategy", line_size=0.6))
-plot2 <- util_ggplot(util_plot2d(position_quantity(lowFrequencyPortfolio, sym_bol), title="Low Frequency Portfolio Strategy", line_size=0.6))
+plot1 <- util_ggplot(util_plot2d(position_quantity(highFrequencyPortfolio, symbol), title="High Frequency Portfolio Strategy", line_size=0.6))
+plot2 <- util_ggplot(util_plot2d(position_quantity(lowFrequencyPortfolio, symbol), title="Low Frequency Portfolio Strategy", line_size=0.6))
 util_multiplot(plot1, plot2, cols=1)
 
 

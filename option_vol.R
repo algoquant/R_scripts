@@ -10,7 +10,7 @@ setwd("C:/ProjecteR/PersonalWeb")
 
 # === Step 1 ===
 # Read and summarize data
-UBS_Op18Nov <-(data.frame(read.table("UBS_OptionData_18Nov.txt",header=TRUE, sep="")))
+UBS_Op18Nov <-(data.frame(read.table("UBS_OptionData18Nov.txt",header=TRUE, sep="")))
 summary(UBS_Op18Nov)
 attach(UBS_Op18Nov)
 n <- dim(UBS_Op18Nov)[1]

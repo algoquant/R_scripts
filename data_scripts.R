@@ -22,55 +22,102 @@ dim(names_table)
 write.csv(names_table, file="C:/Develop/data/WRDS/compustat_table.csv", row.names=FALSE)
 # rm(compustat_table)
 names_table <- read.csv(file="C:/Develop/data/WRDS/compustat_table.csv", stringsAsFactors=FALSE)
-# sym_bol <- "VTI"
-# match(sym_bol, names_table$tic)
-# Get cusips of sym_bols tickers
-in_dex <- match(sym_bols, names_table$tic)
-names(in_dex) <- sym_bols
-etf_cusips <- names_table$cusip[in_dex]
-names(etf_cusips) <- sym_bols
+# symbol <- "VTI"
+# match(symbol, names_table$tic)
+# Get cusips of symbolv tickers
+indeks <- match(symbolv, names_table$tic)
+names(indeks) <- symbolv
+etf_cusips <- names_table$cusip[indeks]
+names(etf_cusips) <- symbolv
 # Save cusips into text file
 cat(etf_cusips, file="C:/Develop/data/WRDS/etf_cusips.txt", sep="\n")
 # Save gvkeys into text file
-etf_gvkeys <- names_table$gvkey[in_dex]
-names(etf_gvkeys) <- sym_bols
+etf_gvkeys <- names_table$gvkey[indeks]
+names(etf_gvkeys) <- symbolv
 cat(etf_gvkeys, file="C:/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
 
 
+###############
+# Combine different CSV files with S&P500 constituents
+
+# Load old CSV files with S&P500 constituents from the past
+sp500old <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents_2020.csv")
+dim(sp500old)
+# Check if there are missing tickers
+sum(is.na(sp500old$co_tic))
+sum(sp500old$co_tic == "")
+# Remove rows with missing tickers
+sp500old <- sp500old[!(sp500old$co_tic == ""), ]
+# Replace dots with hyphens in tickers
+sp500old$co_tic <- gsub("[.]", "-", sp500old$co_tic)
+# Remove suffixes from tickers
+# sp500old$co_tic <- rutils::get_name(sp500old$co_tic)
+# (needs recalculating) Load unavailable tickers from Tiingo download - mergers, etc.
+tickna <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/tickna.csv")
+tickna <- unname(unlist(tickna))
+# Select available tickers
+sp500old <- sp500old[!(sp500old$co_tic %in% tickna), ]
+# Extract all the old tickers
+tickold <- unique(sp500old$co_tic)
+
+
+# Load CSV file with current SPY holdings
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/spyholdings.csv")
+# Replace dots with hyphens in tickers
+sp500table$Ticker <- gsub("[.]", "-", sp500table$Ticker)
+tickers <- sp500table$Ticker
+# Select only those old tickers that are not new
+tickold <- tickold[!(tickold %in% tickers)]
+# Select rows with old tickers
+sp500old <- sp500old[sp500old$co_tic %in% tickold, c("co_conm","co_tic")]
+# Rename columns
+colnames(sp500old) <- c("Name", "Ticker")
+sp500old$Name <- stringr::str_to_title(sp500old$Name)
+# Add columns
+sp500old$Identifier <- rep_len(NA, NROW(sp500old))
+sp500old$SEDOL <- rep_len(NA, NROW(sp500old))
+# Combine the tickers
+sp500table <- rbind(sp500table[, 1:4], sp500old)
+sp500table <- sp500table[, c("Ticker", "Name", "Identifier", "SEDOL")]
+
+# Save the tickers
+write.csv(sp500table, file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", row.names=FALSE)
+
+
 
 ###############
-# Read .csv file with S&P500 constituents
+# (old) Read CSV file with S&P500 constituents
 
-sp500_table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
-duplicate_s <- table(sp500_table$gvkey)
-duplicate_s <- duplicate_s[duplicate_s > 1]
-duplicate_s <- sp500_table[match(as.numeric(names(duplicate_s)), sp500_table$gvkey), ]
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
+duplicates <- table(sp500table$gvkey)
+duplicates <- duplicates[duplicates > 1]
+duplicates <- sp500table[match(as.numeric(names(duplicates)), sp500table$gvkey), ]
 # Select unique gvkeys
-sp500_gvkeys <- unique(sp500_table$gvkey)
-# foo <- sp500_table[match(sp500_gvkeys, sp500_table$gvkey), ]
+sp500gvkeys <- unique(sp500table$gvkey)
+# foo <- sp500table[match(sp500gvkeys, sp500table$gvkey), ]
 # Save gvkeys into text file
-cat(sp500_gvkeys, file="C:/Develop/data/WRDS/sp500_gvkeys.txt", sep="\n")
+cat(sp500gvkeys, file="C:/Develop/data/WRDS/sp500gvkeys.txt", sep="\n")
 # Select unique cusips and remove empty cusips
-sp500_cusips <- unique(sp500_table$co_cusip)
-sp500_cusips <- sp500_cusips[-which(sp500_cusips == "")]
+sp500cusips <- unique(sp500table$co_cusip)
+sp500cusips <- sp500cusips[-which(sp500cusips == "")]
 # Some cusips are empty
-which(sp500_cusips == "")
+which(sp500cusips == "")
 # Remove empty cusips
-sp500_cusips <- sp500_cusips[-which(sp500_cusips == "")]
-cat(sp500_cusips, file="C:/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
-# Find the rows corresponding to the sp500_cusips
-rows_cusips <- sp500_table[match(sp500_cusips, sp500_table$co_cusip), ]
+sp500cusips <- sp500cusips[-which(sp500cusips == "")]
+cat(sp500cusips, file="C:/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
+# Find the rows corresponding to the sp500cusips
+rows_cusips <- sp500table[match(sp500cusips, sp500table$co_cusip), ]
 # Find the rows corresponding to duplicate gvkeys
-duplicate_s <- table(rows_cusips$gvkey)
-duplicate_s <- duplicate_s[duplicate_s > 1]
-duplicate_s <- rows_cusips[rows_cusips$gvkey %in% as.numeric(names(duplicate_s)), ]
+duplicates <- table(rows_cusips$gvkey)
+duplicates <- duplicates[duplicates > 1]
+duplicates <- rows_cusips[rows_cusips$gvkey %in% as.numeric(names(duplicates)), ]
 # Select unique sp500 tickers
-sp500_tickers <- unique(sp500_table$co_tic)
+sp500tickers <- unique(sp500table$co_tic)
 
 
 
 ###############
-# Download TAP ETF OHLC prices from WRDS to .csv file, read
+# Download TAP ETF OHLC prices from WRDS to CSV file, read
 # it, and format into xts series.
 # WRDS query name EMM_OHLC
 # https://wrds-web.wharton.upenn.edu/wrds/ds/compd/secd/index.cfm
@@ -78,94 +125,94 @@ sp500_tickers <- unique(sp500_table$co_tic)
 # datadate ajexdi cshtrd  prccd  prchd  prcld prcod trfd
 # ajexdi and trfd columns are adjustment factors.
 
-# Read .csv file with TAP OHLC prices
-oh_lc <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
-# oh_lc contains cusips not in sp500_cusips
-cusip_s <- unique(oh_lc$cusip)
-cusip_s %in% sp500_cusips
-# Select data only for sp500_cusips
-oh_lc <- oh_lc[oh_lc$cusip %in% sp500_cusips, ]
-# oh_lc contains tickers not in sp500_tickers
-ticker_s <- unique(oh_lc$tic)
-ticker_s %in% sp500_tickers
-# Select data only for sp500_tickers
-oh_lc <- oh_lc[oh_lc$tic %in% sp500_tickers, ]
-# Select ticker from sp500_table
-sym_bol <- sp500_table$co_tic[match(oh_lc$gvkey[1], sp500_table$gvkey)]
+# Read CSV file with TAP OHLC prices
+ohlc <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
+# ohlc contains cusips not in sp500cusips
+cusips <- unique(ohlc$cusip)
+cusips %in% sp500cusips
+# Select data only for sp500cusips
+ohlc <- ohlc[ohlc$cusip %in% sp500cusips, ]
+# ohlc contains tickers not in sp500tickers
+tickers <- unique(ohlc$tic)
+tickers %in% sp500tickers
+# Select data only for sp500tickers
+ohlc <- ohlc[ohlc$tic %in% sp500tickers, ]
+# Select ticker from sp500table
+symbol <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
 # Plot adjusted close prices
-# plot(oh_lc[, "prcld"]/oh_lc[, "ajexdi"]*oh_lc[, "trfd"], t="l")
+# plot(ohlc[, "prcld"]/ohlc[, "ajexdi"]*ohlc[, "trfd"], t="l")
 # Adjustment factor
-adj_fact <- drop(oh_lc[, c("ajexdi")])
+adjfact <- drop(ohlc[, c("ajexdi")])
 # Daily total return factor
-tr_fact <- drop(oh_lc[, "trfd"])
+trfact <- drop(ohlc[, "trfd"])
 # Extract dates index
-in_dex <- drop(oh_lc[, "datadate"])
-in_dex <- lubridate::ymd(in_dex)
-# oh_lc <- oh_lc[, -match(c("ajexdi", "trfd"), colnames(oh_lc))]
+indeks <- drop(ohlc[, "datadate"])
+indeks <- lubridate::ymd(indeks)
+# ohlc <- ohlc[, -match(c("ajexdi", "trfd"), colnames(ohlc))]
 # Select only OHLCV data
-oh_lc <- oh_lc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
-colnames(oh_lc) <- paste(sym_bol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
+ohlc <- ohlc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
+colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
 # Coerce to xts series
-oh_lc <- xts::xts(oh_lc, in_dex)
+ohlc <- xts::xts(ohlc, indeks)
 # Fill initial Open NA prices
-is_na <- is.na(oh_lc[, 1])
-oh_lc[is_na, 1] <- (oh_lc[is_na, 2] + oh_lc[is_na, 3])/2
-sum(is.na(oh_lc))
+is_na <- is.na(ohlc[, 1])
+ohlc[is_na, 1] <- (ohlc[is_na, 2] + ohlc[is_na, 3])/2
+sum(is.na(ohlc))
 # Adjust all the prices
-oh_lc[, 1:4] <- tr_fact*oh_lc[, 1:4]/adj_fact/tr_fact[NROW(tr_fact)]
-oh_lc <- na.omit(oh_lc)
-xts::isOrdered(zoo::index(oh_lc))
-plot(quantmod::Cl(oh_lc))
-head(oh_lc)
-tail(oh_lc)
+ohlc[, 1:4] <- trfact*ohlc[, 1:4]/adjfact/trfact[NROW(trfact)]
+ohlc <- na.omit(ohlc)
+xts::isOrdered(zoo::index(ohlc))
+plot(quantmod::Cl(ohlc))
+head(ohlc)
+tail(ohlc)
 
 
 
 ###############
 # Define formatting function for OHLC prices
-# download from WRDS into .csv files.
+# download from WRDS into CSV files.
 # Output is an OHLCV xts series.
 
-format_ohlc <- function(oh_lc, environ_ment) {
-  # sym_bol <- oh_lc[1, "tic"]
-  sym_bol <- sp500_table$co_tic[match(oh_lc$gvkey[1], sp500_table$gvkey)]
-  # oh_lc <- oh_lc[oh_lc$tic == sym_bol, ]
+format_ohlc <- function(ohlc, environ_ment) {
+  # symbol <- ohlc[1, "tic"]
+  symbol <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
+  # ohlc <- ohlc[ohlc$tic == symbol, ]
   # Adjustment factor
-  adj_fact <- drop(oh_lc[, c("ajexdi")])
+  adjfact <- drop(ohlc[, c("ajexdi")])
   # Daily total return factor
-  tr_fact <- drop(oh_lc[, "trfd"])
+  trfact <- drop(ohlc[, "trfd"])
   # Fill NA values
-  tr_fact <- ifelse(is.na(tr_fact), 1, tr_fact)
+  trfact <- ifelse(is.na(trfact), 1, trfact)
   # Extract dates index
-  in_dex <- drop(oh_lc[, "datadate"])
-  in_dex <- lubridate::ymd(in_dex)
+  indeks <- drop(ohlc[, "datadate"])
+  indeks <- lubridate::ymd(indeks)
   # Select only OHLCV data
-  oh_lc <- oh_lc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
-  colnames(oh_lc) <- paste(sym_bol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
+  ohlc <- ohlc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
+  colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
   # Coerce to xts series
-  oh_lc <- xts::xts(oh_lc, in_dex)
+  ohlc <- xts::xts(ohlc, indeks)
   # Fill NA prices
-  is_na <- is.na(oh_lc[, 1])
-  oh_lc[is_na, 1] <- (oh_lc[is_na, 2] + oh_lc[is_na, 3])/2
+  is_na <- is.na(ohlc[, 1])
+  ohlc[is_na, 1] <- (ohlc[is_na, 2] + ohlc[is_na, 3])/2
   # Adjust the prices
-  oh_lc[, 1:4] <- tr_fact*oh_lc[, 1:4]/adj_fact/tr_fact[NROW(tr_fact)]
+  ohlc[, 1:4] <- trfact*ohlc[, 1:4]/adjfact/trfact[NROW(trfact)]
   # Copy the OHLCV data to environ_ment
-  oh_lc <- na.omit(oh_lc)
-  assign(x=sym_bol, value=oh_lc, envir=environ_ment)
-  sym_bol
+  ohlc <- na.omit(ohlc)
+  assign(x=symbol, value=ohlc, envir=environ_ment)
+  symbol
 }  # end format_ohlc
 
 
-# Load OHLC prices from .csv file downloaded from CRSP
+# Load OHLC prices from CSV file downloaded from CRSP
 etf_prices <- read.csv(file="C:/Develop/data/WRDS/etf_prices_crsp.csv", stringsAsFactors=FALSE)
 
 # Create new data environment
-etf_env <- new.env()
+etfenv <- new.env()
 # Perform OHLC aggregations by ticker symbol column
-process_ed <- lapply(split(etf_prices, etf_prices$tic), format_ohlc, environ_ment=etf_env)
-plot(quantmod::Cl(etf_env$USO))
+process_ed <- lapply(split(etf_prices, etf_prices$tic), format_ohlc, environ_ment=etfenv)
+plot(quantmod::Cl(etfenv$USO))
 # Save OHLC prices to .RData file
-save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 # Load OHLC prices from .RData file
 load("/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
@@ -173,198 +220,237 @@ load("/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 ###############
-### Download Data from Polygon
-
-### Download single file of OHLC bars from Polygon
+### Download OHLC bars from Polygon
+# Only 15 years of data with current plan
 
 # Setup code
-sym_bol <- "SPY"
-start_date <- as.Date("2019-01-01")
-# start_date <- as.Date("2021-05-01")
-to_day <- Sys.Date()
-rang_e <- "minute"
-# rang_e <- "day"
+symbol <- "SPY"
+startd <- as.Date("2019-01-01")
+# startd <- as.Date("2021-05-01")
+endd <- Sys.Date()
+tspan <- "minute"
+# tspan <- "day"
+# Polygon API key
 apikey <- "0Q2f8j8CwAbdY4M8VYt_8pwdP0V4TunxbvRVC_"
 
-# Download OHLC bars from Polygon into JSON format file
-ur_l <- paste0("https://api.polygon.io/v2/aggs/ticker/", sym_bol, "/range/1/", rang_e, "/", start_date, "/", to_day, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
-download.file(ur_l, destfile="/Volumes/external/Develop/data/polygon/data.json")
+# Create url for download
+urll <- paste0("https://api.polygon.io/v2/aggs/ticker/", symbol, "/range/1/", tspan, "/", startd, "/", endd, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
+# old - no need to Download OHLC bars from Polygon into JSON format file
+# download.file(urll, destfile="/Volumes/external/Develop/data/polygon/data.json")
 # Read OHLC bars from json file
-oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
-class(oh_lc)
-NROW(oh_lc)
-names(oh_lc)
+# ohlc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
+# Download OHLC prices in JSON format from Polygon
+ohlc <- jsonlite::read_json(urll)
+class(ohlc)
+NROW(ohlc)
+names(ohlc)
 # Extract list of prices from json object
-oh_lc <- oh_lc$results
+ohlc <- ohlc$results
 # Coerce from list to matrix
-oh_lc <- lapply(oh_lc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
-oh_lc <- do.call(rbind, oh_lc)
-# Coerce time from milliseconds to date time
-date_s <- oh_lc[, "t"]/1e3
-date_s <- as.POSIXct(date_s, origin="1970-01-01")
-head(date_s)
-tail(date_s)
+ohlc <- lapply(ohlc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
+ohlc <- do.call(rbind, ohlc)
+# Coerce time from milliseconds to date-time
+dates <- ohlc[, "t"]/1e3
+dates <- as.POSIXct(dates, origin="1970-01-01")
+head(dates)
+tail(dates)
 # Coerce from matrix to xts
-oh_lc <- oh_lc[, -1]
-colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
-oh_lc <- xts::xts(oh_lc, order.by=date_s)
-head(oh_lc)
-tail(oh_lc)
+ohlc <- ohlc[, -1]
+colnames(ohlc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+ohlc <- xts::xts(ohlc, order.by=dates)
+head(ohlc)
+tail(ohlc)
 # Save to file
-spyohlc <- oh_lc
+spyohlc <- ohlc
 save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 rm(spyohlc)
 
+
+# Or using rutils::getpoly()
+
+ohlc <- getpoly(symbol=symbol, startd=startd, apikey=apikey)
+colnames(ohlc) <- paste0(symbol, ".", colnames(ohlc))
+
+
 # Candlestick plot of OHLC prices
-dygraphs::dygraph(oh_lc[, 1:4], main=paste("Candlestick Plot of", sym_bol, "OHLC prices")) %>% 
+dygraphs::dygraph(ohlc["2019/", 1:4], main=paste("Candlestick Plot of", symbol, "OHLC prices")) %>% 
   dygraphs::dyCandlestick()
 # Dygraphs plot of Close prices
-dygraphs::dygraph(oh_lc[, 4], main=paste(sym_bol, "Close prices")) %>%
-  dySeries(colnames(oh_lc[, 4]), label=sym_bol) %>%
+dygraphs::dygraph(ohlc[, 4], main=paste(symbol, "Close prices")) %>%
+  dySeries(colnames(ohlc[, 4]), label=symbol) %>%
   dyOptions(colors="blue", strokeWidth=1) %>%
   dyLegend(show="always", width=500)
 
 
+###############
 ### Download daily OHLC bars for multiple symbols in a loop
 
-# Setup code
-start_date <- as.Date("1990-01-01")
-# start_date <- as.Date("2021-05-01")
-to_day <- Sys.Date()
-rang_e <- "day"
-apikey <- "SDpnrBpiRzONMJdl48r6dOo0_mjmCu6r"
+## Setup code
+startd <- as.Date("1990-01-01")
+# startd <- as.Date("2021-05-01")
+endd <- Sys.Date()
+tspan <- "day"
+apikey <- "UJcr9ctoMBXEBK1Mqu_KQAkUuBxLvEtE"
+
+
+### Download daily OHLC bars for multiple ETF symbols in a loop
 
 # Select ETF symbols for asset allocation
-sym_bols <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
+symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
               "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
               "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
               "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
-# Setup code
-etf_env <- new.env()  # New environment for data
-# Boolean vector of symbols already downloaded
-down_loaded <- sym_bols %in% ls(etf_env)
+# Create new environment for ETF data
+etfenv <- new.env()
+
+
+# Initialize Boolean vector of the symbols that were already downloaded
+isdownloaded <- symbolv %in% ls(etfenv)
 
 # Download data from Polygon using while loop
-while (sum(!down_loaded) > 0) {
-  for (sym_bol in sym_bols[!down_loaded]) {
-    cat("Processing:", sym_bol, "\n")
+while (sum(!isdownloaded) > 0) {
+  for (symbol in symbolv[!isdownloaded]) {
+    cat("Processing:", symbol, "\n")
     tryCatch({  # With error handler
-      # Download OHLC bars from Polygon into JSON format file
-      ur_l <- paste0("https://api.polygon.io/v2/aggs/ticker/", sym_bol, "/range/1/", rang_e, "/", start_date, "/", to_day, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
-      download.file(ur_l, destfile="/Volumes/external/Develop/data/polygon/data.json")
-      # Read OHLC bars from json file
-      oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
-      # Extract list of prices from json object
-      oh_lc <- oh_lc$results
-      # Coerce from list to matrix
-      oh_lc <- lapply(oh_lc, unlist)
-      oh_lc <- do.call(rbind, oh_lc)
-      # Coerce time from milliseconds to dates
-      date_s <- oh_lc[, "t"]/1e3
-      date_s <- as.POSIXct(date_s, origin="1970-01-01")
-      date_s <- as.Date(date_s)
-      # Coerce from matrix to xts
-      oh_lc <- oh_lc[, c("o","h","l","c","v","vw")]
-      colnames(oh_lc) <- paste0(sym_bol, ".", c("Open", "High", "Low", "Close", "Volume", "VWAP"))
-      oh_lc <- xts::xts(oh_lc, order.by=date_s)
+      # Download OHLC bars from Polygon
+      ohlc <- getpoly(symbol=symbol, startd=startd, apikey=apikey)
+      colnames(ohlc) <- paste0(symbol, ".", colnames(ohlc))
       # Save to environment
-      assign(sym_bol, oh_lc, envir=etf_env)
+      assign(symbol, ohlc, envir=etfenv)
       Sys.sleep(1)
     },
     error={function(error_cond) print(paste("Error handler:", error_cond))},
-    finally=print(paste0("sym_bol=", sym_bol))
+    finally=print(paste0("symbol=", symbol))
     )  # end tryCatch
   }  # end for
-  # Update vector of symbols already downloaded
-  down_loaded <- sym_bols %in% ls(etf_env)
+  # Update vector of symbolv already downloaded
+  isdownloaded <- symbolv %in% ls(etfenv)
 }  # end while
 
-save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+# Save OHLC prices to .RData file
+save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
-### Add stats to etf_env
+### Add stats to etfenv
 
 # Extract Close prices
-price_s <- eapply(etf_env, quantmod::Cl)
-price_s <- do.call(cbind, price_s)
+prices <- eapply(etfenv, quantmod::Cl)
+prices <- do.call(cbind, prices)
 # Drop ".Close" from colnames
-colnames(price_s) <- do.call(rbind, strsplit(colnames(price_s), split="[.]"))[, 1]
+colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 # Calculate the log returns
-re_turns <- xts::diff.xts(log(price_s))
-# Copy price_s and re_turns into etf_env
-etf_env$price_s <- price_s
-etf_env$re_turns <- re_turns
-# Copy sym_bols into etf_env
-etf_env$sym_bols <- sym_bols
+returns <- xts::diff.xts(log(prices))
+# Copy prices and returns into etfenv
+etfenv$prices <- prices
+etfenv$returns <- returns
+# Copy symbolv into etfenv
+etfenv$symbolv <- symbolv
 # Calculate the risk-return statistics
-risk_return <- PerformanceAnalytics::table.Stats(re_turns)
+riskstats <- PerformanceAnalytics::table.Stats(returns)
 # Transpose the data frame
-risk_return <- as.data.frame(t(risk_return))
+riskstats <- as.data.frame(t(riskstats))
 # Add Name column
-risk_return$Name <- rownames(risk_return)
-# Copy risk_return into etf_env
-etf_env$risk_return <- risk_return
+riskstats$Name <- rownames(riskstats)
+# Copy riskstats into etfenv
+etfenv$riskstats <- riskstats
 # Calculate the beta, alpha, Treynor ratio, and other performance statistics
-capm_stats <- PerformanceAnalytics::table.CAPM(Ra=re_turns[, sym_bols], 
-                                               Rb=re_turns[, "VTI"], scale=252)
-col_names <- strsplit(colnames(capm_stats), split=" ")
-col_names <- do.call(cbind, col_names)[1, ]
-colnames(capm_stats) <- col_names
-capm_stats <- t(capm_stats)
-capm_stats <- capm_stats[, -1]
-col_names <- colnames(capm_stats)
-whi_ch <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), col_names)
-col_names[whi_ch] <- c("Alpha", "Information", "Treynor")
-colnames(capm_stats) <- col_names
-capm_stats <- capm_stats[order(capm_stats[, "Alpha"], decreasing=TRUE), ]
-# Copy capm_stats into etf_env
-etf_env$capm_stats <- capm_stats
-save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv], 
+                                               Rb=returns[, "VTI"], scale=252)
+colnamev <- strsplit(colnames(capmstats), split=" ")
+colnamev <- do.call(cbind, colnamev)[1, ]
+colnames(capmstats) <- colnamev
+capmstats <- t(capmstats)
+capmstats <- capmstats[, -1]
+colnamev <- colnames(capmstats)
+whichv <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), colnamev)
+colnamev[whichv] <- c("Alpha", "Information", "Treynor")
+colnames(capmstats) <- colnamev
+capmstats <- capmstats[order(capmstats[, "Alpha"], decreasing=TRUE), ]
+# Copy capmstats into etfenv
+etfenv$capmstats <- capmstats
+save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+
+
+
+### Download daily OHLC bars for multiple SP500 symbols in a loop
+
+# Select SP500 symbols
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
+symbolv <- sp500table$Ticker
+# Create new environment for SP500 data
+sp500env <- new.env()
+
+# Initialize Boolean vector of the symbols that were already downloaded
+isdownloaded <- symbolv %in% ls(sp500env)
+
+# Download data from Polygon using while loop
+while (sum(!isdownloaded) > 0) {
+  for (symbol in symbolv[!isdownloaded]) {
+    cat("Processing:", symbol, "\n")
+    tryCatch({  # With error handler
+      # Download OHLC bars from Polygon
+      ohlc <- getpoly(symbol=symbol, startd=startd, apikey=apikey)
+      colnames(ohlc) <- paste0(symbol, ".", colnames(ohlc))
+      # Save to environment
+      assign(symbol, ohlc, envir=sp500env)
+      Sys.sleep(1)
+    },
+    error={function(error_cond) print(paste("Error handler:", error_cond))},
+    finally=print(paste0("symbol=", symbol))
+    )  # end tryCatch
+  }  # end for
+  # Update vector of symbolv already downloaded
+  isdownloaded <- symbolv %in% ls(sp500env)
+}  # end while
+
+# Save OHLC prices to .RData file
+save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+
 
 
 ### Download minute bars for single symbol in a loop
 # Has to be performed in batches since data limit=50000
 
 # Setup code
-sym_bol <- "SPY"
-start_date <- as.Date("2019-01-01")
-# start_date <- as.Date("2021-05-01")
-to_day <- Sys.Date()
-rang_e <- "minute"
-# rang_e <- "day"
+symbol <- "SPY"
+startd <- as.Date("2019-01-01")
+# startd <- as.Date("2021-05-01")
+endd <- Sys.Date()
+tspan <- "minute"
+# tspan <- "day"
 apikey <- "SDpnrBpiRzONMJdl48r6dOo0_mjmCu6r"
-da_ta <- new.env()
+dataa <- new.env()
 iter <- 1
 
 # Run loop
-while (start_date < to_day) {
-  ur_l <- paste0("https://api.polygon.io/v2/aggs/ticker/", sym_bol, "/range/1/", rang_e, "/", start_date, "/", to_day, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
-  download.file(ur_l, destfile="/Volumes/external/Develop/data/polygon/data.json")
-  oh_lc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
-  oh_lc <- oh_lc$results
-  # oh_lc <- lapply(oh_lc, unlist)
-  oh_lc <- lapply(oh_lc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
-  oh_lc <- do.call(rbind, oh_lc)
-  date_s <- oh_lc[, "t"]/1e3
+while (startd < endd) {
+  urll <- paste0("https://api.polygon.io/v2/aggs/ticker/", symbol, "/range/1/", tspan, "/", startd, "/", endd, "?adjusted=true&sort=asc&limit=50000&apiKey=", apikey)
+  download.file(urll, destfile="/Volumes/external/Develop/data/polygon/data.json")
+  ohlc <- jsonlite::read_json("/Volumes/external/Develop/data/polygon/data.json")
+  ohlc <- ohlc$results
+  # ohlc <- lapply(ohlc, unlist)
+  ohlc <- lapply(ohlc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
+  ohlc <- do.call(rbind, ohlc)
+  dates <- ohlc[, "t"]/1e3
   # Polygon seconds are moment in time in UTC
-  date_s <- as.POSIXct(date_s, origin="1970-01-01", tz="America/New_York")
-  oh_lc <- oh_lc[, -1]
-  colnames(oh_lc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
-  oh_lc <- xts::xts(oh_lc, order.by=date_s)
-  start_date <- as.Date(end(oh_lc))-1
-  # oh_lc <- rbind(oh_lc, da_ta)
-  # oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
-  # da_ta <- oh_lc
-  assign(paste0("ohlc", iter), oh_lc, envir=da_ta)
+  dates <- as.POSIXct(dates, origin="1970-01-01", tz="America/New_York")
+  ohlc <- ohlc[, -1]
+  colnames(ohlc) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+  ohlc <- xts::xts(ohlc, order.by=dates)
+  startd <- as.Date(end(ohlc))-1
+  # ohlc <- rbind(ohlc, dataa)
+  # ohlc <- ohlc[!duplicated(index(ohlc)), ]
+  # dataa <- ohlc
+  assign(paste0("ohlc", iter), ohlc, envir=dataa)
   iter <- iter + 1
   cat("Sleeping for 1 sec ... \n")
   Sys.sleep(1)
 }  # end while
 
 # Combine xts
-oh_lc <- do.call(rbind, as.list(da_ta))
-oh_lc <- oh_lc[!duplicated(index(oh_lc)), ]
+ohlc <- do.call(rbind, as.list(dataa))
+ohlc <- ohlc[!duplicated(index(ohlc)), ]
 # Save xts to file
-spyohlc <- oh_lc
+spyohlc <- ohlc
 save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 rm(spyohlc)
 
@@ -374,19 +460,19 @@ loadd <- load(file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 # Or
 loadd <- load(file="/Volumes/external/Develop/data/polygon/spyvxx_minutes.RData")
 # Plot the SPY and VXX Returns
-col_names <- colnames(re_turns)
-dygraphs::dygraph(cumsum(re_turns), main="SPY and VXX Returns") %>%
-  dyAxis("y", label=col_names[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=col_names[2], independentTicks=TRUE) %>%
-  dySeries(name=col_names[1], axis="y", label=col_names[1], strokeWidth=1, col="blue") %>%
-  dySeries(name=col_names[2], axis="y2", label=col_names[2], strokeWidth=1, col="red")
+colnamev <- colnames(returns)
+dygraphs::dygraph(cumsum(returns), main="SPY and VXX Returns") %>%
+  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
+  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="red")
 
 
 # Old code
 # Coerce from json to data frame
-# oh_lc <- jsonlite::toJSON(oh_lc)
-# oh_lc <- jsonlite::fromJSON(oh_lc)
-# sapply(oh_lc, class)
+# ohlc <- jsonlite::toJSON(ohlc)
+# ohlc <- jsonlite::fromJSON(ohlc)
+# sapply(ohlc, class)
 
 
 
@@ -395,145 +481,145 @@ dygraphs::dygraph(cumsum(re_turns), main="SPY and VXX Returns") %>%
 # to an .RData file.
 
 library(rutils)  # Load package rutils
-# Select ETF symbols for asset allocation
-sym_bols <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
+# Select ETF symbolv for asset allocation
+symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
               "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
               "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
               "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
 
 # Create environment for data
-etf_env <- new.env()
+etfenv <- new.env()
 
-# Copy sym_bols into etf_env
-# sym_bols <- ls(etf_env)
-etf_env$sym_bols <- sym_bols
+# Copy symbolv into etfenv
+# symbolv <- ls(etfenv)
+etfenv$symbolv <- symbolv
 
-# Boolean vector of symbols already downloaded
-down_loaded <- sym_bols %in% ls(etf_env)
-# Download data for sym_bols using single command - creates pacing error
-getSymbols.av(sym_bols, adjust=TRUE, env=etf_env,
+# Boolean vector of symbolv already downloaded
+isdownloaded <- symbolv %in% ls(etfenv)
+# Download data for symbolv using single command - creates pacing error
+getsymbolv.av(symbolv, adjust=TRUE, env=etfenv,
               output.size="full", api.key="T7JPW54ES8G75310")
 # Download data from Alpha Vantage using while loop
-at_tempt <- 0  # number of download attempts
-while (((sum(!down_loaded)) > 0) & (at_tempt<10)) {
+nattempts <- 0  # number of download attempts
+while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
   # Download data and copy it into environment
-  at_tempt <- at_tempt + 1
-  cat("Download attempt = ", at_tempt, "\n")
-  for (sym_bol in na.omit(sym_bols[!down_loaded][1:5])) {
-    cat("Processing: ", sym_bol, "\n")
+  nattempts <- nattempts + 1
+  cat("Download attempt = ", nattempts, "\n")
+  for (symbol in na.omit(symbolv[!isdownloaded][1:5])) {
+    cat("Processing: ", symbol, "\n")
     tryCatch(  # With error handler
-      quantmod::getSymbols.av(sym_bol, adjust=TRUE, env=etf_env, auto.assign=TRUE, output.size="full", api.key="T7JPW54ES8G75310"),
+      quantmod::getsymbolv.av(symbol, adjust=TRUE, env=etfenv, auto.assign=TRUE, output.size="full", api.key="T7JPW54ES8G75310"),
       # Error handler captures error condition
       error=function(error_cond) {
         print(paste("error handler: ", error_cond))
       },  # end error handler
-      finally=print(paste("sym_bol=", sym_bol))
+      finally=print(paste("symbol=", symbol))
     )  # end tryCatch
   }  # end for
-  # Update vector of symbols already downloaded
-  down_loaded <- sym_bols %in% ls(etf_env)
+  # Update vector of symbolv already downloaded
+  isdownloaded <- symbolv %in% ls(etfenv)
   cat("Pausing 1 minute to avoid pacing...\n")
   Sys.sleep(65)
 }  # end while
 
 
 # Adjust OHLC prices if needed
-for (sym_bol in sym_bols) {
-  cat("Processing: ", sym_bol, "\n")
-  oh_lc <- etf_env[[sym_bol]]
+for (symbol in symbolv) {
+  cat("Processing: ", symbol, "\n")
+  ohlc <- etfenv[[symbol]]
   # Calculate price adjustment vector
-  fac_tor <- as.numeric(Ad(oh_lc)/Cl(oh_lc))
+  ratio <- as.numeric(Ad(ohlc)/Cl(ohlc))
   # Adjust OHLC prices
-  oh_lc[, 1:4] <- fac_tor*oh_lc[, 1:4]
-  assign(sym_bol, oh_lc, etf_env)
+  ohlc[, 1:4] <- ratio*ohlc[, 1:4]
+  assign(symbol, ohlc, etfenv)
 }  # end for
 
 # Extract Close prices
-price_s <- eapply(etf_env, quantmod::Cl)
+prices <- eapply(etfenv, quantmod::Cl)
 # Or
-# price_s <- lapply(mget(etf_env$sym_bols, etf_env), quantmod::Cl)
-price_s <- do.call(cbind, price_s)
+# prices <- lapply(mget(etfenv$symbolv, etfenv), quantmod::Cl)
+prices <- do.call(cbind, prices)
 
 # Drop ".Close" from colnames
-colnames(price_s) <- do.call(rbind, strsplit(colnames(price_s), split="[.]"))[, 1]
+colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 
 # Calculate the log returns
-re_turns <- xts::diff.xts(log(price_s))
+returns <- xts::diff.xts(log(prices))
 # Or
-# re_turns <- lapply(price_s, function(x_ts) {
-#   xts::diff.xts(log(x_ts))
+# returns <- lapply(prices, function(xtes) {
+#   xts::diff.xts(log(xtes))
 # })  # end lapply
-# re_turns <- do.call(cbind, re_turns)
+# returns <- do.call(cbind, returns)
 
-# Copy price_s and re_turns into etf_env
-etf_env$price_s <- price_s
-etf_env$re_turns <- re_turns
+# Copy prices and returns into etfenv
+etfenv$prices <- prices
+etfenv$returns <- returns
 
 # Calculate the risk-return statistics
-risk_return <- PerformanceAnalytics::table.Stats(re_turns)
+riskstats <- PerformanceAnalytics::table.Stats(returns)
 # Transpose the data frame
-risk_return <- as.data.frame(t(risk_return))
+riskstats <- as.data.frame(t(riskstats))
 # Add Name column
-risk_return$Name <- rownames(risk_return)
-# Copy risk_return into etf_env
-etf_env$risk_return <- risk_return
+riskstats$Name <- rownames(riskstats)
+# Copy riskstats into etfenv
+etfenv$riskstats <- riskstats
 
 # Calculate the beta, alpha, Treynor ratio, and other performance statistics
-capm_stats <- PerformanceAnalytics::table.CAPM(Ra=re_turns[, sym_bols], 
-                         Rb=re_turns[, "VTI"], scale=252)
-col_names <- strsplit(colnames(capm_stats), split=" ")
-col_names <- do.call(cbind, col_names)[1, ]
-colnames(capm_stats) <- col_names
-capm_stats <- t(capm_stats)
-capm_stats <- capm_stats[, -1]
-col_names <- colnames(capm_stats)
-whi_ch <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), col_names)
-col_names[whi_ch] <- c("Alpha", "Information", "Treynor")
-colnames(capm_stats) <- col_names
-capm_stats <- capm_stats[order(capm_stats[, "Alpha"], decreasing=TRUE), ]
-# Copy capm_stats into etf_env
-etf_env$capm_stats <- capm_stats
+capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv], 
+                         Rb=returns[, "VTI"], scale=252)
+colnamev <- strsplit(colnames(capmstats), split=" ")
+colnamev <- do.call(cbind, colnamev)[1, ]
+colnames(capmstats) <- colnamev
+capmstats <- t(capmstats)
+capmstats <- capmstats[, -1]
+colnamev <- colnames(capmstats)
+whichv <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), colnamev)
+colnamev[whichv] <- c("Alpha", "Information", "Treynor")
+colnames(capmstats) <- colnamev
+capmstats <- capmstats[order(capmstats[, "Alpha"], decreasing=TRUE), ]
+# Copy capmstats into etfenv
+etfenv$capmstats <- capmstats
 
 # Save ETF data to .RData file
-save(etf_env, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 # Copy file to C:\Develop\R\rutils\data\etf_data.RData
 
 
 
 
 ###############
-# Read .csv file with S&P500 OHLC prices
+# Read CSV file with S&P500 OHLC prices
 
-# Read .csv file with S&P500 constituents
-sp500_table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
+# Read CSV file with S&P500 constituents
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
 # Select unique cusips and remove empty cusips
-sp500_cusips <- unique(sp500_table$co_cusip)
-sp500_cusips <- sp500_cusips[-which(sp500_cusips == "")]
-# Load OHLC prices from .csv file downloaded from WRDS by cusip
+sp500cusips <- unique(sp500table$co_cusip)
+sp500cusips <- sp500cusips[-which(sp500cusips == "")]
+# Load OHLC prices from CSV file downloaded from WRDS by cusip
 sp500_prices <- read.csv(file="C:/Develop/data/WRDS/sp500_prices_bycusip.csv", stringsAsFactors=FALSE)
-# sp500_prices contains cusips not in sp500_cusips
-cusip_s <- unique(sp500_prices$cusip)
-NROW(sp500_cusips); NROW(cusip_s)
-# Select data only for sp500_cusips
-sp500_prices <- sp500_prices[sp500_prices$cusip %in% sp500_cusips, ]
-# sp500_prices contains tickers not in sp500_tickers
-ticker_s <- unique(sp500_prices$tic)
-NROW(sp500_tickers); NROW(ticker_s)
-# Select data only for sp500_tickers
-sp500_prices <- sp500_prices[sp500_prices$tic %in% sp500_tickers, ]
+# sp500_prices contains cusips not in sp500cusips
+cusips <- unique(sp500_prices$cusip)
+NROW(sp500cusips); NROW(cusips)
+# Select data only for sp500cusips
+sp500_prices <- sp500_prices[sp500_prices$cusip %in% sp500cusips, ]
+# sp500_prices contains tickers not in sp500tickers
+tickers <- unique(sp500_prices$tic)
+NROW(sp500tickers); NROW(tickers)
+# Select data only for sp500tickers
+sp500_prices <- sp500_prices[sp500_prices$tic %in% sp500tickers, ]
 # Create new data environment
-sp500_env <- new.env()
+sp500env <- new.env()
 # Read names table from csv file
 names_table <- read.csv(file="C:/Develop/data/WRDS/compustat_table.csv", stringsAsFactors=FALSE)
 # Perform OHLC aggregations by cusip column
 sp500_prices <- split(sp500_prices, sp500_prices$cusip)
-process_ed <- lapply(sp500_prices, format_ohlc, environ_ment=sp500_env)
-plot(quantmod::Cl(sp500_env$MSFT))
+process_ed <- lapply(sp500_prices, format_ohlc, environ_ment=sp500env)
+plot(quantmod::Cl(sp500env$MSFT))
 # Check if time indices are OK
-foo <- eapply(sp500_env, function(x) xts::isOrdered(index(x)))
+foo <- eapply(sp500env, function(x) xts::isOrdered(index(x)))
 sum(!unlist(foo))
 # Save OHLC prices to .RData file
-save(sp500_env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 # Load OHLC prices from .RData file
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
@@ -549,47 +635,47 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 ## Calculate prices from OHLC data
-price_s <- eapply(sp500_env, quantmod::Cl)
-price_s <- rutils::do_call(cbind, price_s)
+prices <- eapply(sp500env, quantmod::Cl)
+prices <- rutils::do_call(cbind, prices)
 # Carry forward and backward non-NA prices - no only forward because backward skews volatility
-sum(is.na(price_s))
-price_s <- zoo::na.locf(price_s, na.rm=FALSE)
-# price_s <- zoo::na.locf(price_s, fromLast=TRUE)
+sum(is.na(prices))
+prices <- zoo::na.locf(prices, na.rm=FALSE)
+# prices <- zoo::na.locf(prices, fromLast=TRUE)
 # Modify column names
-col_names <- rutils::get_name(colnames(price_s))
-# col_names <- do.call(rbind, strsplit(colnames(price_s), split="[.]"))[, 1]
-colnames(price_s) <- col_names
+colnamev <- rutils::get_name(colnames(prices))
+# colnamev <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
+colnames(prices) <- colnamev
 
 ## Calculate percentage returns of the S&P500 constituent stocks
-re_turns <- xts::diff.xts(log(price_s))
+returns <- xts::diff.xts(log(prices))
 # Or
-# re_turns <- lapply(price_s, function(x)
-#   xts::diff.xts(x)/rutils::lag_it(x))
-# re_turns <- rutils::do_call(cbind, re_turns)
+# returns <- lapply(prices, function(x)
+#   xts::diff.xts(x)/rutils::lagit(x))
+# returns <- rutils::do_call(cbind, returns)
 # Calculate percentage returns by accounting for extra time over weekends
-# re_turns <- (24*3600)*xts::diff.xts(price_s)/rutils::lag_it(price_s)/xts::diff.xts(.index(price_s))
+# returns <- (24*3600)*xts::diff.xts(prices)/rutils::lagit(prices)/xts::diff.xts(.index(prices))
 
 ## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
-sam_ple <- sample(NCOL(re_turns), s=100, replace=FALSE)
-prices_100 <- price_s[, sam_ple]
-returns_100 <- re_turns[, sam_ple]
+sam_ple <- sample(NCOL(returns), s=100, replace=FALSE)
+prices100 <- prices[, sam_ple]
+returns100 <- returns[, sam_ple]
 
 ## Calculate scaled returns using price range - experimental
-returns_scaled <- eapply(sp500_env, function(oh_lc) {
-  oh_lc <- log(oh_lc)
-  # op_en <- quantmod::Op(oh_lc)
-  hi_gh <- quantmod::Hi(oh_lc)
-  lo_w <- quantmod::Lo(oh_lc)
-  clos_e <- quantmod::Cl(oh_lc)
+returns_scaled <- eapply(sp500env, function(ohlc) {
+  ohlc <- log(ohlc)
+  # openp <- quantmod::Op(ohlc)
+  highp <- quantmod::Hi(ohlc)
+  lowp <- quantmod::Lo(ohlc)
+  closep <- quantmod::Cl(ohlc)
   # Scale returns using price range
-  re_turns <- xts::diff.xts(clos_e)
-  rang_e <- as.numeric(hi_gh - lo_w)
-  rang_e <- ifelse(rang_e == 0, 1, rang_e)
-  # re_turns <- ifelse(rang_e>0, re_turns/rang_e, 0)
-  re_turns <- re_turns/rang_e
-  # re_turns[is.na(re_turns)] <- 0
-  zoo::na.locf(re_turns, na.rm=FALSE)
+  returns <- xts::diff.xts(closep)
+  ranged <- as.numeric(highp - lowp)
+  ranged <- ifelse(ranged == 0, 1, ranged)
+  # returns <- ifelse(ranged>0, returns/ranged, 0)
+  returns <- returns/ranged
+  # returns[is.na(returns)] <- 0
+  zoo::na.locf(returns, na.rm=FALSE)
 })  # end eapply
 
 returns_scaled <- rutils::do_call(cbind, returns_scaled)
@@ -598,16 +684,16 @@ sum(is.na(returns_scaled))
 sum(!is.finite(returns_scaled))
 # returns_scaled <- zoo::na.locf(returns_scaled, na.rm=FALSE)
 # returns_scaled <- zoo::na.locf(returns_scaled, fromLast=TRUE)
-colnames(returns_scaled) <- col_names
+colnames(returns_scaled) <- colnamev
 
-returns_100_scaled <- returns_scaled[, sam_ple]
+returns100_scaled <- returns_scaled[, sam_ple]
 
 ## Save the data
-save(price_s, prices_100,
+save(prices, prices100,
      file="/Users/jerzy/Develop/lecture_slides/data/sp500_prices.RData")
 
 ## Save the returns
-save(re_turns, returns_100,
+save(returns, returns100,
      file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 
 
@@ -616,12 +702,12 @@ save(re_turns, returns_100,
 # Read minute OHLC stock prices from CSV files and coerce them into xts.
 
 # Load time series data from CSV file
-oh_lc <- data.table::fread("/Volumes/external/Develop/data/polygon/spy_minutes.csv")
-date_s <- unname(unlist(oh_lc[, 2]/1e3))
-date_s <- as.POSIXct(date_s, tz="UTC", origin="1970-01-01")
-date_s <- lubridate::force_tz(date_s, "America/New_York")
-oh_lc <- xts::xts(oh_lc[, -(1:2)], order.by=date_s)
-save(oh_lc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+ohlc <- data.table::fread("/Volumes/external/Develop/data/polygon/spy_minutes.csv")
+dates <- unname(unlist(ohlc[, 2]/1e3))
+dates <- as.POSIXct(dates, tz="UTC", origin="1970-01-01")
+dates <- lubridate::force_tz(dates, "America/New_York")
+ohlc <- xts::xts(ohlc[, -(1:2)], order.by=dates)
+save(ohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
 ###############
@@ -629,12 +715,12 @@ save(oh_lc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 # Index had America/New_York time zone while the clock time was actually UTC
 
 load("/Volumes/external/Develop/data/polygon/spy_minutes.RData")
-date_s <- zoo::index(spyohlc)
+dates <- zoo::index(spyohlc)
 # Get same moment of time in UTC time zone
-date_s <- lubridate::with_tz(date_s, "UTC")
+dates <- lubridate::with_tz(dates, "UTC")
 # Get same clock time in America/New_York time zone
-date_s <- lubridate::force_tz(date_s, "America/New_York")
-zoo::index(spyohlc) <- date_s
+dates <- lubridate::force_tz(dates, "America/New_York")
+zoo::index(spyohlc) <- dates
 save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
@@ -645,20 +731,20 @@ save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 # consecutive days and were saved into CSV files.
 
 # Set parameters for directory with CSV files
-sym_bol <- "ES"
+symbol <- "ES"
 data_dir <- "C:/Develop/data/ib_data"
 setwd(dir=data_dir)
 
 # Get all CSV file names in the data_dir directory
 file_names <- Sys.glob(paste(data_dir, "*.csv", sep="/"))
-# Subset to only sym_bol file names
-file_names <- file_names[grep(sym_bol, file_names)]
+# Subset to only symbol file names
+file_names <- file_names[grep(symbol, file_names)]
 # Subset to only files created after "2018-10-01"
-cut_off <- as.POSIXct("2018-10-01", tz="America/New_York", origin="1970-01-01")
-file_names <- file_names[file.info(file_names)$mtime > cut_off]
+cutoff <- as.POSIXct("2018-10-01", tz="America/New_York", origin="1970-01-01")
+file_names <- file_names[file.info(file_names)$mtime > cutoff]
 # Subset to only files created before "2019-06-30"
-cut_off <- as.POSIXct("2019-06-30", tz="America/New_York", origin="1970-01-01")
-file_names <- file_names[file.info(file_names)$mtime < cut_off]
+cutoff <- as.POSIXct("2019-06-30", tz="America/New_York", origin="1970-01-01")
+file_names <- file_names[file.info(file_names)$mtime < cutoff]
 # Exclude "ESTSY"
 file_names <- file_names[-1]
 
@@ -671,16 +757,16 @@ count_er <- 1
 for (file_name in file_names) {
   cat("count_er: ", count_er, "\n")
   # Load time series data from CSV file
-  oh_lc <- data.table::fread(file_name)
-  data.table::setDF(oh_lc)
-  if (!is.numeric(oh_lc[1, 1])) {
+  ohlc <- data.table::fread(file_name)
+  data.table::setDF(ohlc)
+  if (!is.numeric(ohlc[1, 1])) {
     # Remove rows with non-numeric datestamps
-    oh_lc <- oh_lc[!is.na(as.numeric(oh_lc[, 1])), ]
-    oh_lc <- sapply(oh_lc, as.numeric)
+    ohlc <- ohlc[!is.na(as.numeric(ohlc[, 1])), ]
+    ohlc <- sapply(ohlc, as.numeric)
   }  # end if
-  oh_lc <- xts::xts(oh_lc[, -1], order.by=as.POSIXct(oh_lc[, 1], tz="America/New_York", origin="1970-01-01"))
-  # nam_e <- paste0("ES", count_er)
-  assign(x=paste0(sym_bol, count_er), value=oh_lc, envir=data_env)
+  ohlc <- xts::xts(ohlc[, -1], order.by=as.POSIXct(ohlc[, 1], tz="America/New_York", origin="1970-01-01"))
+  # name <- paste0("ES", count_er)
+  assign(x=paste0(symbol, count_er), value=ohlc, envir=data_env)
   count_er <- count_er + 1
 }  # end for
 
@@ -702,15 +788,15 @@ save(data_env, file="data_env.RData")
 # No need for this: Fix chain_ohlc() by using ratio, as in slide Chaining Together Futures Prices in markets_trading.Rnw
 # https://www.interactivebrokers.com/en/software/tws/usersguidebook/technicalanalytics/continuous.htm
 
-chain_ohlc <- function(ohlc_1, ohlc_2) {
-  if (end(ohlc_1) < start(ohlc_2)) {
-    di_ff <- as.numeric(ohlc_2[start(ohlc_2), 4]) - as.numeric(ohlc_1[end(ohlc_1), 4])
-    ohlc_1[, c(1:4, 6)] <- ohlc_1[, c(1:4, 6)] + di_ff
-    return(rbind(ohlc_1, ohlc_2))
-  } else if (end(ohlc_2) < start(ohlc_1)) {
-    di_ff <- as.numeric(ohlc_1[start(ohlc_1), 4]) - as.numeric(ohlc_2[end(ohlc_2), 4])
-    ohlc_2[, c(1:4, 6)] <- ohlc_2[, c(1:4, 6)] + di_ff
-    return(rbind(ohlc_2, ohlc_1))
+chain_ohlc <- function(ohlc1, ohlc2) {
+  if (end(ohlc1) < start(ohlc2)) {
+    di_ff <- as.numeric(ohlc2[start(ohlc2), 4]) - as.numeric(ohlc1[end(ohlc1), 4])
+    ohlc1[, c(1:4, 6)] <- ohlc1[, c(1:4, 6)] + di_ff
+    return(rbind(ohlc1, ohlc2))
+  } else if (end(ohlc2) < start(ohlc1)) {
+    di_ff <- as.numeric(ohlc1[start(ohlc1), 4]) - as.numeric(ohlc2[end(ohlc2), 4])
+    ohlc2[, c(1:4, 6)] <- ohlc2[, c(1:4, 6)] + di_ff
+    return(rbind(ohlc2, ohlc1))
   } else {
     warning("Overlapping data")
     return(NULL)
@@ -720,22 +806,22 @@ chain_ohlc <- function(ohlc_1, ohlc_2) {
 chain_ed <- chain_ohlc(data_env$ES1, data_env$ES2)
 
 # Chain the data
-oh_lc <- rutils::do_call(chain_ohlc, as.list(data_env)[order(sapply(data_env, start))])
-dim(oh_lc)
-colnames(oh_lc) <- paste(sym_bol, c("Open", "High", "Low", "Close", "Volume", "WAP", "Count"), sep=".")
+ohlc <- rutils::do_call(chain_ohlc, as.list(data_env)[order(sapply(data_env, start))])
+dim(ohlc)
+colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume", "WAP", "Count"), sep=".")
 
 # Create new time index
-in_deks <- seq.int(from=5*((as.numeric(Sys.time())-NROW(oh_lc)) %/% 5), by=5, length.out=NROW(oh_lc))
+in_deks <- seq.int(from=5*((as.numeric(Sys.time())-NROW(ohlc)) %/% 5), by=5, length.out=NROW(ohlc))
 in_deks <- as.POSIXct(in_deks, tz="America/New_York", origin="1970-01-01")
-oh_lc <- xts::xts(coredata(oh_lc), in_deks)
-sum(is.na(oh_lc))
+ohlc <- xts::xts(coredata(ohlc), in_deks)
+sum(is.na(ohlc))
 
 library(dygraphs)
-dygraphs::dygraph(xts::to.minutes(oh_lc)[, 1:4]) %>% dyCandlestick()
+dygraphs::dygraph(xts::to.minutes(ohlc)[, 1:4]) %>% dyCandlestick()
 
-data_env$oh_lc <- oh_lc
-save(data_env, file=paste0(paste(sym_bol, "data_env", sep="_"), ".RData"))
-save(oh_lc, file=paste0(sym_bol, "_ohlc.RData"))
+data_env$ohlc <- ohlc
+save(data_env, file=paste0(paste(symbol, "data_env", sep="_"), ".RData"))
+save(ohlc, file=paste0(symbol, "_ohlc.RData"))
 
 
 
@@ -743,55 +829,55 @@ save(oh_lc, file=paste0(sym_bol, "_ohlc.RData"))
 # Load futures OHLC prices from RData file.
 
 # Set parameters for directory with CSV files
-sym_bol <- "ES"
+symbol <- "ES"
 data_dir <- "C:/Develop/data/ib_data"
 setwd(dir=data_dir)
 
-load(file=paste0("C:/Develop/data/ib_data/", sym_bol, "_ohlc.RData"))
-dim(oh_lc)
+load(file=paste0("C:/Develop/data/ib_data/", symbol, "_ohlc.RData"))
+dim(ohlc)
 
 
 ###############
 # Chain together VIX futures prices in a loop.
 # Perform a for() loop, and one-by-one add to chain_ed
-# the VIX futures prices given by the remaining sym_bols.
+# the VIX futures prices given by the remaining symbolv.
 # Hint: Adapt code from the slide: Chaining Together Futures Prices.
 
-## This code is for chaining by starting at the last sym_bols.
+## This code is for chaining by starting at the last symbolv.
 # It gives a slightly different answer from the homework.
 
-chain_ed <- get(last(sym_bols), envir=vix_env_new)
+chain_ed <- get(last(symbolv), envir=vix_env_new)
 
-for (sym_bol in rev(sym_bols)[-1]) {
-  cat("Chaining the symbol: ", sym_bol, "\n")
-  # Get data for sym_bol
-  oh_lc <- get(sym_bol, envir=vix_env_new)
-  # Calculate end date of oh_lc
-  en_d <- end(oh_lc)
-  star_t <- (en_d-30)
+for (symbol in rev(symbolv)[-1]) {
+  cat("Chaining the symbol: ", symbol, "\n")
+  # Get data for symbol
+  ohlc <- get(symbol, envir=vix_env_new)
+  # Calculate end date of ohlc
+  endd <- end(ohlc)
+  startd <- (endd-30)
   # Calculate start date of chain_ed
-  # star_t <- start(chain_ed)
-  # cbind overlapping volume data of oh_lc and chain_ed, between star_t and en_d
-  over_lap <- paste0(star_t, "/", en_d)
-  # vol_ume <- cbind(Vo(chain_ed), Vo(oh_lc))[paste0(star_t, "/", en_d)]
-  # vol_ume <- na.omit(vol_ume)
-  # Find date when volume of oh_lc first exceeds chain_ed
-  exceed_s <- (Vo(oh_lc[over_lap]) < Vo(chain_ed[over_lap]))
-  if (sum(exceed_s) > 0) {
-    in_dex <- match(TRUE, exceed_s)
-    in_dex <- zoo::index(exceed_s[in_dex])
+  # startd <- start(chain_ed)
+  # cbind overlapping volume data of ohlc and chain_ed, between startd and endd
+  over_lap <- paste0(startd, "/", endd)
+  # volumes <- cbind(Vo(chain_ed), Vo(ohlc))[paste0(startd, "/", endd)]
+  # volumes <- na.omit(volumes)
+  # Find date when volume of ohlc first exceeds chain_ed
+  exceeds <- (Vo(ohlc[over_lap]) < Vo(chain_ed[over_lap]))
+  if (sum(exceeds) > 0) {
+    indeks <- match(TRUE, exceeds)
+    indeks <- zoo::index(exceeds[indeks])
     # Scale the prices
-    fac_tor <- as.numeric(quantmod::Cl(chain_ed[in_dex])/quantmod::Cl(oh_lc[in_dex]))
+    ratio <- as.numeric(quantmod::Cl(chain_ed[indeks])/quantmod::Cl(ohlc[indeks]))
   } else {
-    in_dex <- NROW(exceed_s)
-    in_dex <- zoo::index(exceed_s[in_dex])
+    indeks <- NROW(exceeds)
+    indeks <- zoo::index(exceeds[indeks])
     # Scale the prices
-    fac_tor <- 1
+    ratio <- 1
   }  # end if
-  oh_lc[, 1:4] <- fac_tor*oh_lc[, 1:4]
-  # Chain oh_lc to chain_ed
-  chain_ed <- rbind(oh_lc[index(oh_lc) <= in_dex],
-                    chain_ed[index(chain_ed) > in_dex])
+  ohlc[, 1:4] <- ratio*ohlc[, 1:4]
+  # Chain ohlc to chain_ed
+  chain_ed <- rbind(ohlc[index(ohlc) <= indeks],
+                    chain_ed[index(chain_ed) > indeks])
 }  # end for
 
 # Rename the column names
@@ -800,7 +886,7 @@ colnames(chain_ed) <- c("Open", "High", "Low", "Close", "Volume")
 
 
 ###########
-# Download multiple symbols from Bloomberg
+# Download multiple symbolv from Bloomberg
 
 # install.packages("Rblpapi")
 library(Rblpapi)
@@ -808,28 +894,28 @@ library(Rblpapi)
 bbg_connect <- blpConnect()
 
 ## Download daily historical OHLC prices and volume for SPX Index and XLU ETF
-# bbg_symbols <- "SPX Index"
-bbg_symbols <- c("SPX Index", "XLU US Equity")
+# bbg_symbolv <- "SPX Index"
+bbg_symbolv <- c("SPX Index", "XLU US Equity")
 bbg_fields <- c("PX_OPEN", "PX_HIGH", "PX_LOW", "PX_LAST", "VOLUME")
-start_date <- as.Date("2017-08-01")
+startd <- as.Date("2017-08-01")
 data_dir <- "C:/Develop/data/bbg_data"
 file_names <- file.path(data_dir,
-  paste0(gsub(bbg_symbols, pattern=" ", replacement="_"), ".csv"))
+  paste0(gsub(bbg_symbolv, pattern=" ", replacement="_"), ".csv"))
 
-# bbg_data <- bdh(securities = bbg_symbols,
+# bbg_data <- bdh(securities = bbg_symbolv,
 #                 fields = bbg_fields,
-#                 start.date = start_date)
+#                 start.date = startd)
 
 # Download data from Bloomberg in a loop
-lapply(seq_along(bbg_symbols), function(in_dex) {
-  sym_bol <- bbg_symbols[in_dex]
-  bbg_data <- xts::as.xts(Rblpapi::bdh(securities = sym_bol,
+lapply(seq_along(bbg_symbolv), function(indeks) {
+  symbol <- bbg_symbolv[indeks]
+  bbg_data <- xts::as.xts(Rblpapi::bdh(securities = symbol,
                                        fields = bbg_fields,
-                                       start.date = start_date))
+                                       start.date = startd))
   file_name <- file.path(data_dir,
-                         paste0(gsub(sym_bol, pattern=" ", replacement="_"), ".csv"))
+                         paste0(gsub(symbol, pattern=" ", replacement="_"), ".csv"))
   zoo::write.zoo(bbg_data, file = file_name, sep=",")
-  sym_bol
+  symbol
 })  # end lapply
 
 
@@ -846,8 +932,8 @@ prices_ts <- xts::as.xts(zoo::read.zoo(
 # overwrite NA values
 prices_ts <- rutils::na_locf(prices_ts)
 prices_ts <- rutils::na_locf(prices_ts, from_last=TRUE)
-sym_bols <- c("XLP", "XLU")
-prices_ts <- prices_ts[, sym_bols]
+symbolv <- c("XLP", "XLU")
+prices_ts <- prices_ts[, symbolv]
 
 
 
@@ -856,39 +942,39 @@ prices_ts <- prices_ts[, sym_bols]
 # Create new environment for data
 data_env <- new.env()
 data_dir <- "C:/Develop/data/bbg_records"
-# sym_bols <- c("SPX", "VIX")
-# file_names <- paste0(sym_bols, ".csv")
+# symbolv <- c("SPX", "VIX")
+# file_names <- paste0(symbolv, ".csv")
 file_names <- dir(data_dir)
-sym_bols <- rutils::get_name(file_names)
+symbolv <- rutils::get_name(file_names)
 
-# Subset sym_bols by removing currency symbols
-sub_symbols <- sym_bols[-grep("USD", sym_bols, ignore.case=TRUE)]
-sub_symbols <- sub_symbols[-grep("EUR", sub_symbols, ignore.case=TRUE)]
-sub_symbols <- sub_symbols[-grep("UST", sub_symbols, ignore.case=TRUE)]
-sub_symbols <- sub_symbols[-grep("JGB", sub_symbols, ignore.case=TRUE)]
-sub_symbols <- sub_symbols[-grep("GDB", sub_symbols, ignore.case=TRUE)]
+# Subset symbolv by removing currency symbolv
+sub_symbolv <- symbolv[-grep("USD", symbolv, ignore.case=TRUE)]
+sub_symbolv <- sub_symbolv[-grep("EUR", sub_symbolv, ignore.case=TRUE)]
+sub_symbolv <- sub_symbolv[-grep("UST", sub_symbolv, ignore.case=TRUE)]
+sub_symbolv <- sub_symbolv[-grep("JGB", sub_symbolv, ignore.case=TRUE)]
+sub_symbolv <- sub_symbolv[-grep("GDB", sub_symbolv, ignore.case=TRUE)]
 
 
 # Load data from CSV files into the environment
-out <- rutils::get_data(sym_bols=sub_symbols,
+out <- rutils::get_data(symbolv=sub_symbolv,
                         data_dir=data_dir,
                         data_env=data_env,
-                        e_cho=FALSE)
+                        echo=FALSE)
 
 
 ## Extract the closing prices into a single xts time series
 
-# price_s <- lapply(as.list(data_env)[sym_bols], quantmod::Cl)
+# prices <- lapply(as.list(data_env)[symbolv], quantmod::Cl)
 # Flatten (cbind) prices into single xts series
-# price_s <- rutils::do_call(cbind, price_s)
+# prices <- rutils::do_call(cbind, prices)
 
-price_s <- rutils::get_col(oh_lc=ls(data_env),
+prices <- rutils::get_col(ohlc=ls(data_env),
                            data_env=data_env)
 # overwrite NA values
-price_s <- rutils::na_locf(price_s)
-price_s <- rutils::na_locf(price_s, from_last=TRUE)
+prices <- rutils::na_locf(prices)
+prices <- rutils::na_locf(prices, from_last=TRUE)
 # Save column names
-col_names <- rutils::get_name(colnames(price_s))
+colnamev <- rutils::get_name(colnames(prices))
 
 
 
@@ -902,16 +988,16 @@ library(HighFreq)
 load(file="C:/Develop/data/ES1.RData")
 # or
 # Load ES1 futures data from CSV file
-oh_lc <- read.zoo(file="C:/Develop/data/bar_data/ES1.csv",
+ohlc <- read.zoo(file="C:/Develop/data/bar_data/ES1.csv",
                   header=TRUE, sep=",",
                   drop=FALSE, format="%Y-%m-%d %H:%M",
                   FUN=as.POSIXct, tz="America/New_York")
 # Coerce to xts series
-oh_lc <- as.xts(oh_lc)
+ohlc <- as.xts(ohlc)
 # Subset to trading hours
-oh_lc <- oh_lc["T09:00:00/T16:30:00"]
+ohlc <- ohlc["T09:00:00/T16:30:00"]
 # Save the bar data to binary file
-save(oh_lc, file="C:/Develop/data/ES1.RData")
+save(ohlc, file="C:/Develop/data/ES1.RData")
 
 
 
@@ -936,19 +1022,19 @@ for (file_name in file_names) {
   file_name <- strsplit(file_name, split="/")[[1]]
   file_name <- file_name[NROW(file_name)]
   # Load time series data from CSV file
-  oh_lc <- read.zoo(file=file_name,
+  ohlc <- read.zoo(file=file_name,
                     header=TRUE, sep=",",
                     drop=FALSE, format="%Y-%m-%d %H:%M",
                     FUN=as.POSIXct, tz="America/New_York")
   # Coerce to xts series
-  oh_lc <- as.xts(oh_lc)
-  sym_bol <- strsplit(file_name, split="[.]")[[1]][1]
+  ohlc <- as.xts(ohlc)
+  symbol <- strsplit(file_name, split="[.]")[[1]][1]
   # Rename column names
-  colnames(oh_lc) <- paste(sym_bol, colnames(oh_lc), sep=".")
+  colnames(ohlc) <- paste(symbol, colnames(ohlc), sep=".")
   # Subset to trading hours
-  # oh_lc <- oh_lc["T09:00:00/T16:30:00"]
+  # ohlc <- ohlc["T09:00:00/T16:30:00"]
   # Save the bar data to binary file
-  save(oh_lc, file=paste0(sym_bol, ".RData"))
+  save(ohlc, file=paste0(symbol, ".RData"))
 }  # end for
 
 # Restore the cwd
@@ -969,22 +1055,22 @@ bar <- grep(glob2rx("*.csv"), foo)
 # end old stuff
 
 # Read CBOE futures expiration dates
-date_s <- read.csv(file="C:/Develop/R/data/futures_expiration_dates_codes.csv",
+dates <- read.csv(file="C:/Develop/R/data/futures_expiration_dates_codes.csv",
                    stringsAsFactors=FALSE, row.names=1)
 data_dir <- "C:/Users/Jerzy/Downloads/vix_data"
 # dir.create(data_dir)
-sym_bols <- rownames(date_s)
-# Select only some sym_bols
-se_lect <- 19:NROW(sym_bols)
-sym_bols <- sym_bols[se_lect]
-file_names <- file.path(data_dir, paste0(sym_bols, ".csv"))
+symbolv <- rownames(dates)
+# Select only some symbolv
+se_lect <- 19:NROW(symbolv)
+symbolv <- symbolv[se_lect]
+file_names <- file.path(data_dir, paste0(symbolv, ".csv"))
 log_file <- file.path(data_dir, "log_file.txt")
 cboe_url <- "https://markets.cboe.com/us/futures/market_statistics/historical_data/products/csv/VX/"
-url_s <- paste0(cboe_url, date_s[se_lect, 1])
+urls <- paste0(cboe_url, dates[se_lect, 1])
 # Download files in a loop
-for (it in seq_along(url_s)) {
+for (it in seq_along(urls)) {
   tryCatch(  # Warning and error handler
-    download.file(url_s[it],
+    download.file(urls[it],
                   destfile=file_names[it], quiet=TRUE),
     # Warning handler captures warning condition
     warning=function(warning_cond) {
@@ -1007,7 +1093,7 @@ for (it in seq_along(url_s)) {
 
 # Load VIX futures data from binary file
 load(file="C:/Develop/data/vix_data/vix_cboe.RData")
-col_names <- colnames(vix_env$VXF8)
+colnamev <- colnames(vix_env$VXF8)
 
 # Get all CSV file names in the data_dir directory
 # data_dir <- "C:/Users/Jerzy/Downloads/vix_data"
@@ -1020,24 +1106,24 @@ vix_env_new <- new.env()
 # and copy the bar data to vix_env_new
 for (file_name in file_names) {
   # Load time series data from CSV file
-  oh_lc <- read.zoo(file=file_name,
+  ohlc <- read.zoo(file=file_name,
                     header=TRUE, sep=",")
-  colnames(oh_lc)[8] <- col_names[5]
-  oh_lc <- oh_lc[, col_names]
+  colnames(ohlc)[8] <- colnamev[5]
+  ohlc <- ohlc[, colnamev]
   # Coerce data to numeric and make xts
-  oh_lc <- xts(apply(oh_lc, 2, as.numeric), index(oh_lc))
+  ohlc <- xts(apply(ohlc, 2, as.numeric), index(ohlc))
   # Create sym bol from file name
-  sym_bol <- strsplit(file_name, split="/")[[1]]
-  sym_bol <- strsplit(last(sym_bol), split="[.]")[[1]][1]
-  assign(x=sym_bol, value=oh_lc, envir=vix_env_new)
+  symbol <- strsplit(file_name, split="/")[[1]]
+  symbol <- strsplit(last(symbol), split="[.]")[[1]][1]
+  assign(x=symbol, value=ohlc, envir=vix_env_new)
 }  # end for
 
 # Copy from vix_env_new to vix_env
 rm(VXN8, envir=vix_env_new)
-sym_bols <- ls(vix_env_new)
-for (sym_bol in sym_bols) {
-  rm(sym_bol, envir=vix_env)
-  assign(x=sym_bol, value=get(sym_bol, envir=vix_env_new), envir=vix_env)
+symbolv <- ls(vix_env_new)
+for (symbol in symbolv) {
+  rm(symbol, envir=vix_env)
+  assign(x=symbol, value=get(symbol, envir=vix_env_new), envir=vix_env)
 }  # end for
 
 save(vix_env, file="C:/Develop/data/vix_data/vix_cboe.RData")
@@ -1046,75 +1132,75 @@ save(vix_env, file="C:/Develop/data/vix_data/vix_cboe.RData")
 
 ## Load futures data from RData files
 
-# Read the symbols
-sym_bols <- scan(file="C:/Develop/data/bar_data/etf_symbols.txt", what=character(), sep=",")
+# Read the symbolv
+symbolv <- scan(file="C:/Develop/data/bar_data/etf_symbolv.txt", what=character(), sep=",")
 # Specify the file directory
 file_dir <- "C:/Develop/data/bar_data/"
 # Specify new environment for data
-etf_env <- new.env()
+etfenv <- new.env()
 # Specify the file names
-# file_names <- paste0(file_dir, sym_bols, ".RData")
+# file_names <- paste0(file_dir, symbolv, ".RData")
 
-# Load data in a loop and copy into etf_env
-for (sym_bol in sym_bols) {
+# Load data in a loop and copy into etfenv
+for (symbol in symbolv) {
   # Specify the file name
-  file_name <- paste0(file_dir, sym_bol, ".RData")
+  file_name <- paste0(file_dir, symbol, ".RData")
   load_ed <- load(file=file_name)
-  assign(x=sym_bol, value=get(load_ed), envir=etf_env)
+  assign(x=symbol, value=get(load_ed), envir=etfenv)
 }  # end for
 
 
-## Combine the ETF series of prices into a single xts series and save it into etf_env
+## Combine the ETF series of prices into a single xts series and save it into etfenv
 
 # Extract only first 4 OHLC price columns from each ETF series
-assign(x="oh_lc",
-       value=rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4])),
-       envir=etf_env)
-# oh_lc <- rutils::do_call(cbind, eapply(etf_env, function(x_ts) x_ts[, 1:4]))
-etf_env$oh_lc <- na.omit(etf_env$oh_lc)
+assign(x="ohlc",
+       value=rutils::do_call(cbind, eapply(etfenv, function(xtes) xtes[, 1:4])),
+       envir=etfenv)
+# ohlc <- rutils::do_call(cbind, eapply(etfenv, function(xtes) xtes[, 1:4]))
+etfenv$ohlc <- na.omit(etfenv$ohlc)
 # Subset to trading hours
-etf_env$oh_lc <- etf_env$oh_lc["T09:00:00/T16:30:00"]
+etfenv$ohlc <- etfenv$ohlc["T09:00:00/T16:30:00"]
 # Save the bar data to binary file
-save(etf_env, file=paste0(file_dir, "etf_series.RData"))
+save(etfenv, file=paste0(file_dir, "etf_series.RData"))
 
 
 
 ## Load futures data from binary files and combine into a single xts series
 # First load ES1 data and extract only first 4 OHLC price columns
 load(file="C:/Develop/data/ES1.RData")
-com_bo <- oh_lc[, 1:4]
+com_bo <- ohlc[, 1:4]
 colnames(com_bo) <- paste0("ES1.", colnames(com_bo))
 # Next load TU1 data and cbind it to ES1 data
 load(file="C:/Develop/data/TU1UST2yr.RData")
-oh_lc <- oh_lc[, 1:4]
-colnames(oh_lc) <- paste0("TU1.", colnames(oh_lc))
-com_bo <- cbind(com_bo, oh_lc)
+ohlc <- ohlc[, 1:4]
+colnames(ohlc) <- paste0("TU1.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
 # Next load TY1 data and cbind it to ES1 data
 load(file="C:/Develop/data/TY1UST10yr.RData")
-oh_lc <- oh_lc[, 1:4]
-colnames(oh_lc) <- paste0("TY1.", colnames(oh_lc))
-com_bo <- cbind(com_bo, oh_lc)
+ohlc <- ohlc[, 1:4]
+colnames(ohlc) <- paste0("TY1.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
 # Next load UX1 data and cbind it to ES1 data
 load(file="C:/Develop/data/UX1_VIX.RData")
-oh_lc <- oh_lc[, 1:4]
-colnames(oh_lc) <- paste0("UX1.", colnames(oh_lc))
-com_bo <- cbind(com_bo, oh_lc)
+ohlc <- ohlc[, 1:4]
+colnames(ohlc) <- paste0("UX1.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
 load(file="C:/Develop/data/UX2_VIX.RData")
-oh_lc <- oh_lc[, 1:4]
+ohlc <- ohlc[, 1:4]
 # Next load UX1 data and cbind it to ES1 data
-colnames(oh_lc) <- paste0("UX2.", colnames(oh_lc))
-com_bo <- cbind(com_bo, oh_lc)
+colnames(ohlc) <- paste0("UX2.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
 
 # Combine into a single xts series
-oh_lc <- na.omit(com_bo)
+ohlc <- na.omit(com_bo)
 # Save the bar data to binary file
 save(com_bo, file="C:/Develop/data/combined.RData")
 # load(file="C:/Develop/data/combined.RData")
 
 # plot dygraph
 label_s <- c("TY1.Close", "TU1.Close")
-# dygraphs::dygraph(cbind(clos_e, da_ta())["2018-02-09"], main="OHLC Technicals Strategy") %>%
-dygraphs::dygraph(oh_lc[endpoints(oh_lc, on="hours"), label_s], main="OHLC Data") %>%
+# dygraphs::dygraph(cbind(closep, dataa())["2018-02-09"], main="OHLC Technicals Strategy") %>%
+dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), label_s], main="OHLC Data") %>%
   dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
   dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%
   dySeries(label_s[2], axis="y2", col=c("blue", "red"))
@@ -1147,5 +1233,5 @@ zoo::write.zoo(bbg_data, file="bbg_data.csv", sep=",")
 
 
 
-# Bloomberg script for a list of symbols
+# Bloomberg script for a list of symbolv
 

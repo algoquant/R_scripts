@@ -13,24 +13,24 @@
 
 # Calculate the probability by summing over all possible 
 # combinations of obtaining heads or tails for both coins. 
-probab_1 <- function(nu_m, p1, p2) {
-  binom_1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
-  binom_2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
-  out_er <- binom_1 %o% binom_2
+probab1 <- function(nu_m, p1, p2) {
+  binom1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
+  binom2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
+  out_er <- binom1 %o% binom2
   sum(out_er[lower.tri(out_er)]) + sum(diag(out_er))/2
-}  # end probab_1
+}  # end probab1
 
 # Simplify the calculation by calculating the cumulative 
 # probability, without calculating the outer product.
-probab_2 <- function(nu_m, p1, p2) {
-  binom_1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
-  binom_2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
-  cum_binom_2 <- cumsum(binom_2)
-  cum_binom_2 <- c(0, cum_binom_2[-NROW(cum_binom_2)])
-  sum(binom_1 * (cum_binom_2 + binom_2/2))
-}  # end probab_2
+probab2 <- function(nu_m, p1, p2) {
+  binom1 <- choose(nu_m, 0:nu_m) * p1^(0:nu_m) * (1-p1)^(nu_m:0)
+  binom2 <- choose(nu_m, 0:nu_m) * p2^(0:nu_m) * (1-p2)^(nu_m:0)
+  cum_binom2 <- cumsum(binom2)
+  cum_binom2 <- c(0, cum_binom2[-NROW(cum_binom2)])
+  sum(binom1 * (cum_binom2 + binom2/2))
+}  # end probab2
 
-probab_2(5, 0.6, 0.5)
+probab2(5, 0.6, 0.5)
 
-sapply(1:11, probab_2, p1=0.6, p2=0.5)
+sapply(1:11, probab2, p1=0.6, p2=0.5)
 

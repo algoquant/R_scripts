@@ -21,32 +21,32 @@ library(roll)
 # specify regression formula
 reg_formula <- XLP ~ VTI
 # perform rolling beta regressions every month
-beta_s <- rollapply(etf_env$re_turns, width=252, 
+betas <- rollapply(etfenv$returns, width=252, 
                     FUN=function(design_matrix) 
                       coef(lm(reg_formula, data=design_matrix))[2],
                     by=22, by.column=FALSE, align="right")
-beta_s <- na.omit(beta_s)
-# plot beta_s in x11() window
+betas <- na.omit(betas)
+# plot betas in x11() window
 x11()
-chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
+chart_Series(x=betas, name=paste("rolling betas", format(reg_formula)))
 
 # perform daily rolling beta regressions in parallel - FAST!
-beta_s <- roll::roll_lm(x=etf_env$re_turns[, "VTI"], 
-                        y=etf_env$re_turns[, "XLP"],
+betas <- roll::roll_lm(x=etfenv$returns[, "VTI"], 
+                        y=etfenv$returns[, "XLP"],
                         width=252)$coefficients
-beta_s <- na.omit(beta_s[, 2])
-chart_Series(x=beta_s, name=paste("rolling betas", format(reg_formula)))
+betas <- na.omit(betas[, 2])
+chart_Series(x=betas, name=paste("rolling betas", format(reg_formula)))
 
 # compare speed of rollapply() versus roll_lm()
 library(microbenchmark)
-da_ta <- etf_env$re_turns["2012", c("VTI", "XLP")]
+datav <- etfenv$returns["2012", c("VTI", "XLP")]
 summary(microbenchmark(
-  rollapply=rollapply(da_ta, width=22, 
+  rollapply=rollapply(datav, width=22, 
                       FUN=function(design_matrix) 
                         coef(lm(reg_formula, data=design_matrix))[2],
                       by.column=FALSE, align="right"), 
-  roll_lm=roll::roll_lm(x=da_ta[, "VTI"], 
-                        y=da_ta[, "XLP"],
+  roll_lm=roll::roll_lm(x=datav[, "VTI"], 
+                        y=datav[, "XLP"],
                         width=22)$coefficients, 
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
@@ -62,30 +62,30 @@ head(SPY_design)
 ### Calculate design matrix called SPY_design containing columns of data aggregations
 
 win_dow <- 5
-returns_running <- run_returns(x_ts=SPY)
-returns_rolling <- roll_vwap(oh_lc=SPY, x_ts=returns_running, win_dow=win_dow)
+returns_running <- run_returns(xtes=SPY)
+returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, win_dow=win_dow)
 colnames(returns_running) <- "returns"
 colnames(returns_rolling) <- "returns.WA5"
 
-var_running <- run_variance(oh_lc=SPY)
-var_rolling <- roll_vwap(oh_lc=SPY, x_ts=var_running, win_dow=win_dow)
+var_running <- run_variance(ohlc=SPY)
+var_rolling <- roll_vwap(ohlc=SPY, xtes=var_running, win_dow=win_dow)
 colnames(var_running) <- "variance"
 colnames(var_rolling) <- "variance.WA5"
 
-skew_running <- run_skew(oh_lc=SPY)
-skew_rolling <- roll_vwap(oh_lc=SPY, x_ts=skew_running, win_dow=win_dow)
+skew_running <- run_skew(ohlc=SPY)
+skew_rolling <- roll_vwap(ohlc=SPY, xtes=skew_running, win_dow=win_dow)
 colnames(skew_running) <- "skew"
 colnames(skew_rolling) <- "skew.WA5"
 
-# sharpe_running <- run_sharpe(oh_lc=SPY)
-# sharpe_rolling <- roll_vwap(oh_lc=SPY, x_ts=sharpe_running, win_dow=win_dow)
+# sharpe_running <- run_sharpe(ohlc=SPY)
+# sharpe_rolling <- roll_vwap(ohlc=SPY, xtes=sharpe_running, win_dow=win_dow)
 # colnames(sharpe_running) <- "sharpe_running"
 # colnames(sharpe_rolling) <- "sharpe_running.WA5"
 # 
-# sharpe_rolling <- roll_sharpe(oh_lc=SPY, win_dow=win_dow)
+# sharpe_rolling <- roll_sharpe(ohlc=SPY, win_dow=win_dow)
 # colnames(sharpe_rolling) <- "sharpe_rolling"
 
-hurst_rolling <- roll_hurst(oh_lc=SPY, win_dow=win_dow)
+hurst_rolling <- roll_hurst(ohlc=SPY, win_dow=win_dow)
 colnames(hurst_rolling) <- "hurst_rolling"
 
 # select most significant factors plus interaction terms
@@ -106,9 +106,9 @@ sum(is.na(SPY_design))
 ### perform rolling forecasting PCR regressions in parallel
 
 # calculate close to close returns
-returns_running <- run_returns(x_ts=SPY)
+returns_running <- run_returns(xtes=SPY)
 # calculate returns advanced in time
-returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+returns_advanced <- rutils::lagxts(returns_running, k=-1)
 colnames(returns_advanced) <- "returns_advanced"
 
 # perform rolling forecasting PCR regressions in parallel
@@ -119,17 +119,17 @@ betas_running <- roll_pcr(x=SPY_design["2011/2012", ],
 betas_running$coefficients[1, ] <- 0
 
 # calculate mean beta coefficients
-beta_s <- sapply(betas_running$coefficients, mean)
+betas <- sapply(betas_running$coefficients, mean)
 
 # calculate rolling mean beta coefficients over time
-betas_rolling <- rutils::roll_sum(x_ts=betas_running$coefficients, win_dow=11)/11
+betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, win_dow=11)/11
 tail(betas_rolling)
 
 
 ### forecast the returns from today's factors times the lagged betas
 
 # lag the betas by a single period
-betas_lagged <- rutils::lag_xts(betas_running$coefficients)
+betas_lagged <- rutils::lagxts(betas_running$coefficients)
 
 # forecast the returns from today's factors in SPY_design times the lagged betas
 # note that "returns_forecast" has minus sign, because betas_running are 
@@ -143,16 +143,16 @@ returns_forecast <-
 
 ### trade immediately at the close
 # lag returns_forecast by one period into the future
-returns_forecast <- rutils::lag_xts(returns_forecast)
+returns_forecast <- rutils::lagxts(returns_forecast)
 returns_backtest <- cumsum(returns_forecast * returns_running)
 # invest fixed notional using sign()
 returns_backtest <- cumsum(sign(returns_forecast) * returns_running)
 
 ### trade at the open in the next period
 # lag returns_forecast two periods into future
-returns_forecast <- rutils::lag_xts(returns_forecast, k=2)
+returns_forecast <- rutils::lagxts(returns_forecast, k=2)
 # calculate open to open returns
-returns_open <- run_returns(x_ts=SPY, col_umn=1)
+returns_open <- run_returns(xtes=SPY, colnum=1)
 colnames(returns_open) <- "returns_advanced"
 returns_backtest <- cumsum(sign(returns_forecast) * returns_open)
 
@@ -187,22 +187,22 @@ chart_Series(x=returns_backtest, name="strategy cumulative returns")
 
 
 # takes very long!!! - perform 100 random PCR simulations - takes very long!!!
-pnl_s <- sapply(1:100, function(x) sum(run_pcr(SPY, design_matrix=SPY_design, random_ize=TRUE)))
-pnl_s <- sapply(1:100, function(x) sum(run_pcr(random_ize=TRUE)))
-sum(pnl_s>0)/length(pnl_s)
+pnls <- sapply(1:100, function(x) sum(run_pcr(SPY, design_matrix=SPY_design, random_ize=TRUE)))
+pnls <- sapply(1:100, function(x) sum(run_pcr(random_ize=TRUE)))
+sum(pnls>0)/length(pnls)
 x11()
-hist(pnl_s, breaks="FD", xlim=c(-5e6, 5e6), main="distribution of Pnl's")
+hist(pnls, breaks="FD", xlim=c(-5e6, 5e6), main="distribution of Pnl's")
 
 # run PCR model and return the Pnl
-run_pcr <- function(oh_lc=NULL, design_matrix=NULL, trade_the_close=TRUE, random_ize=FALSE) {
+run_pcr <- function(ohlc=NULL, design_matrix=NULL, trade_the_close=TRUE, random_ize=FALSE) {
   if (random_ize)
-    oh_lc <- HighFreq::random_OHLC(oh_lc=oh_lc)
+    ohlc <- HighFreq::random_OHLC(ohlc=ohlc)
   if (is.null(design_matrix))
-    design_matrix <- get_design(oh_lc, win_dow=60)
+    design_matrix <- get_design(ohlc, win_dow=60)
   # calculate close to close returns
-  returns_running <- run_returns(x_ts=oh_lc)
+  returns_running <- run_returns(xtes=ohlc)
   # calculate returns advanced in time
-  returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+  returns_advanced <- rutils::lagxts(returns_running, k=-1)
   colnames(returns_advanced) <- "returns_advanced"
   # perform rolling forecasting PCR regressions in parallel
   # use only the first principal component: argument "comps"
@@ -211,7 +211,7 @@ run_pcr <- function(oh_lc=NULL, design_matrix=NULL, trade_the_close=TRUE, random
                             width=1*60, comps=1:1, min_obs=1)
   betas_running$coefficients[1, ] <- 0
   # lag the betas by a single period
-  betas_lagged <- rutils::lag_xts(betas_running$coefficients)
+  betas_lagged <- rutils::lagxts(betas_running$coefficients)
   # forecast the returns from today's factors in design_matrix times the lagged betas
   # note that "returns_forecast" has minus sign, because betas_running are 
   # calculated in the opposite sign by roll_pcr()
@@ -221,26 +221,26 @@ run_pcr <- function(oh_lc=NULL, design_matrix=NULL, trade_the_close=TRUE, random
   if (trade_the_close) {
     # trade immediately at the close
     # lag returns_forecast by one period into the future
-    returns_forecast <- rutils::lag_xts(returns_forecast)
+    returns_forecast <- rutils::lagxts(returns_forecast)
   }
   else {
     # trade at the open in the next period
     # lag returns_forecast two periods into future
-    returns_forecast <- rutils::lag_xts(returns_forecast, k=2)
+    returns_forecast <- rutils::lagxts(returns_forecast, k=2)
     # calculate open to open returns
-    returns_running <- run_returns(x_ts=oh_lc, col_umn=1)
+    returns_running <- run_returns(xtes=ohlc, colnum=1)
   }
   cumsum(sign(returns_forecast) * returns_running)
 }  # end run_pcr
 
 
 # create a design matrix from OHLC data
-get_design <- function(oh_lc, win_dow) {
-  returns_running <- run_returns(x_ts=oh_lc)
-  returns_rolling <- HighFreq::roll_vwap(oh_lc=oh_lc, x_ts=returns_running, win_dow=win_dow)
-  var_running <- run_variance(oh_lc=oh_lc)
-  skew_running <- run_skew(oh_lc=oh_lc)
-  hurst_rolling <- roll_hurst(oh_lc=oh_lc, win_dow=win_dow)
+get_design <- function(ohlc, win_dow) {
+  returns_running <- run_returns(xtes=ohlc)
+  returns_rolling <- HighFreq::roll_vwap(ohlc=ohlc, xtes=returns_running, win_dow=win_dow)
+  var_running <- run_variance(ohlc=ohlc)
+  skew_running <- run_skew(ohlc=ohlc)
+  hurst_rolling <- roll_hurst(ohlc=ohlc, win_dow=win_dow)
   design_matrix <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
   design_matrix <- roll::roll_scale(data=design_matrix, width=60, min_obs=1)
   core_data <- coredata(design_matrix)
@@ -273,7 +273,7 @@ sum(foo[, 2] > 0)/NROW(foo)
 sum(foo[, 2])
 
 # simple contrarian strategy works better than PCR
-foo <- -sign(rutils::lag_xts(returns_running))
+foo <- -sign(rutils::lagxts(returns_running))
 sum(foo*returns_running)
 chart_Series(x=cumsum(foo*returns_running), name="strategy cumulative returns")
 

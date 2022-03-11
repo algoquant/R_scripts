@@ -48,5 +48,5 @@ border <- borders$get_Item( EXCEL$XlBordersIndex$xlEdgeBottom );
 border$put_Weight( EXCEL$XlBorderWeight$xlThin);
 
 # grab the values in column B and put them in column G
-da_ta <- new.sheet$get_Range( "B3:B152" )$get_Value()
-new.sheet$get_Range( "G3:G152" )$put_Value(da_ta)
+datav <- new.sheet$get_Range( "B3:B152" )$get_Value()
+new.sheet$get_Range( "G3:G152" )$put_Value(datav)

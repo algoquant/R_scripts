@@ -42,12 +42,12 @@ output_dir <- "E:/output/data/"
 data_dir <- "C:/Develop/data/hfreq/src"
 output_dir <- "C:/Develop/data/hfreq/scrub"
 
-# define variable named "sym_bol" containing string with xts variable name
-sym_bol <- "SPY"
+# define variable named "symbol" containing string with xts variable name
+symbol <- "SPY"
 # remove xts variable
 rm(SPY)
 # or
-rm(list=sym_bol)
+rm(list=symbol)
 
 
 #################################
@@ -55,11 +55,11 @@ rm(list=sym_bol)
 
 ### load minutely OHLC data
 
-sym_bol <- load("C:/Develop/data/SPY.RData")
+symbol <- load("C:/Develop/data/SPY.RData")
 # or
-sym_bol <- load(
+symbol <- load(
   file.path(output_dir, 
-            paste0(sym_bol, ".RData")))
+            paste0(symbol, ".RData")))
 
 # explore "SPY" data
 head(SPY, 11)
@@ -80,8 +80,8 @@ chart_Series(SPY["2012-02-15/2012-02-16", ], name="SPY")
 
 ### load a single day of seconds TAQ data
 
-sym_bol <- load("C:/Develop/data/hfreq/src/SPY/2012.02.16.SPY.RData")
-sym_bol <- load("C:/Develop/data/hfreq/src/SPY/2013.04.16.SPY.RData")
+symbol <- load("C:/Develop/data/hfreq/src/SPY/2012.02.16.SPY.RData")
+symbol <- load("C:/Develop/data/hfreq/src/SPY/2013.04.16.SPY.RData")
 
 # convert timezone of index to New_York
 library(lubridate)
@@ -99,8 +99,8 @@ SPY[11:44, "Ask.Price"]
 
 ### create single day of synthetic TAQ data with seconds time index
 
-in_dex <- seq(from=as.POSIXct("2015-02-09 09:30:00"), to=as.POSIXct("2015-02-09 16:00:00"), by="1 sec")
-len_index <- length(in_dex)
+indeks <- seq(from=as.POSIXct("2015-02-09 09:30:00"), to=as.POSIXct("2015-02-09 16:00:00"), by="1 sec")
+len_index <- length(indeks)
 # create xts of random prices
 taq_data <- cumsum(rnorm(len_index))
 # create vector of random bid-offer spreads
@@ -111,7 +111,7 @@ taq_data <- cbind(taq_data-bid_offer,
                   taq_data+bid_offer*runif(len_index, min=-1, max=1))
 # add Volume
 taq_data <- cbind(taq_data, sample(x=10*(2:18), size=len_index, replace=TRUE))
-taq_data <- xts(taq_data, order.by=in_dex)
+taq_data <- xts(taq_data, order.by=indeks)
 colnames(taq_data) <- c("Bid.Price", "Ask.Price", "Trade.Price", "Volume")
 chart_Series(taq_data[, "Trade.Price"], name="TAQ data")
 # aggregate to one minute OHLC data
@@ -154,9 +154,9 @@ chart_Series(jump_prices, name="prices with scrubbed jumps")
 
 library(HighFreq)
 SPY <- scrub_agg(taq_data="SPY")
-SPY <- scrub_agg(taq_data=get(sym_bol))
-# or assign it to name contained in "sym_bol"
-assign(x=sym_bol, value=scrub_agg(taq_data=get(sym_bol)))
+SPY <- scrub_agg(taq_data=get(symbol))
+# or assign it to name contained in "symbol"
+assign(x=symbol, value=scrub_agg(taq_data=get(symbol)))
 
 # save single day of OHLC data
 save(SPY, file="SPY.RData")
@@ -167,13 +167,13 @@ save(SPY, file="SPY.RData")
 # create list of *.RData files
 file_list <- list("2012.02.13.SPY.RData", "2012.02.14.SPY.RData", "2012.02.15.SPY.RData", "2012.02.16.SPY.RData", "2012.02.17.SPY.RData")
 # create paths to *.RData files
-file_names <- file.path(data_dir, sym_bol, file_list)
+file_names <- file.path(data_dir, symbol, file_list)
 
-# load TAQ data into list and assign it to name contained in "sym_bol"
-assign(x=sym_bol, 
+# load TAQ data into list and assign it to name contained in "symbol"
+assign(x=symbol, 
        value=lapply(file_names, 
                     function(file_name) {
-                      cat("loading", sym_bol, "from file: ", file_name, "\n")
+                      cat("loading", symbol, "from file: ", file_name, "\n")
                       data_name <- load(file_name)
                       get(data_name)
                     })  # end lapply
@@ -181,36 +181,36 @@ assign(x=sym_bol,
 # or
 SPY <- lapply(file_names, 
               function(file_name) {
-                cat("loading", sym_bol, "from file: ", file_name, "\n")
+                cat("loading", symbol, "from file: ", file_name, "\n")
                 data_name <- load(file_name)
                 get(data_name)
               })  # end lapply
 
 # scrub and aggregate the TAQ data
-assign(x=sym_bol, value=lapply(get(sym_bol), scrub_agg))
+assign(x=symbol, value=lapply(get(symbol), scrub_agg))
 # or
-SPY <- lapply(get(sym_bol), scrub_agg)
+SPY <- lapply(get(symbol), scrub_agg)
 
 # recursively "rbind" the list into a single xts
-assign(x=sym_bol, value=do_call_rbind(get(sym_bol)))
+assign(x=symbol, value=do_call_rbind(get(symbol)))
 # or
-SPY <- do_call_rbind(get(sym_bol))
+SPY <- do_call_rbind(get(symbol))
 # using do.call() blows up or takes very long!!!
-SPY <- do.call(rbind, get(sym_bol))
+SPY <- do.call(rbind, get(symbol))
 
 # assign column names, i.e. "symbol.rets"
-colnames(SPY) <- sapply(strsplit(colnames(get(sym_bol)), split="[.]"), 
-                        function(strng) paste(sym_bol, strng[-1], sep="."))
+colnames(SPY) <- sapply(strsplit(colnames(get(symbol)), split="[.]"), 
+                        function(strng) paste(symbol, strng[-1], sep="."))
 # or using get() - but doesn't work
-colnames(get(sym_bol)) <- sapply(strsplit(colnames(get(sym_bol)), split="[.]"), 
-                                 function(strng) paste(sym_bol, strng[-1], sep="."))
+colnames(get(symbol)) <- sapply(strsplit(colnames(get(symbol)), split="[.]"), 
+                                 function(strng) paste(symbol, strng[-1], sep="."))
 # or using assign() - but doesn't work
 assign(x=colnames(SPY), 
-       value=sapply(strsplit(colnames(get(sym_bol)), split="[.]"), 
-                    function(strng) paste(sym_bol, strng[-1], sep=".")))
-assign(x=colnames(get(sym_bol)), 
-       value=sapply(strsplit(colnames(get(sym_bol)), split="[.]"), 
-                    function(strng) paste(sym_bol, strng[-1], sep=".")))
+       value=sapply(strsplit(colnames(get(symbol)), split="[.]"), 
+                    function(strng) paste(symbol, strng[-1], sep=".")))
+assign(x=colnames(get(symbol)), 
+       value=sapply(strsplit(colnames(get(symbol)), split="[.]"), 
+                    function(strng) paste(symbol, strng[-1], sep=".")))
 
 
 

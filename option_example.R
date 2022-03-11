@@ -10,7 +10,7 @@
 
 # === Step 1 ===
 # Read and summarize data
-UBS_Op18Nov <-(data.frame(read.table("C:/Develop/R/FRE6811/option_data.csv",header=TRUE, sep=",")))
+UBS_Op18Nov <-(data.frame(read.table("C:/Develop/R/FRE6811/optiondata.csv",header=TRUE, sep=",")))
 summary(UBS_Op18Nov)
 attach(UBS_Op18Nov)
 n <- dim(UBS_Op18Nov)[1]

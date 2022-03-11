@@ -116,31 +116,31 @@ file.remove("C:/Develop/data/data_test.h5")
 ## create H5File pointer to empty binary HDF5 file
 file_pointer <- h5file("C:/Develop/data/data_test.h5", mode="a")
 
-## create group called group_folder and a character vector dataset called vec_tor
-file_pointer["group_folder/vec_tor"] <- LETTERS[1:9]
+## create group called group_folder and a character vector dataset called vectorv
+file_pointer["group_folder/vectorv"] <- LETTERS[1:9]
 
-## create pointer to vec_tor dataset
-data_pointer <- file_pointer["group_folder/vec_tor"]
-# print first 3 elements of vec_tor
+## create pointer to vectorv dataset
+data_pointer <- file_pointer["group_folder/vectorv"]
+# print first 3 elements of vectorv
 data_pointer[1:3]
-# add elements to vec_tor dataset
+# add elements to vectorv dataset
 data_pointer <- c(data_pointer, LETTERS[10:26])
-# print entire vec_tor dataset
+# print entire vectorv dataset
 data_pointer[]
 
-## create named integer matrix called mat_rix and add it to group_folder
-mat_rix <- matrix(1:9, nrow = 3)
-rownames(mat_rix) <- LETTERS[1:3]
-colnames(mat_rix) <- c("AY", "BE", "CE")
-file_pointer["group_folder/mat_rix"] <- mat_rix
+## create named integer matrix called matrixv and add it to group_folder
+matrixv <- matrix(1:9, nrow = 3)
+rownames(matrixv) <- LETTERS[1:3]
+colnames(matrixv) <- c("AY", "BE", "CE")
+file_pointer["group_folder/matrixv"] <- matrixv
 
-## store rownames and column names of mat_rix as attributes
-# create pointer to mat_rix data set
-data_pointer <- file_pointer["group_folder/mat_rix"]
-# store rownames in attribute dimnames_1
-h5attr(data_pointer, "dimnames_1") <- rownames(mat_rix)
-# Store columnnames in attribute dimnames_2
-h5attr(data_pointer, "dimnames_2") <- colnames(mat_rix)
+## store rownames and column names of matrixv as attributes
+# create pointer to matrixv data set
+data_pointer <- file_pointer["group_folder/matrixv"]
+# store rownames in attribute dimnames1
+h5attr(data_pointer, "dimnames1") <- rownames(matrixv)
+# Store columnnames in attribute dimnames2
+h5attr(data_pointer, "dimnames2") <- colnames(matrixv)
 
 ## add to group_folder an array dataset called ar_ray
 file_pointer["group_folder/ar_ray"] <- array(as.numeric(1:45), dim = c(3, 3, 5))

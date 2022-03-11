@@ -16,19 +16,19 @@ scrub_dir <- "E:/scrubdata/"
 # load and save data for a single symbol
 save_OHLC("IWF")
 # load data for list of symbols
-sapply(head(sym_bols), save_OHLC)
+sapply(head(symbolv), save_OHLC)
 
 # load data for a single symbol
 load(file="SPY.RData")
-chartSeries(SPY["2013"], name=sym_bol, theme=chartTheme("white"))
+chartSeries(SPY["2013"], name=symbol, theme=chartTheme("white"))
 
 
 ###########
 # code for loading instruments data
 
 # load list of symbols
-sym_bols <- read.csv(file="etf_list_hf.csv")
-sym_bols <- sym_bols[[1]]
+symbolv <- read.csv(file="etf_list_hf.csv")
+symbolv <- symbolv[[1]]
 
 ### load list of instrument definitions: creates .instrument environment
 loadInstruments(file_name='E:/mktdata/instruments.rda')
@@ -110,8 +110,8 @@ setDefaults(getSymbols.FI,
 ### load seconds bar data using getSymbols.FI
 
 # run loadInstruments() first
-sym_bol <- "SPY"
-getSymbols(sym_bol)  # takes very long!!!
+symbol <- "SPY"
+getSymbols(symbol)  # takes very long!!!
 dim(SPY)
 SPY[10000:10020, ]
 
@@ -185,11 +185,11 @@ getSymbols.FI <- function (symbols_list, date_from="2010-01-01", to=Sys.Date(), 
       # index of odd list elements
       odd_index <- seq(from=1, to=length(list_var), by=2)
       # bind neighboring elements and divide list_var by half
-      list_var <- lapply(odd_index, function(in_dex) {
-        if (in_dex==length(list_var)) {
-          return(list_var[[in_dex]])
+      list_var <- lapply(odd_index, function(indeks) {
+        if (indeks==length(list_var)) {
+          return(list_var[[indeks]])
         }
-        return(rbind(list_var[[in_dex]], list_var[[in_dex+1]]))
+        return(rbind(list_var[[indeks]], list_var[[indeks+1]]))
       })  # end lapply
     }  # end while
     # list_var has only one element - return it

@@ -133,7 +133,7 @@ for(i in iFrom:iTo){
          pnl=sum(model$pnls[last.1M]))
   },model.test,ts.priceLevels,ep,i))
   
-  #get the min and max profiles and add them to model lists here
+  #get the min and max profiles and add them to model listv here
   #browser()
   pnls <- unlist(lapply(profiles, function(x) x$pnl))
   #pnls <- 
@@ -510,7 +510,7 @@ for(i in iFrom:iTo){
          pnl=sum(model$pnls[last.1M]))
   },model.test,ts.priceLevels,ep,i))
   
-  #get the min and max profiles and add them to model lists here
+  #get the min and max profiles and add them to model listv here
   #browser()
   pnls <- unlist(lapply(profiles, function(x) x$pnl))
   t.quantile <- quantile(pnls,.8)

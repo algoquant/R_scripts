@@ -21,7 +21,7 @@
 
 calc_betas <- function(se_ries, mar_ket, calc_bull_bear=FALSE, thresh_old=0.01) {
   # calculate beta
-  be_ta <- summary(lm(se_ries ~ mar_ket))$coefficients[2, 1]
+  betav <- summary(lm(se_ries ~ mar_ket))$coefficients[2, 1]
   if (calc_bull_bear) {
     # calculate bull beta
     series_sub <- se_ries[mar_ket>thresh_old]
@@ -31,49 +31,49 @@ calc_betas <- function(se_ries, mar_ket, calc_bull_bear=FALSE, thresh_old=0.01) 
     series_sub <- se_ries[mar_ket<(-thresh_old)]
     market_sub <- mar_ket[mar_ket<(-thresh_old)]
     bear_beta <- summary(lm(series_sub ~ market_sub))$coefficients[2, 1]
-    c(beta=be_ta, bull_beta=bull_beta, bear_beta=bear_beta)
+    c(beta=betav, bull_beta=bull_beta, bear_beta=bear_beta)
   } else
-    be_ta  # return single beta
+    betav  # return single beta
 }  # end calc_betas
 
-# Extract all the columns from rutils::etf_env$re_turns, 
-# excluding "VXX" and "SVXY", and call it re_turns.
-# Then remove from re_turns any rows with NA values.
+# Extract all the columns from rutils::etfenv$returns, 
+# excluding "VXX" and "SVXY", and call it returns.
+# Then remove from returns any rows with NA values.
 # You can use the functions na.omit(() and NCOL().
 
-n_cols <- NCOL(rutils::etf_env$re_turns)
-re_turns <- na.omit(rutils::etf_env$re_turns[, -((n_cols-1):n_cols)])
+ncols <- NCOL(rutils::etfenv$returns)
+returns <- na.omit(rutils::etfenv$returns[, -(.n_cols-1).n_cols)])
 
 # You should get the following output:
-# > colnames(re_turns)
+# > colnames(returns)
 #  [1] "VTI" "VEU" "IEF" "VNQ" "DBC" "XLY" "XLP" "XLE" "XLF" "XLV"
 # [11] "XLI" "XLB" "XLK" "XLU" "VYM" "IVW" "IWB" "IWD" "IWF"
 # 
-# > dim(re_turns)
+# > dim(returns)
 # [1] 2870   19
 
 # Call calc_betas() to verify that it works correctly.
 # 
 # You should get the following output:
-# > calc_betas(se_ries=re_turns$XLB, mar_ket=re_turns$VTI)
+# > calc_betas(se_ries=returns$XLB, mar_ket=returns$VTI)
 # [1] 1.069499
 # 
-# > calc_betas(se_ries=re_turns$XLB, mar_ket=re_turns$VTI, calc_bull_bear=TRUE)
+# > calc_betas(se_ries=returns$XLB, mar_ket=returns$VTI, calc_bull_bear=TRUE)
 #      beta bull_beta bear_beta 
 # 1.0694993 0.7825841 1.0732377
 
 
 # 2. (20pts) Perform an sapply loop over the columns 
-# of re_turns, and apply calc_betas() all the columns 
+# of returns, and apply calc_betas() all the columns 
 # excluding the first one "VTI".
 # Pass the arguments: 
-# mar_ket=re_turns$VTI, calc_bull_bear=TRUE, thresh_old=0.005
+# mar_ket=returns$VTI, calc_bull_bear=TRUE, thresh_old=0.005
 # through the dots arguments of sapply.
 # Call the output matrix etf_betas.
 # You can also use the function t(().
 
-etf_betas <- sapply(re_turns[, -1], calc_betas, 
-  mar_ket=re_turns$VTI, calc_bull_bear=TRUE, thresh_old=0.005)
+etf_betas <- sapply(returns[, -1], calc_betas, 
+  mar_ket=returns$VTI, calc_bull_bear=TRUE, thresh_old=0.005)
 
 etf_betas <- t(etf_betas)
 
@@ -115,10 +115,10 @@ names(is_bear[is_bear])
 # Call the output matrix etf_betas.
 # You can use the functions sapply() and t().
 
-year_s <- c("2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018")
+years <- c("2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018")
 
-etf_betas <- sapply(year_s, function(ye_ar) {
-  sapply(re_turns[ye_ar, -1], calc_betas, mar_ket=re_turns$VTI[ye_ar])
+etf_betas <- sapply(years, function(ye_ar) {
+  sapply(returns[ye_ar, -1], calc_betas, mar_ket=returns$VTI[ye_ar])
 })  # end sapply
 etf_betas <- t(etf_betas)
 

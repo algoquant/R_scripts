@@ -24,9 +24,9 @@ head(SPY_design)
 ### Perform rolling forecasting PCR regressions in parallel
 
 # calculate close to close returns
-returns_running <- run_returns(x_ts=SPY)
+returns_running <- run_returns(xtes=SPY)
 # calculate returns advanced in time
-returns_advanced <- rutils::lag_xts(returns_running, k=-1)
+returns_advanced <- rutils::lagxts(returns_running, k=-1)
 colnames(returns_advanced) <- "returns_advanced"
 
 # perform rolling forecasting PCR regressions in parallel
@@ -42,10 +42,10 @@ betas_running$coefficients[1, ] <- 0
 ### inspect betas_running$coefficients
 
 # calculate mean beta coefficients
-beta_s <- sapply(betas_running$coefficients, mean)
+betas <- sapply(betas_running$coefficients, mean)
 
 # calculate rolling mean beta coefficients over time
-betas_rolling <- rutils::roll_sum(x_ts=betas_running$coefficients, win_dow=11)/11
+betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, win_dow=11)/11
 tail(betas_rolling)
 
 

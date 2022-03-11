@@ -4,27 +4,27 @@
 library(rutils)
 
 # Define OHLC data
-oh_lc <- log(rutils::etf_env$VTI)
-op_en <- Op(oh_lc)
-hi_gh <- Hi(oh_lc)
-lo_w <- Lo(oh_lc)
-clos_e <- Cl(oh_lc)
-vari_ance <- (hi_gh - lo_w)^2
-colnames(vari_ance) <- "variance"
-vol_at <- sqrt(vari_ance)
-colnames(vol_at) <- "volat"
-vol_ume <- Vo(oh_lc)
-colnames(vol_ume) <- "volume"
+ohlc <- log(rutils::etfenv$VTI)
+openp <- Op(ohlc)
+highp <- Hi(ohlc)
+lowp <- Lo(ohlc)
+closep <- Cl(ohlc)
+variance <- (highp - lowp)^2
+colnames(variance) <- "variance"
+volat <- sqrt(variance)
+colnames(volat) <- "volat"
+volumes <- Vo(ohlc)
+colnames(volumes) <- "volume"
 
 # Define current and future returns
-re_turns <- rutils::diff_it(clos_e)
-colnames(re_turns) <- "returns"
-# returns_adv <- rutils::lag_it(re_turns, lagg=-1)
+returns <- rutils::diffit(closep)
+colnames(returns) <- "returns"
+# returns_adv <- rutils::lagit(returns, lagg=-1)
 # or
-# returns_adv <- 0.5*(returns_adv + rutils::lag_it(returns_adv, lagg=-1))
+# returns_adv <- 0.5*(returns_adv + rutils::lagit(returns_adv, lagg=-1))
 look_back <- 2
-returns_adv <- rutils::lag_it(HighFreq::roll_sum(re_turns, look_back=look_back), lagg=-look_back)/look_back
-returns_adv <- xts(returns_adv, index(oh_lc))
+returns_adv <- rutils::lagit(HighFreq::roll_sum(returns, look_back=look_back), lagg=-look_back)/look_back
+returns_adv <- xts(returns_adv, index(ohlc))
 colnames(returns_adv) <- "returns_adv"
 # scale returns using sigmoid
 # returns_adv <- plogis(returns_adv, scale=-quantile(returns_adv, 0.01))
@@ -32,37 +32,37 @@ colnames(returns_adv) <- "returns_adv"
 # colnames(returns_adv) <- "returns_adv"
 
 # Define OHLC technical indicators
-# residuals of the regression of the time series of clos_e prices
-date_s <- xts::.index(oh_lc)
+# residuals of the regression of the time series of closep prices
+dates <- xts::.index(ohlc)
 look_back <- 11
-z_scores <- HighFreq::roll_zscores(res_ponse=clos_e, 
-                                   de_sign=matrix(as.numeric(date_s), nc=1), 
+z_scores <- HighFreq::roll_zscores(response=closep, 
+                                   design=matrix(as.numeric(dates), nc=1), 
                                    look_back=look_back)
 colnames(z_scores) <- "z_scores"
 z_scores[1:3] <- 0
-close_open <- (clos_e-op_en)
+close_open <- (closep-openp)
 colnames(close_open) <- "close_open"
-close_high <- (clos_e-hi_gh)
+close_high <- (closep-highp)
 colnames(close_high) <- "close_high"
-close_low <- (clos_e-lo_w)
+close_low <- (closep-lowp)
 colnames(close_low) <- "close_low"
-# sk_ew <- ((hi_gh+lo_w) - (op_en+clos_e))
-sk_ew <- ((hi_gh+lo_w) - (op_en+clos_e))
-colnames(sk_ew) <- "sk_ew"
-# moment_um <- ((clos_e-op_en) - (hi_gh-lo_w))
-moment_um <- ((clos_e-op_en) - (hi_gh-lo_w)) + 1.0
+# skew <- ((highp+lowp) - (openp+closep))
+skew <- ((highp+lowp) - (openp+closep))
+colnames(skew) <- "skew"
+# moment_um <- ((closep-openp) - (highp-lowp))
+moment_um <- ((closep-openp) - (highp-lowp)) + 1.0
 colnames(moment_um) <- "moment_um"
 
-# close_high <- (hi_gh - rutils::lag_it(hi_gh))
-# close_low <- (lo_w - rutils::lag_it(lo_w))
+# close_high <- (highp - rutils::lagit(highp))
+# close_low <- (lowp - rutils::lagit(lowp))
 # Select only independent indicators
 
-indicator_s <- cbind(re_turns, vol_at, sk_ew)
+indicator_s <- cbind(returns, volat, skew)
 # scale indicator_s using roll_scale()
 look_back <- 60
 indicator_s <- roll::roll_scale(indicator_s, width=look_back, min_obs=1)
 indicator_s[1, ] <- 0
 indicator_s <- cbind(indicator_s, z_scores)
 indicator_s[1:3, ] <- 0
-col_names <- colnames(indicator_s)
+colnamev <- colnames(indicator_s)
 

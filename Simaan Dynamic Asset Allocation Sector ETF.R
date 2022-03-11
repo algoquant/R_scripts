@@ -89,17 +89,17 @@ plot(cor_mean, ylim = range(c(cor_mean,cor_min))   )
 lines(cor_min, col = 2)
 
 # GMV
-X_gmv_1 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC1)))
-X_gmv_2 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC2)))
-colnames(X_gmv_1) <- colnames(X_gmv_2)<- names(R)
+X_gmv1 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC1)))
+X_gmv2 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC2)))
+colnames(X_gmv1) <- colnames(X_gmv2)<- names(R)
 
-X_gmv_1 <- as.xts(X_gmv_1)
-X_gmv_2 <- as.xts(X_gmv_2)
+X_gmv1 <- as.xts(X_gmv1)
+X_gmv2 <- as.xts(X_gmv2)
 
-round(tail(X_gmv_1*100,1),2)
-round(tail(X_gmv_2*100,1),2)
+round(tail(X_gmv1*100,1),2)
+round(tail(X_gmv2*100,1),2)
 
-plot(na.omit(X_gmv_1[,"XLF"]))
+plot(na.omit(X_gmv1[,"XLF"]))
 abline(h = 0, lty = 2, col = 2)
 
 ##############################################################################################
@@ -109,22 +109,22 @@ abline(h = 0, lty = 2, col = 2)
 ####################################
 R_test <- tail(R,nrow(R) - N + 1)
 
-X_gmv_1 <- X_gmv_1[date(R_test),]
-X_gmv_2 <- X_gmv_2[date(R_test),]
+X_gmv1 <- X_gmv1[date(R_test),]
+X_gmv2 <- X_gmv2[date(R_test),]
 
 R_test <- R_test[-1,]
-X_gmv_1 <- X_gmv_1[-nrow(X_gmv_1),]
-X_gmv_2 <- X_gmv_2[-nrow(X_gmv_2),]
+X_gmv1 <- X_gmv1[-nrow(X_gmv1),]
+X_gmv2 <- X_gmv2[-nrow(X_gmv2),]
 
-start(X_gmv_1);end(X_gmv_1)
+start(X_gmv1);end(X_gmv1)
 start(R_test);end(R_test)
 
-ret_gmv_1 <- sapply(1:nrow(R_test), function(i) (X_gmv_1[i,]) %*% t(R_test[i,]) )
-ret_gmv_2 <- sapply(1:nrow(R_test), function(i) (X_gmv_2[i,]) %*% t(R_test[i,]) )
+ret_gmv1 <- sapply(1:nrow(R_test), function(i) (X_gmv1[i,]) %*% t(R_test[i,]) )
+ret_gmv2 <- sapply(1:nrow(R_test), function(i) (X_gmv2[i,]) %*% t(R_test[i,]) )
 ret_naive <- apply(R_test,1,mean)
 
-y1_plot <- cumprod(ret_gmv_1+1)
-y2_plot <- cumprod(ret_gmv_2+1)
+y1_plot <- cumprod(ret_gmv1+1)
+y2_plot <- cumprod(ret_gmv2+1)
 y3_plot <- cumprod(ret_naive+1)
 x_plot <- date(R_test)
 
@@ -138,7 +138,7 @@ grid(20)
 ### SUMMMARY STATISTICS ###
 ###########################
 
-portfolio_ret <- list(ret_gmv_1,ret_gmv_2,ret_naive)
+portfolio_ret <- list(ret_gmv1,ret_gmv2,ret_naive)
 summary_ret <- function(x) c(100*mean(x)*12,100*sd(x)*sqrt(12),(mean(x)/sd(x))*sqrt(12))
 
 # summarize returns
@@ -146,7 +146,7 @@ M <- round(sapply(portfolio_ret,summary_ret),2)
 colnames(M) <- c("GMV","GMV_no_short","Naive")
 
 # summarize TO for GMV
-portfolio_weights <- list(X_gmv_1,X_gmv_2)
+portfolio_weights <- list(X_gmv1,X_gmv2)
 TO_f <- function(X) apply(abs(as.matrix(X[-1,]) - as.matrix(X[-nrow(X),])),1,sum)
 TO_list <- lapply(portfolio_weights,TO_f)
 
@@ -188,25 +188,25 @@ backtesting_N <- function(N) {
   names(cov_roll) <- date(R)
 
   # GMV
-  X_gmv_1 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC1)))
-  X_gmv_2 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC2)))
-  colnames(X_gmv_1) <- colnames(X_gmv_2)<- names(R)
+  X_gmv1 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC1)))
+  X_gmv2 <- t(sapply(cov_roll, function(S)  gmv_portfolio(S,BC2)))
+  colnames(X_gmv1) <- colnames(X_gmv2)<- names(R)
 
-  X_gmv_1 <- as.xts(X_gmv_1)
-  X_gmv_2 <- as.xts(X_gmv_2)
+  X_gmv1 <- as.xts(X_gmv1)
+  X_gmv2 <- as.xts(X_gmv2)
   
   R_test <- tail(R,nrow(R) - 100 + 1)
-  X_gmv_1 <- X_gmv_1[date(R_test),]
-  X_gmv_2 <- X_gmv_2[date(R_test),]
+  X_gmv1 <- X_gmv1[date(R_test),]
+  X_gmv2 <- X_gmv2[date(R_test),]
   R_test <- R_test[-1,]
-  X_gmv_1 <- X_gmv_1[-nrow(X_gmv_1),]
-  X_gmv_2 <- X_gmv_2[-nrow(X_gmv_2),]
+  X_gmv1 <- X_gmv1[-nrow(X_gmv1),]
+  X_gmv2 <- X_gmv2[-nrow(X_gmv2),]
 
-  ret_gmv_1 <- sapply(1:nrow(R_test), function(i) (X_gmv_1[i,]) %*% t(R_test[i,]) )
-  ret_gmv_2 <- sapply(1:nrow(R_test), function(i) (X_gmv_2[i,]) %*% t(R_test[i,]) )
+  ret_gmv1 <- sapply(1:nrow(R_test), function(i) (X_gmv1[i,]) %*% t(R_test[i,]) )
+  ret_gmv2 <- sapply(1:nrow(R_test), function(i) (X_gmv2[i,]) %*% t(R_test[i,]) )
   ret_naive <- apply(R_test,1,mean)
 
-  portfolio_ret <- list(ret_gmv_1,ret_gmv_2,ret_naive)
+  portfolio_ret <- list(ret_gmv1,ret_gmv2,ret_naive)
   summary_ret <- function(x) c(100*mean(x)*12,100*sd(x)*sqrt(12),(mean(x)/sd(x))*sqrt(12))
 
   # summarize returns
@@ -214,7 +214,7 @@ backtesting_N <- function(N) {
   colnames(M) <- c("GMV","GMV_no_short","Naive")
 
   # summarize TO for GMV
-  portfolio_weights <- list(X_gmv_1,X_gmv_2)
+  portfolio_weights <- list(X_gmv1,X_gmv2)
   TO_f <- function(X) apply(abs(as.matrix(X[-1,]) - as.matrix(X[-nrow(X),])),1,sum)
   TO_list <- lapply(portfolio_weights,TO_f)
 

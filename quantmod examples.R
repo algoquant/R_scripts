@@ -5,19 +5,19 @@ library(xtable)
 
 
 ### ETF symbols - tickers for Tactical Asset Allocation System by Mebane Faber
-sym_bols <- c("VTI", "VEU", "IEF", "VNQ", "DBC", "XLY", "XLP", "XLE", "XLF", "XLV", "XLI", "XLB", "XLK", "XLU", "IWB", "IWD", "IWF", "IWM", "IWN", "IWO", "IWP", "IWR", "IWS", "IWV", "IUSV", "IUSG")
+symbolv <- c("VTI", "VEU", "IEF", "VNQ", "DBC", "XLY", "XLP", "XLE", "XLF", "XLV", "XLI", "XLB", "XLK", "XLU", "IWB", "IWD", "IWF", "IWM", "IWN", "IWO", "IWP", "IWR", "IWS", "IWV", "IUSV", "IUSG")
 
 # read etf database into data frame
 etf_list <- read.csv(file='etf_list.csv', stringsAsFactors=FALSE)
-# sym_bols %in% etf_list$Symbol
-# subset etf_list to include only those ETF's in sym_bols
-etf_list <- etf_list[etf_list$Symbol %in% sym_bols, ]
+# symbolv %in% etf_list$Symbol
+# subset etf_list to include only those ETF's in symbolv
+etf_list <- etf_list[etf_list$Symbol %in% symbolv, ]
 
 etf_names <- sapply(etf_list$Name, 
                function(name) {
-                 name_split <- strsplit(name, split=" ")[[1]]
-                 name_split <- name_split[c(-1, -length(name_split))]
-                 paste(name_split, collapse=" ")
+                 namesvplit <- strsplit(name, split=" ")[[1]]
+                 namesvplit <- namesvplit[c(-1, -length(namesvplit))]
+                 paste(namesvplit, collapse=" ")
        })
 etf_list$Name <- etf_names
 names(etf_list)
@@ -30,17 +30,17 @@ print(xtable(etf_list))
 
 ###
 
-sym_bols <- c('QQQ','SPY')
+symbolv <- c('QQQ','SPY')
 
 ls()
-suppressWarnings(getSymbols(sym_bols))
+suppressWarnings(getSymbols(symbolv))
 ls()
 class(QQQ)
 head(QQQ)
 plot(QQQ[, "QQQ.Close"])
 
 data_env <- new.env()
-getSymbols(sym_bols, src='yahoo', from='1896-01-01', env=data_env, auto.assign=T)
+getSymbols(symbolv, src='yahoo', from='1896-01-01', env=data_env, auto.assign=T)
 # bt.prep(data_env, align='keep.all', dates='1896::2011')
 
 # compare dailyReturn() with diff(log()) - why are they slightly different - see below?

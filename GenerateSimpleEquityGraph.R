@@ -36,23 +36,23 @@ source('GraphData.R')
 maxIndex <- length(resultCor[,1])
 
 symbolNames <- resultCor[,1][1:50]
-html <- paste(outputDir,'/cor_index_1.html',sep='')
+html <- paste(outputDir,'/cor_index1.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- resultCor[,1][51:100]
-html <- paste(outputDir,'/cor_index_2.html',sep='')
+html <- paste(outputDir,'/cor_index2.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- resultCor[,1][101:150]
-html <- paste(outputDir,'/cor_index_3.html',sep='')
+html <- paste(outputDir,'/cor_index3.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- resultCor[,1][151:200]
-html <- paste(outputDir,'/cor_index_4.html',sep='')
+html <- paste(outputDir,'/cor_index4.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- resultCor[,1][201:250]
-html <- paste(outputDir,'/cor_index_5.html',sep='')
+html <- paste(outputDir,'/cor_index5.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- resultCor[,1][251:300]
@@ -67,23 +67,23 @@ knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 maxIndex <- length(instruments)
 
 symbolNames <- instruments[1:50]
-html <- paste(outputDir,'/all_index_1.html',sep='')
+html <- paste(outputDir,'/all_index1.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- instruments[51:100]
-html <- paste(outputDir,'/all_index_2.html',sep='')
+html <- paste(outputDir,'/all_index2.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- instruments[101:150]
-html <- paste(outputDir,'/all_index_3.html',sep='')
+html <- paste(outputDir,'/all_index3.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- instruments[151:200]
-html <- paste(outputDir,'/all_index_4.html',sep='')
+html <- paste(outputDir,'/all_index4.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- instruments[201:250]
-html <- paste(outputDir,'/all_index_5.html',sep='')
+html <- paste(outputDir,'/all_index5.html',sep='')
 knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 
 symbolNames <- instruments[251:300]
@@ -97,13 +97,13 @@ knit2html(input="AlphaOrderSimpleEquityGraph.Rmd",output=html)
 #html <- paste(outputDir,'/cor_index18.html',sep='')
 #knit2html(input="CorOrderSimpleEquityGraph.Rmd", output=html)
 # 
-# html <- paste(outputDir,'/cor_index18_3.html',sep='')
+# html <- paste(outputDir,'/cor_index183.html',sep='')
 # knit(input="CorOrderSimpleEquityGraph.Rmd",envir=new.env())
 # 
-# html <- paste(outputDir,'/cor_index18_4.html',sep='')
+# html <- paste(outputDir,'/cor_index184.html',sep='')
 # knit(input="CorOrderSimpleEquityGraph.Rmd",envir=new.env())
 # 
-# html <- paste(outputDir,'/cor_index18_5.html',sep='')
+# html <- paste(outputDir,'/cor_index185.html',sep='')
 # knit(input="CorOrderSimpleEquityGraph.Rmd",envir=new.env())
 
 

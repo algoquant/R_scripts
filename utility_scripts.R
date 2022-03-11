@@ -23,9 +23,9 @@ sapply(file_names, knitr::knit2pdf, bib_engine="biber")
 # Render files using error handler.
 # Boolean vector of names already processed.
 processed_names <- NULL
-process_ed <- file_names %in% processed_names
+isprocessed <- file_names %in% processed_names
 # Loop over the file_names and render them into *.pdf files.
-sapply(file_names, function(file_name) {
+sapply(file_names[!isprocessed], function(file_name) {
   tryCatch(  # With error handler
     {
       cat("Processing: ", file_name, "\n")
@@ -42,8 +42,8 @@ sapply(file_names, function(file_name) {
   )  # end tryCatch
 })  # end sapply
 # See files that have not been processed
-process_ed <- file_names %in% processed_names
-file_names[!process_ed]
+isprocessed <- file_names %in% processed_names
+file_names[!isprocessed]
 
 
 ###############
@@ -73,23 +73,23 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 dir_name <- "/Users/jerzy/Develop/data/"
 # Using lapply() and zoo::write.zoo()
-file_names <- lapply(ls(etf_env), function(sym_bol) {
-  x_ts <- get(sym_bol, envir=etf_env)
+file_names <- lapply(ls(etfenv), function(sym_bol) {
+  x_ts <- get(sym_bol, envir=etfenv)
   zoo::write.zoo(x_ts, file=paste0(dir_name, sym_bol, ".csv"))
   sym_bol
 })  # end lapply
 unlist(file_names)
 
 # Or using lapply() and data.table::fwrite()
-file_names <- lapply(ls(sp500_env), function(sym_bol) {
-  x_ts <- get(sym_bol, envir=sp500_env)
+file_names <- lapply(ls(sp500env), function(sym_bol) {
+  x_ts <- get(sym_bol, envir=sp500env)
   data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, sym_bol, ".csv"))
   sym_bol
 })  # end eapply
 names(file_names)
 
 # Or using eapply() and data.table::fwrite()
-file_names <- eapply(sp500_env, function(x_ts) {
+file_names <- eapply(sp500env, function(x_ts) {
   file_name <- rutils::get_name(colnames(x_ts)[1])
   data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
   file_name
@@ -97,7 +97,7 @@ file_names <- eapply(sp500_env, function(x_ts) {
 names(file_names)
 
 # Or
-file_names <- lapply(as.list(sp500_env), function(x_ts) {
+file_names <- lapply(as.list(sp500env), function(x_ts) {
   file_name <- rutils::get_name(colnames(x_ts)[1])
   data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
   file_name
@@ -219,7 +219,7 @@ hist(num_na_s)
 si_ze <- file.info("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin")$size
 connect_ion <- file("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin", open="rb")
 
-# reset position of pointer
+# Reset position of pointer
 seek(connect_ion, where=(si_ze-12), origin="start")
 seek(connect_ion, where=0, origin="start")
 

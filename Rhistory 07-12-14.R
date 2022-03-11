@@ -355,7 +355,7 @@ blah <- edit(data.xls)
 blah
 library(ggplot2)
 .libPaths()
-UBS_Op18Nov <-(data.frame(read.table("C:/Develop/R/FRE6811/option_data.csv",header=TRUE, sep=",")))
+UBS_Op18Nov <-(data.frame(read.table("C:/Develop/R/FRE6811/optiondata.csv",header=TRUE, sep=",")))
 summary(UBS_Op18Nov)
 UBS_Op18Nov
 rm(list=ls())  # remove all

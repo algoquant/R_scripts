@@ -30,7 +30,7 @@ source("C:/Develop/R/ibrokers/ibrokers_eWrapper.R")
 
 # Open the file for storing the bar data
 data_dir <- "C:/Develop/data/ib_data"
-file_name <- file.path(data_dir, paste0("ES_ohlc_live_", format(Sys.time(), format="%m_%d_%Y_%H_%M"), ".csv"))
+file_name <- file.path(data_dir, paste0("ESohlc_live_", format(Sys.time(), format="%m_%d_%Y_%H_%M"), ".csv"))
 file_connect <- file(file_name, open="w")
 
 # Open the IB connection

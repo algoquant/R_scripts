@@ -25,17 +25,17 @@ stopifnot(
 ### Plotting
 
 # add this to package rutils
-chart_strategy <- function(x_ts, shad_ing=NULL, ...) {
+chart_strategy <- function(xtes, shad_ing=NULL, ...) {
   # plot prices and VWAP
-  n_col <- NCOL(x_ts)
-  col_ors <- c("orange", "blue")
+  n_col <- NCOL(xtes)
+  colors <- c("orange", "blue")
   # plot with custom line colors
   plot_theme <- chart_theme()
-  plot_theme$col$line.col <- col_ors[1:n_col]
-  ch_ob <- chart_Series(x=x_ts, theme=plot_theme, plot=FALSE, ...)
+  plot_theme$col$line.col <- colors[1:n_col]
+  chobj <- chart_Series(x=xtes, theme=plot_theme, plot=FALSE, ...)
   # if (n_col>1) {
-  #   for (col_umn in 2:n_col)
-  #     add_TA(x_ts[, col_umn], on=1, lwd=2,
+  #   for (colnum in 2:n_col)
+  #     add_TA(xtes[, colnum], on=1, lwd=2,
   #            col=sample(c('blue', 'yellow', 'red'), 1))
   # }  # end if
   if (!is.null(shad_ing)) {
@@ -44,27 +44,27 @@ chart_strategy <- function(x_ts, shad_ing=NULL, ...) {
     add_TA(shad_ing < 0, on=-1,
            col="lightgrey", border="lightgrey")
   }  # end if
-  plot(ch_ob)
-  legend("top", legend=colnames(x_ts),
+  plot(chobj)
+  legend("top", legend=colnames(xtes),
          inset=0.1, bg="white", lty=rep(1, n_col), lwd=rep(2, n_col),
-         col=col_ors[1:n_col], bty="n")
-  invisible(ch_ob)  # return invisibly
+         col=colors[1:n_col], bty="n")
+  invisible(chobj)  # return invisibly
 }  # end chart_strategy
 
-# chart_strategy <- function(price_s, shad_ing) {
+# chart_strategy <- function(prices, shad_ing) {
 #   # plot prices and VWAP
-#   ch_ob <- chart_Series(x=price_s[, 1], name=colnames(price_s[, 1]), col='orange', plot=FALSE)
-#   if (NCOL(price_s)>1)
-#     add_TA(price_s[, 2], on=1, lwd=2, col='blue')
+#   chobj <- chart_Series(x=prices[, 1], name=colnames(prices[, 1]), col='orange', plot=FALSE)
+#   if (NCOL(prices)>1)
+#     add_TA(prices[, 2], on=1, lwd=2, col='blue')
 #   add_TA(shad_ing > 0, on=-1,
 #          col="lightgreen", border="lightgreen")
 #   add_TA(shad_ing < 0, on=-1,
 #          col="lightgrey", border="lightgrey")
-#   plot(ch_ob)
-#   invisible(ch_ob)  # return invisibly
+#   plot(chobj)
+#   invisible(chobj)  # return invisibly
 # }  # end chart_strategy
 
-foo <- cbind(price_s-as.numeric(price_s[1, ]), pn_l)
+foo <- cbind(prices-as.numeric(prices[1, ]), pn_l)
 # foo <- foo - as.numeric(foo[1, ])
 x11()
 chart_strategy(foo, shad_ing=pos_ition, name="VTI plus VWAP strategy")
@@ -87,8 +87,8 @@ char2 <- structure("b", class="character")
 
 # define "+" method for "character" class
 "+.character" <- function (a, b, ...) {
-  in_dex <- (which(letters==substr(a, 1, 1)) + which(letters==substr(b, 1, 1))) %% length(letters)
-  letters[in_dex]
+  indeks <- (which(letters==substr(a, 1, 1)) + which(letters==substr(b, 1, 1))) %% length(letters)
+  letters[indeks]
 }  # end +.character
 
 # modified above to define "+" as "paste"
@@ -137,9 +137,9 @@ peek_in <- function(in_var, name=NULL) {
   }
   return(NULL)
 }  # end peek_in
-my_var <- 1
-peek_in(my_var)
-peek_in(my_var, name="n")
+myvar <- 1
+peek_in(myvar)
+peek_in(myvar, name="n")
 
 
 # copy named dots arguments into function environment
@@ -151,21 +151,21 @@ peek_in <- function (in_var, ...) {
   }
   cat("bottom: ", ls(environment()), "\n")
 }  # end peek_in
-peek_in(my_var)
-peek_in(my_var, one=1, two=2, three=3)
+peek_in(myvar)
+peek_in(myvar, one=1, two=2, three=3)
 
 
 ### plot a few risk_ret_points in portfolio scatterplot
 risk_ret_points <- function(rets=etf_rets,
-        risk=c("sd", "ETL"), sym_bols=c("VTI", "IEF")) {
+        risk=c("sd", "ETL"), symbolv=c("VTI", "IEF")) {
   risk <- match.arg(risk)  # match to arg list
   if (risk=="ETL") {
     stopifnot("package:PerformanceAnalytics" %in% search() ||
               require("PerformanceAnalytics", quietly=TRUE))
   }  # end if
   risk <- match.fun(risk)  # match to function
-  risk_ret <- t(sapply(rets[, sym_bols],
-     function(x_ts) c(ret=mean(x_ts), risk=abs(risk(x_ts)))))
+  risk_ret <- t(sapply(rets[, symbolv],
+     function(xtes) c(ret=mean(xtes), risk=abs(risk(xtes)))))
   points(x=risk_ret[, "risk"], y=risk_ret[, "ret"],
          col="red", lwd=3, pch=21)
   text(x=risk_ret[, "risk"], y=risk_ret[, "ret"],
@@ -260,21 +260,21 @@ rownames(matrix.data) <- NULL
 
 cbind.SavGol <- function(ts.price, func.signal) {
 # Extract function name
-  func_tion <- match.fun(func.signal$filter.func)
+  func <- match.fun(func.signal$filter.func)
 # Calculate mean
   func.signal$filter.params[4] <- 0
-  ts.zero <- xts(do.call(func_tion, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
+  ts.zero <- xts(do.call(func, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
   ts.zero[1,] <- na.omit(ts.zero)[1,]
   ts.zero <- na.locf(ts.zero)
 # Calculate first derivative
   func.signal$filter.params[4] <- 1
-  ts.first <- xts(do.call(func_tion, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
+  ts.first <- xts(do.call(func, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
   ts.first[1,] <- na.omit(ts.first)[1,]
   ts.first <- na.locf(ts.first)
 # Calculate second derivative
   func.signal$filter.params[4] <- 2
 # Apply function and calculate signal
-  ts.second <- xts(do.call(func_tion, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
+  ts.second <- xts(do.call(func, append(list(coredata(ts.price)), func.signal$filter.params)), order.by=index(ts.price))
   ts.second[1,] <- na.omit(ts.second)[1,]
   ts.second <- na.locf(ts.second)
 
@@ -318,22 +318,22 @@ chart.Series <- function(ts.data, name.plot) {
 
 
 # Test: passing a function as argument, and passing its arguments as "..."
-funcTestFunc <- function(func_tion, ...) {
-  inputFunc <- match.fun(func_tion)
+funcTestFunc <- function(func, ...) {
+  inputFunc <- match.fun(func)
   inputFunc(...)
 }
 
 
 funcTestFunc <- function(inputFunc, ...) {
-  inputFunc <- match.fun(func_tion)
+  inputFunc <- match.fun(func)
   inputFunc(...)
 }
 
 
 # Test: Passing a function as a list, with the first element equal to the function name, and the remaing to function arguments
 funcTestFunc <- function(input.list) {
-  func_tion <- match.fun(input.list[1])
-  do.call(func_tion, list(as.numeric(input.list[-1])))
+  func <- match.fun(input.list[1])
+  do.call(func, list(as.numeric(input.list[-1])))
 }
 
 
@@ -374,9 +374,9 @@ f_cube(2)
 
 ### test deparse function
 dep_fun <- function(arg_var) {
-  my_var <- 2
-  names(my_var) <- deparse(substitute(arg_var))
-  my_var
+  myvar <- 2
+  names(myvar) <- deparse(substitute(arg_var))
+  myvar
 }  # end dep_fun
 dep_fun(hey)
 
@@ -426,12 +426,12 @@ temp_fun <- function(data, stuff=1, some_stuff=2) {
   c(data, stuff, some_stuff)
 }
 
-in_data <- 5:9
+indata <- 5:9
 
-# sapply binds "in_data" to "data", and binds remaining arguments either by name or position
-sapply(in_data, temp_fun, stuff=2)
-sapply(in_data, temp_fun, stuff=2, some_stuff=3)
-sapply(in_data, temp_fun, 2, 3)
+# sapply binds "indata" to "data", and binds remaining arguments either by name or position
+sapply(indata, temp_fun, stuff=2)
+sapply(indata, temp_fun, stuff=2, some_stuff=3)
+sapply(indata, temp_fun, 2, 3)
 
 
 ### read numeric lines from input, and return them
@@ -472,28 +472,28 @@ funcScope <- function(model=NULL) {
 # Some misc code
 # out.put <- sapply(someSymbols, function(symb) { funEcho(symb); readline(prompt="Pause. Press <Enter> to continue...")  })
 
-funcCropout <- function(in_put) { stopifnot(is.xts(in_put)); length(in_put) }
+funcCropout <- function(input) { stopifnot(is.xts(input)); length(input) }
 
 # switch using ifelse
-switch_test <- function(in_put, op_tion="one") {
-  var.out <- ifelse(op_tion=="one", {var.out <- in_put; var.out <- paste("first", var.out)},
-                    ifelse(op_tion=="two", paste("second", in_put), "something else"))
+switch_test <- function(input, op_tion="one") {
+  var.out <- ifelse(op_tion=="one", {var.out <- input; var.out <- paste("first", var.out)},
+                    ifelse(op_tion=="two", paste("second", input), "something else"))
   var.out
 }  # end switch_test
 
 # switch using switch
-switch_test <- function(in_put, op_tion="one") {
+switch_test <- function(input, op_tion="one") {
   switch(op_tion,
-         one=paste("first option:", in_put),
-         two=paste("second option:", in_put),
-         "1 min"=paste("1 min option:", in_put),
-         paste("something else:", in_put)
+         one=paste("first option:", input),
+         two=paste("second option:", input),
+         "1 min"=paste("1 min option:", input),
+         paste("something else:", input)
   )  # end switch
 }  # end switch_test
 switch_test("hello")
-switch_test(in_put="hello", op_tion="two")
-switch_test(in_put="hello", op_tion="1 min")
-switch_test(in_put="hello", op_tion="blah")
+switch_test(input="hello", op_tion="two")
+switch_test(input="hello", op_tion="1 min")
+switch_test(input="hello", op_tion="blah")
 
 # Fix the first NA in a xts (it's snooping data)
 na.init <- function(ts.data) {
@@ -503,11 +503,11 @@ na.init <- function(ts.data) {
 
 
 # Calculate row and column of the extreme value of a matrix
-# which(mat_rix==func_tion(mat_rix), arr.ind=TRUE) does the same
-coordinates.matrix <- function(mat_rix, func_tion) {
-  func_tion <- match.fun(func_tion)
-  tmp <- which(mat_rix==func_tion(mat_rix), arr.ind=T)
-  coordinates <- as.numeric(c(rownames(mat_rix)[tmp[1,1]], colnames(mat_rix)[tmp[1,2]]))
+# which(matrixv==func(matrixv), arr.ind=TRUE) does the same
+coordinates.matrix <- function(matrixv, func) {
+  func <- match.fun(func)
+  tmp <- which(matrixv==func(matrixv), arr.ind=T)
+  coordinates <- as.numeric(c(rownames(matrixv)[tmp[1,1]], colnames(matrixv)[tmp[1,2]]))
   coordinates
 }
 
@@ -893,10 +893,10 @@ rollingLmSignals <- function(ts.returns, end.period, look.back, lags, expand.win
 # roll_sum() using RcppRoll::roll_sum()
 # it's actua;;y slower than using cumsum() because reclass() back to xts is slow
 library(RcppRoll)
-roll_sum <- function(x_ts, win_dow) {
-  roll_sum <- RcppRoll::roll_sum(c(rep(0,win_dow-1), coredata(x_ts)), n=win_dow, align="right")
-  roll_sum <- xts(x=roll_sum, order.by=index(x_ts))
-  colnames(roll_sum) <- colnames(x_ts)
+roll_sum <- function(xtes, win_dow) {
+  roll_sum <- RcppRoll::roll_sum(c(rep(0,win_dow-1), coredata(xtes)), n=win_dow, align="right")
+  roll_sum <- xts(x=roll_sum, order.by=index(xtes))
+  colnames(roll_sum) <- colnames(xtes)
   roll_sum
 }  # end roll_sum
 
@@ -912,14 +912,14 @@ roll_sum <- function(x_ts, win_dow) {
 #' calculates the \code{OHLC} prices at lower periodicity (say minutes).
 #'
 #' @export
-#' @param x_ts an \code{xts} time series containing one or more columns of data.
+#' @param xtes an \code{xts} time series containing one or more columns of data.
 #' @param period aggregation interval ("seconds", "minutes", "hours", "days",
 #'   "weeks", "months", "quarters", and "years").
 #' @param k number of periods to aggregate over (for example if period="minutes"
 #'   and k=2, then aggregate over two minute intervals.)
-#' @param end_points an integer vector of end points.
+#' @param endpoints an integer vector of end points.
 #' @return \code{xts} \code{OHLC} time series of lower periodicity defined by
-#'   end_points.
+#'   endpoints.
 #' @details #' Performs a similar aggregation as function \code{to.period()}
 #'   from package
 #'   \href{https://cran.r-project.org/web/packages/xts/index.html}{xts}, but has
@@ -927,28 +927,28 @@ roll_sum <- function(x_ts, win_dow) {
 #'   function \code{to_period_rolling()} simply calls the compiled function
 #'   \code{toPeriod()} (from package
 #'   \href{https://cran.r-project.org/web/packages/xts/index.html}{xts}), to
-#'   perform the actual aggregations.  If \code{end_points} are passed in
+#'   perform the actual aggregations.  If \code{endpoints} are passed in
 #'   explicitly, then the \code{period} argument is ignored.
 #' @examples
 #' # define end points at 10-minute intervals (HighFreq::SPY is minutely bars)
-#' end_points <- rutils::end_points(HighFreq::SPY["2009"], inter_val=10)
-#' # aggregate over 10-minute end_points:
-#' to_period_rolling(x_ts=HighFreq::SPY["2009"], end_points=end_points)
+#' endpoints <- rutils::endpoints(HighFreq::SPY["2009"], interval=10)
+#' # aggregate over 10-minute endpoints:
+#' to_period_rolling(xtes=HighFreq::SPY["2009"], endpoints=endpoints)
 #' # aggregate over days:
-#' to_period_rolling(x_ts=HighFreq::SPY["2009"], period="days")
+#' to_period_rolling(xtes=HighFreq::SPY["2009"], period="days")
 #' # equivalent to:
 #' to.period(x=HighFreq::SPY["2009"], period="days", name=rutils::get_name(colnames(HighFreq::SPY)[1]))
 
-to_period_rolling <- function(x_ts, win_dow=10) {
-  roll_open <- rutils::lag_xts(Op(x_ts), k=(win_dow-1))
-  roll_hi <- TTR::runMax(Hi(x_ts), n=win_dow)
-  roll_lo <- -TTR::runMax(-Lo(x_ts), n=win_dow)
-  roll_close <- Cl(x_ts)
-  roll_volume <- rutils::roll_sum(x_ts=Vo(x_ts), win_dow=win_dow)
-  out_put <- cbind(roll_open, roll_hi, roll_lo, roll_close, roll_volume)
-  out_put[1:(win_dow-1), ] <- 1
-  colnames(out_put) <- colnames(x_ts)
-  out_put
+to_period_rolling <- function(xtes, win_dow=10) {
+  roll_open <- rutils::lagxts(Op(xtes), k=(win_dow-1))
+  roll_hi <- TTR::runMax(Hi(xtes), n=win_dow)
+  roll_lo <- -TTR::runMax(-Lo(xtes), n=win_dow)
+  roll_close <- Cl(xtes)
+  roll_volume <- rutils::roll_sum(xtes=Vo(xtes), win_dow=win_dow)
+  output <- cbind(roll_open, roll_hi, roll_lo, roll_close, roll_volume)
+  output[1:(win_dow-1), ] <- 1
+  colnames(output) <- colnames(xtes)
+  output
 }  # end to_period_rolling
 
 
@@ -957,7 +957,7 @@ to_period_rolling <- function(x_ts, win_dow=10) {
 #' prices from the previous period.
 #'
 #' @export
-#' @param oh_lc an \code{OHLC} time series of prices in \code{xts} format.
+#' @param ohlc an \code{OHLC} time series of prices in \code{xts} format.
 #' @return \code{OHLC} time series of prices in \code{xts} format, with open
 #'   prices equal to the close prices from the previous period.
 #' @details Adds or subtracts a price adjustment to make all open prices equal
@@ -966,16 +966,16 @@ to_period_rolling <- function(x_ts, win_dow=10) {
 #'   open to close returns, variance estimates, etc.
 #' @examples
 #' # define end points at 10-minute intervals (HighFreq::SPY is minutely bars)
-#' end_points <- rutils::end_points(HighFreq::SPY["2009"], inter_val=10)
-#' # aggregate over 10-minute end_points:
-#' open_close(x_ts=HighFreq::SPY["2009"], end_points=end_points)
+#' endpoints <- rutils::endpoints(HighFreq::SPY["2009"], interval=10)
+#' # aggregate over 10-minute endpoints:
+#' open_close(xtes=HighFreq::SPY["2009"], endpoints=endpoints)
 #' # aggregate over days:
-#' open_close(oh_lc=HighFreq::SPY["2009"], period="days")
+#' open_close(ohlc=HighFreq::SPY["2009"], period="days")
 
-open_close <- function(oh_lc) {
-  op_en <- Op(oh_lc)
-  clos_e <- lag.xts(Cl(oh_lc), k=-1)
-  which(!(op_en==clos_e))
+open_close <- function(ohlc) {
+  openp <- Op(ohlc)
+  closep <- lag.xts(Cl(ohlc), k=-1)
+  which(!(openp==closep))
 }  # end open_close
 
 

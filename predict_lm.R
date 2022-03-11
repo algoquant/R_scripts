@@ -1,39 +1,39 @@
-function (mod_el, newdata, se.fit = FALSE, scale = NULL, df = Inf, 
+function (model, newdata, se.fit = FALSE, scale = NULL, df = Inf, 
     interval = c("none", "confidence", "prediction"), level = 0.95, 
     type = c("response", "terms"), terms = NULL, na.action = na.pass, 
     pred.var = res.var/weights, weights = 1, ...) 
 {
-    tt <- terms(mod_el)
-    if (!inherits(mod_el, "lm")) 
-        warning("calling predict.lm(<fake-lm-mod_el>) ...")
+    tt <- terms(model)
+    if (!inherits(model, "lm")) 
+        warning("calling predict.lm(<fake-lm-model>) ...")
     if (missing(newdata) || is.null(newdata)) {
-        mm <- X <- model.matrix(mod_el)
+        mm <- X <- model.matrix(model)
         mmDone <- TRUE
-        offset <- mod_el$offset
+        offset <- model$offset
     }
     else {
         Terms <- delete.response(tt)
         m <- model.frame(Terms, newdata, na.action = na.action, 
-            xlev = mod_el$xlevels)
+            xlev = model$xlevels)
         if (!is.null(cl <- attr(Terms, "dataClasses"))) 
             .checkMFClasses(cl, m)
-        X <- model.matrix(Terms, m, contrasts.arg = mod_el$contrasts)
+        X <- model.matrix(Terms, m, contrasts.arg = model$contrasts)
         offset <- rep(0, nrow(X))
         if (!is.null(off.num <- attr(tt, "offset"))) 
             for (i in off.num) offset <- offset + eval(attr(tt, 
                 "variables")[[i + 1]], newdata)
-        if (!is.null(mod_el$call$offset)) 
-            offset <- offset + eval(mod_el$call$offset, newdata)
+        if (!is.null(model$call$offset)) 
+            offset <- offset + eval(model$call$offset, newdata)
         mmDone <- FALSE
     }
-    n <- length(mod_el$residuals)
-    p <- mod_el$rank
+    n <- length(model$residuals)
+    p <- model$rank
     p1 <- seq_len(p)
     piv <- if (p) 
-        qr.lm(mod_el)$pivot[p1]
+        qr.lm(model)$pivot[p1]
     if (p < ncol(X) && !(missing(newdata) || is.null(newdata))) 
         warning("prediction from a rank-deficient fit may be misleading")
-    beta <- mod_el$coefficients
+    beta <- model$coefficients
     predictor <- drop(X[, piv, drop = FALSE] %*% beta[piv])
     if (!is.null(offset)) 
         predictor <- predictor + offset
@@ -42,39 +42,39 @@ function (mod_el, newdata, se.fit = FALSE, scale = NULL, df = Inf,
         if (missing(newdata)) 
             warning("predictions on current data refer to _future_ responses\n")
         if (missing(newdata) && missing(weights)) {
-            w <- weights.default(mod_el)
+            w <- weights.default(model)
             if (!is.null(w)) {
                 weights <- w
                 warning("assuming prediction variance inversely proportional to weights used for fitting\n")
             }
         }
-        if (!missing(newdata) && missing(weights) && !is.null(mod_el$weights) && 
+        if (!missing(newdata) && missing(weights) && !is.null(model$weights) && 
             missing(pred.var)) 
             warning("Assuming constant prediction variance even though model fit is weighted\n")
         if (inherits(weights, "formula")) {
             if (length(weights) != 2L) 
                 stop("'weights' as formula should be one-sided")
             d <- if (missing(newdata) || is.null(newdata)) 
-                model.frame(mod_el)
+                model.frame(model)
             else newdata
             weights <- eval(weights[[2L]], d, environment(weights))
         }
     }
     type <- match.arg(type)
     if (se.fit || interval != "none") {
-        w <- mod_el$weights
+        w <- model$weights
         res.var <- if (is.null(scale)) {
-            r <- mod_el$residuals
+            r <- model$residuals
             rss <- sum(if (is.null(w)) r^2 else r^2 * w)
-            df <- mod_el$df.residual
+            df <- model$df.residual
             rss/df
         }
         else scale^2
         if (type != "terms") {
             if (p > 0) {
                 XRinv <- if (missing(newdata) && is.null(w)) 
-                  qr.Q(qr.lm(mod_el))[, p1, drop = FALSE]
-                else X[, piv] %*% qr.solve(qr.R(qr.lm(mod_el))[p1, 
+                  qr.Q(qr.lm(model))[, p1, drop = FALSE]
+                else X[, piv] %*% qr.solve(qr.R(qr.lm(model))[p1, 
                   p1])
                 ip <- drop(XRinv^2 %*% rep(res.var, p))
             }
@@ -83,7 +83,7 @@ function (mod_el, newdata, se.fit = FALSE, scale = NULL, df = Inf,
     }
     if (type == "terms") {
         if (!mmDone) {
-            mm <- model.matrix(mod_el)
+            mm <- model.matrix(model)
             mmDone <- TRUE
         }
         aa <- attr(mm, "assign")
@@ -105,7 +105,7 @@ function (mod_el, newdata, se.fit = FALSE, scale = NULL, df = Inf,
             if (se.fit || interval != "none") {
                 ip <- matrix(ncol = nterms, nrow = NROW(X))
                 dimnames(ip) <- list(rownames(X), names(asgn))
-                Rinv <- qr.solve(qr.R(qr.lm(mod_el))[p1, p1])
+                Rinv <- qr.solve(qr.R(qr.lm(model))[p1, p1])
             }
             if (hasintercept) 
                 X <- sweep(X, 2L, avx, check.margin = FALSE)
@@ -159,7 +159,7 @@ function (mod_el, newdata, se.fit = FALSE, scale = NULL, df = Inf,
         if (type == "terms" && !is.null(terms) && !se.fit) 
             se <- se[, terms, drop = FALSE]
     }
-    if (missing(newdata) && !is.null(na.act <- mod_el$na.action)) {
+    if (missing(newdata) && !is.null(na.act <- model$na.action)) {
         predictor <- napredict(na.act, predictor)
         if (se.fit) 
             se <- napredict(na.act, se)

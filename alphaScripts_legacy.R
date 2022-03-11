@@ -1757,9 +1757,9 @@ model.test <- update.alphaModel(model=model.test, develop.mode=FALSE)
 # Save model summary to file
 summary(model.test, file="S:/Data/R_Data/model_xo.txt", append=TRUE)
 # Save model to file
-save(model.test, file="S:/Data/R_Data/model_xo_360.RData")
+save(model.test, file="S:/Data/R_Data/model_xo360.RData")
 # Load model from file
-load(file="S:/Data/R_Data/model_xo_360.RData")
+load(file="S:/Data/R_Data/model_xo360.RData")
 # Run real-time mode with set initialize position
 init.position <- model.test$positions[length(model.test$positions)-3,]
 model.test <- update.alphaModel(model=model.test, develop.mode=FALSE, init.position=init.position)
@@ -1794,7 +1794,7 @@ plot.alphaModel(model.test, time.range="2012-10-01/", n.flips.max=500)
 
 # Introduce stop-losses
 source("C:/Devel/Models/Rmodels/defaults.R")
-load(file="S:/Data/R_Data/model_xo_100.RData") # load model.test
+load(file="S:/Data/R_Data/model_xo100.RData") # load model.test
 summary(model.test) # no stop-loss to begin
 trading.rules <- list(stop.loss=list(apply=TRUE, limit=-5))
 model.test <- update.alphaModel(model=model.test, trading.rules=trading.rules)
@@ -1919,7 +1919,7 @@ time.window <- "2012-10-12/2012-11-09"
 profiles.params <- model.comb(combs=combs, time.window=time.window, model.input=model.test)
 # Calculate pnls over all combinations of parameters, without changing time window
 profiles.params <- model.comb(combs=combs, model.input=model.test)
-# Assume profiles.params is a list of lists, each list containing an xts of pnls
+# Assume profiles.params is a list of listv, each list containing an xts of pnls
 # Extract pnls into xts
 profiles.widths <- matrix(sapply(profiles.params, function(profile) profile[['cumpnl']]), ncol=1)
 width.names <- sapply(profiles.params, function(profile) profile[['width']])

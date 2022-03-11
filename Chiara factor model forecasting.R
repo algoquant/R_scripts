@@ -83,7 +83,7 @@ fselect <- function(decomp, osX, Y, sZ, h, fmod) { # see Bai, Ng (2002)
   T <- nrow(osX)
   N <- ncol(osX)
   g <- ((N+T)/(N*T))* log((N*T)/(N+T)) # penalization
-  # standard BN criteria with g_1 penalization 
+  # standard BN criteria with g1 penalization 
   if(fmod==0) {
     kmax <- findkmax(decomp)
     PC <- sapply(1:kmax, function(r) {
@@ -94,7 +94,7 @@ fselect <- function(decomp, osX, Y, sZ, h, fmod) { # see Bai, Ng (2002)
     if(length(bestk)==1) return(list(Fhat=decomp$fhat[,1:bestk], ord=(1:bestk))
     )
   } else {
-# modified BN criteria with g_3 penalization 
+# modified BN criteria with g3 penalization 
     ordfactors <- hard.thr(decomp$fhat, Y, sZ, h)
     for(d in 1:3) {
       if(d != 3) decomp[[d]] <- decomp[[d]][, ordfactors] else

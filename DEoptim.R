@@ -3,41 +3,41 @@
 library(DEoptim)
 
 ## Rastrigin egg carton function: vector argument version for optimization
-rastri_gin <- function(vec_tor, pa_ram=25){
-  sum(vec_tor^2 - pa_ram*cos(vec_tor))
+rastri_gin <- function(vectorv, pa_ram=25){
+  sum(vectorv^2 - pa_ram*cos(vectorv))
 }  # end rastri_gin
-# rastri_gin <- function(vec_tor){
-#   x1 <- vec_tor[1]
-#   x2 <- vec_tor[2]
+# rastri_gin <- function(vectorv){
+#   x1 <- vectorv[1]
+#   x2 <- vectorv[2]
 #   x1^2 + x2^2 + 25*(sin(x1)^2 + sin(x2)^2)
 # }  # end rastri_gin
-rastri_gin(vec_tor=c(1, 2))
+rastri_gin(vectorv=c(1, 2))
 
 
 ## optimize rastri_gin using DEoptim
-op_tim <-  DEoptim(rastri_gin, 
+optimd <-  DEoptim(rastri_gin, 
                    upper=c(6, 6), lower=c(-6, -6), 
                    DEoptim.control(trace=FALSE, itermax=50))
 # optimal parameters and value
-op_tim$optim$bestmem
-rastri_gin(op_tim$optim$bestmem)
-summary(op_tim)
-plot(op_tim)
+optimd$optim$bestmem
+rastri_gin(optimd$optim$bestmem)
+summary(optimd)
+plot(optimd)
 
 
 ## optimize rastri_gin using parallel DEoptim - quite slow
-system.time(op_tim <-  DEoptim(rastri_gin, 
+system.time(optimd <-  DEoptim(rastri_gin, 
                    upper=c(6, 6, 6, 6, 6, 6), lower=c(-6, -6, -6, -6, -6, -6), 
                    DEoptim.control(trace=FALSE, itermax=50, parallelType=1)))
 # optimal parameters and value
-op_tim$optim$bestmem
-rastri_gin(op_tim$optim$bestmem)
-summary(op_tim)
-plot(op_tim)
+optimd$optim$bestmem
+rastri_gin(optimd$optim$bestmem)
+summary(optimd)
+plot(optimd)
 
 
 # vectorize and plot rastri_gin
-rgl::persp3d(x=Vectorize(function(x, y) rastri_gin(vec_tor=c(x, y))), 
+rgl::persp3d(x=Vectorize(function(x, y) rastri_gin(vectorv=c(x, y))), 
              xlim=c(-6, 6), ylim=c(-6, 6),
              col="green", axes=FALSE, zlab="", main="rastri_gin")
 
@@ -45,13 +45,13 @@ rgl::persp3d(x=Vectorize(function(x, y) rastri_gin(vec_tor=c(x, y))),
 # doesn't work because function to outer() must be vectorized:
 # http://stackoverflow.com/questions/31220495/dim-error-in-outer
 # http://stackoverflow.com/questions/5554305/simple-question-regarding-the-use-of-outer-and-user-defined-functions
-rgl::persp3d(x=function(x, y) rastri_gin(vec_tor=c(x, y)), 
+rgl::persp3d(x=function(x, y) rastri_gin(vectorv=c(x, y)), 
              xlim=c(-6, 6), ylim=c(-6, 6),
              col="green", axes=FALSE, zlab="", main="rastri_gin")
 # doesn't work because function to outer() must be vectorized:
 rgl::persp3d(z=outer(seq(from=-6, to=6, by=0.1), 
                      seq(from=-6, to=6, by=0.1),
-                     FUN=function(x, y) rastri_gin(vec_tor=c(x, y))), 
+                     FUN=function(x, y) rastri_gin(vectorv=c(x, y))), 
              col="green", axes=FALSE, zlab="", main="rastri_gin")
 
 
@@ -70,23 +70,23 @@ rgl::persp3d(x=rastri_gin,
 
 
 ## Rosenbrock banana function: vector argument version for optimization
-Rosenbrock <- function(vec_tor){
-  x1 <- vec_tor[1]
-  x2 <- vec_tor[2]
+Rosenbrock <- function(vectorv){
+  x1 <- vectorv[1]
+  x2 <- vectorv[2]
   100 * (x2 - x1 * x1)^2 + (1 - x1)^2
 }  # end Rosenbrock
-Rosenbrock(vec_tor=c(1, 2))
+Rosenbrock(vectorv=c(1, 2))
 
 
 ## optimize Rosenbrock
-op_tim <-  DEoptim(Rosenbrock, 
+optimd <-  DEoptim(Rosenbrock, 
                    upper=c(2, 2), lower=c(-2, -2), 
                    DEoptim.control(trace=FALSE, NP=80, itermax=400, F=1.2, CR=0.7))
 # optimal parameters and value
-op_tim$optim$bestmem
-Rosenbrock(op_tim$optim$bestmem)
-summary(op_tim)
-plot(op_tim)
+optimd$optim$bestmem
+Rosenbrock(optimd$optim$bestmem)
+summary(optimd)
+plot(optimd)
 
 
 ## Rosenbrock vectorized version for plotting
