@@ -33,7 +33,7 @@ ohlc <- xts::xts(coredata(ohlc), order.by=index(ohlc), tz="America/New_York")
 # ohlc <- HighFreq::SPY
 
 indeks <- index(ohlc)
-numrows <- NROW(ohlc)
+nrows <- NROW(ohlc)
 endpoints <- xts::endpoints(ohlc, on="hours")
 closep <- Cl(ohlc)[endpoints]
 # returns <- HighFreq::diff_vec(log(drop(coredata(Cl(ohlc)))))
@@ -55,7 +55,7 @@ returns_scaled <- ifelse(rangev>0, returns/rangev, 0)
 # returns_scaled <- returns_scaled/sd(returns_scaled)
 
 lagg <- 4
-thresh_old <- 0.8
+threshold <- 0.8
 bid_offer <- 0.000001
 
 
@@ -63,9 +63,9 @@ bid_offer <- 0.000001
 ## Backtest strategy for flipping if two consecutive positive and negative returns
 position_s <- rep(NA_integer_,.n_rows)
 position_s[1] <- 0
-# Flip position if the scaled returns exceed thresh_old 
-position_s[returns_scaled > thresh_old] <- (-1)
-position_s[returns_scaled < (-thresh_old)] <- 1
+# Flip position if the scaled returns exceed threshold 
+position_s[returns_scaled > threshold] <- (-1)
+position_s[returns_scaled < (-threshold)] <- 1
 # LOCF
 position_s <- zoo::na.locf(position_s, na.rm=FALSE)
 position_s <- rutils::lagit(position_s, lagg=lagg)

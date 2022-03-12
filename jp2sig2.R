@@ -8,16 +8,16 @@ load(file="C:/Develop/lecture_slides/data/sp500.RData")
 data_env <- rutils::etfenv
 symbolv <- get("symbolv", data_env)
 lagg <- 2
-thresh_old <- 0
+threshold <- 0
 coeff <- 1
 
 symbol <- "VXX"
 ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
-# perf_stats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
-# save(perf_stats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
+# perfstats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
+# save(perfstats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
 load("C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes[, "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -44,9 +44,9 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 symbol <- "SVXY"
 ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
-# perf_stats <- lapply(4:15, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+# perfstats <- lapply(4:15, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
 load("C:/Develop/jp2sig/data/perf_ewma_trend_svxy.RData")
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes[, "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -72,9 +72,9 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 symbol <- "DBC"
 ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
-# perf_stats <- lapply(14:17, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+# perfstats <- lapply(14:17, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
 load("C:/Develop/jp2sig/data/perf_ewma_trend_dbc.RData")
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes[, "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -100,9 +100,9 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 symbol <- "USO"
 ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
-# perf_stats <- lapply(2:10, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+# perfstats <- lapply(2:10, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
 load("C:/Develop/jp2sig/data/perf_ewma_trend_uso.RData")
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes[, "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -130,13 +130,13 @@ lagg <- 1
 coeff <- (-1)
 ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
-# thresh_old <- 1.5
-# perf_stats <- lapply(13:16, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
-# thresh_old <- 1.0
-# perf_stats <- c(perf_stats,
-#                 lapply(7:15, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff))
+# threshold <- 1.5
+# perfstats <- lapply(13:16, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
+# threshold <- 1.0
+# perfstats <- c(perfstats,
+#                 lapply(7:15, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff))
 load("C:/Develop/jp2sig/data/perf_zscores_revert_xlk.RData")
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes[, "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -165,7 +165,7 @@ symbol <- "ICE"
 look_back <- 5
 lagg <- 1
 coeff <- 1
-thresh_old <- 0.0
+threshold <- 0.0
 ohlc <- get(symbol, sp500env)
 closep <- log(quantmod::Cl(ohlc))
 load("C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
@@ -174,20 +174,20 @@ load("C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
 # process_ed <- eapply(sp500env, function(ohlc) {
 #   symbol <- rutils::get_name(colnames(ohlc)[1])
 #   assign(x=symbol,
-#          value=backtest_ewma_ts(ohlc, look_back=look_back, lagg=lagg, thresh_old=thresh_old, coeff=coeff),
+#          value=backtest_ewma_ts(ohlc, look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff),
 #          envir=perf_env)
 #   symbol
 # })  # end eapply
 
-perf_stats <- eapply(perf_env, function(xtes) {
+perfstats <- eapply(perf_env, function(xtes) {
   if (start(xtes) < "2010-01-01") {
     pnls <- xtes["2010/2017" ,"pnls"]
     mean(pnls)/sd(pnls)
   } else NULL
 })  # end eapply
-perf_stats <- unlist(perf_stats)
-perf_stats <- sort(perf_stats, decreasing=TRUE)
-symbolv <- names(perf_stats)
+perfstats <- unlist(perfstats)
+perfstats <- sort(perfstats, decreasing=TRUE)
+symbolv <- names(perfstats)
 not_penny <- eapply(sp500env, function(ohlc) {
   ohlc[NROW(ohlc), 4] > 1
 })  # end eapply

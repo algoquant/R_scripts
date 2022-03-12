@@ -41,8 +41,8 @@ train_model() should return a time series or a vector of indicators (z-scores, e
 
 + [x] JP: Create function trade_zscore() - a second version of trade_model(), for applying (testing) a model out-of-sample.
 trade_model() should accept: 
-re_turns - a time series of returns,
-in_dic - a time series of indicators (z-scores, etc.),
+returns - a time series of returns,
+indic - a time series of indicators (z-scores, etc.),
 trading_params - a list of trading parameters,
 trade_model() should return a list with at least two elements: a named vector of performance statistics, and a time series of out-of-sample returns, and also additional list elements as necessary.
 
@@ -52,7 +52,7 @@ trade_model() should return a list with at least two elements: a named vector of
 
 + [x] JP trade_model: define port_pos as the lagged pos_all.
 
-+ [x] JP trade_model: change buys_sells <- rutils::diff_it(pos_all) to buys_sells <- rutils::diff_it(port_pos).
++ [x] JP trade_model: change buys_sells <- rutils::diffit(pos_all) to buys_sells <- rutils::diffit(port_pos).
 
 + [ ] JP backtest: Separate the backtest simulation into two parts: forecasting and trading on the forecasts.
 
@@ -72,7 +72,7 @@ trade_model() should return a list with at least two elements: a named vector of
     # add vertical lines
     # abline(v=which.min(VTI_vwap), col='red')
     # add points for buys and sells
-    buys_sells <- rutils::diff_it(pos_all)
+    buys_sells <- rutils::diffit(pos_all)
     which_buys <- which(buys_sells==1)
     # add a solid red point (pch=16) for the last car
     points(x=which_buys,
@@ -114,7 +114,7 @@ trade_model() should return a list with at least two elements: a named vector of
 + [ ] JP aggregations: Create functional aggre_gate() for performing aggregations over a vector of end points.
 
 + [ ] JP backtest: Create functional roll_backtest() for performing a backtest simulation over a vector of end points.
-Functional roll_backtest() should accept the arguments: end_points, look_back, look_forward, time_series (prices), and functions train_model() (for training a model in-sample) and trade_model() (for running a model out-of-sample)
+Functional roll_backtest() should accept the arguments: endpoints, look_back, look_forward, time_series (prices), and functions train_model() (for training a model in-sample) and trade_model() (for running a model out-of-sample)
 
 + [x] JP: Create a function trade_model() for applying (testing) a model out-of-sample.
 trade_model() should accept: 

@@ -58,11 +58,11 @@ plot(blah)
 ### simple trading strategy for rolling minute aggs
 
 # signal threshold trading level
-thresh_old <- 0.5
-# sig_nal <- sign(skew-thresh_old)
+threshold <- 0.5
+# sig_nal <- sign(skew-threshold)
 sig_nal <- NA*numeric(nrow(skew))
-sig_nal <- ifelse(skew>thresh_old, -1, sig_nal)
-sig_nal <- ifelse(skew<(-thresh_old), 1, sig_nal)
+sig_nal <- ifelse(skew>threshold, -1, sig_nal)
+sig_nal <- ifelse(skew<(-threshold), 1, sig_nal)
 sig_nal <- ifelse((skew*lag(skew))<0, 0, sig_nal)
 # sig_nal <- xts(x=sig_nal, order.by=index(skew))
 # lag the signal by one

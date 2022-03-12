@@ -41,7 +41,7 @@
 #  result: works very well, and prevents betas from becoming too large,
 #  also reduces number of trades. 
 #  Out-of-sample PnL increases with stronger shrinkage, but then collapses, 
-#  for lambdav greater than 1, as signal becomes too small and number of trades collapses.
+#  for lambda greater than 1, as signal becomes too small and number of trades collapses.
 #  If the trading frequency is less than around one trade every 6 minutes, then the PnL collapses. 
 
 # Plot daily chart with shading.
@@ -202,7 +202,7 @@ position_s <- rutils::lagxts(sig_nal)
 # pnls <- exp(cumsum(sign(position_s) * returns_running[-rangev, ]))
 pnls <- (position_s * returns_running)#[-rangev, ]
 # scale pnls to SPY volatility
-pnls <- pnls*sd(diff_xts(log(HighFreq::SPY[index(pnls), 4])))/sd(pnls)
+pnls <- pnls*sd(diffxts(log(HighFreq::SPY[index(pnls), 4])))/sd(pnls)
 pnls <- exp(cumsum(pnls))
 
 
@@ -210,11 +210,11 @@ pnls <- exp(cumsum(pnls))
 ### contrarian strategy with threshold:
 #  sell when sig_nal exceeds threshold, hold, and buy when sig_nal is below (-threshold)
 
-# thresh_old <- 1.0
+# threshold <- 1.0
 position_s <- rep.int(NA, NROW(SPY_design))
 position_s[1] <- 0
-# position_s[sig_nal < -thresh_old] <- 1.0
-# position_s[sig_nal > thresh_old] <- -1.0
+# position_s[sig_nal < -threshold] <- 1.0
+# position_s[sig_nal > threshold] <- -1.0
 sig_nal <- SPY_design %*% betas[1:NCOL(SPY_design)]
 position_s[sig_nal < -1] <- 1.0
 # position_s[abs(sig_nal) < 0.1] <- 0.0
@@ -244,11 +244,11 @@ last(pnls)
 #  double-down: buy (sell) more if another buy (sell) signal arrives.
 #  apply cumsum() to buy and sell time series, instead of locf().
 
-# thresh_old <- 1.0
+# threshold <- 1.0
 position_s <- rep.int(0, NROW(SPY_design))
 # position_s[1] <- 0
-# position_s[sig_nal < -thresh_old] <- 1.0
-# position_s[sig_nal > thresh_old] <- -1.0
+# position_s[sig_nal < -threshold] <- 1.0
+# position_s[sig_nal > threshold] <- -1.0
 sig_nal <- SPY_design %*% betas[1:NCOL(SPY_design)]
 position_s[sig_nal < -1] <- 1.0
 position_s <- cumsum(position_s)
@@ -274,7 +274,7 @@ last(pnls)
 
 
 ### cum_pnl vectorized function for contrarian strategy with threshold
-cum_pnl <- function(betas, design=SPY_design, returns=returns_running, lambdav=0) {
+cum_pnl <- function(betas, design=SPY_design, returns=returns_running, lambda=0) {
   n_col <- NCOL(design)
   position_s <- rep.int(NA, NROW(design))
   position_s[1] <- 0
@@ -296,7 +296,7 @@ cum_pnl <- function(betas, design=SPY_design, returns=returns_running, lambdav=0
   # betav <- (sum(pnls * returns) - sum(pnls) * sum(returns)) / (sum(pnls * pnls) - sum(pnls)^2 )
   # -(exp(sum(pnls) - betav * sum(returns)) - 1)
   # -(exp(sum(position_s*returns))-1) # / (sum(abs(rutils::diffit(position_s))) / 2/ 1e5) / abs(sum(position_s>0) - sum(position_s<0))
-  -((exp(sum(position_s*returns))-1) - lambdav*sum(abs(betas)))
+  -((exp(sum(position_s*returns))-1) - lambda*sum(abs(betas)))
 }  # end cum_pnl
 
 cum_pnl(betas=betas, design=SPY_design[rangev], returns=returns_running[rangev])
@@ -308,19 +308,19 @@ optimd <- DEoptim::DEoptim(fn=cum_pnl,
                            lower=rep(-2, 2*NCOL(SPY_design)), 
                            design=SPY_design[indeks], 
                            returns=returns_running[indeks],
-                           lambdav=lambdav,
+                           lambda=lambda,
                            control=list(trace=FALSE, itermax=200, parallelType=1, packages="rutils"))
 
 
 ## LASSO calibration over lambda_s - takes very long!
 lambda_s <- 2^(-(-3:3)/3)
-optim_lasso <- lapply(lambda_s, function(lambdav) 
+optim_lasso <- lapply(lambda_s, function(lambda) 
   DEoptim::DEoptim(fn=cum_pnl,
                    upper=rep(2, 2*NCOL(SPY_design)),
                    lower=rep(-2, 2*NCOL(SPY_design)), 
                    design=SPY_design[indeks], 
                    returns=returns_running[indeks],
-                   lambdav=lambdav,
+                   lambda=lambda,
                    control=list(trace=FALSE, itermax=500, parallelType=1, packages="rutils"))
 )  # end lapply
 names(optim_lasso) <- paste0("lambda=", round(lambda_s, 4))
@@ -344,7 +344,7 @@ positions_lasso <- lapply(seq_along(lambda_s), function(i_ter)
 
 # flatten list into xts
 positions_lasso <- rutils::do_call(cbind, positions_lasso)
-colnames(positions_lasso) <- paste0("lambdav=", rownames(betas_lasso))
+colnames(positions_lasso) <- paste0("lambda=", rownames(betas_lasso))
 position_s <- positions_lasso[, 4]
 
 ## calculate matrix of pnls and trades_per_day, in and out-of-sample
@@ -494,12 +494,12 @@ cum_pnl(betas, design=SPY_design[rangev])
 ### backtest() function for contrarian strategy with threshold
 pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, returns=returns_running[-rangev, ], bid_offer=0.0, lag=1)
 
-pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, thresh_old=thresh_old, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)
+pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)
 
 # loop over threshold_s
 threshold_s <- seq(0.1, 3.0, by=0.1)
-foo <- sapply(threshold_s, function(thresh_old)
-  last(back_test(design=SPY_design[-rangev, ], betas=betas, thresh_old=thresh_old, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)))
+foo <- sapply(threshold_s, function(threshold)
+  last(back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)))
 names(foo) <- threshold_s
 
 
@@ -579,25 +579,25 @@ data.frame(dates=index(back_test), coredata(back_test)) %>%
 
 
 ### back_test function
-back_test <- function(design=NULL, betas=NULL, thresh_old=NULL, returns=NULL, lag=1, bid_offer=0.0) {
+back_test <- function(design=NULL, betas=NULL, threshold=NULL, returns=NULL, lag=1, bid_offer=0.0) {
   sig_nal <- design %*% betas
   sig_nal <- rutils::lagit(sig_nal, lag=lag)
   if (lag > 1)
     sig_nal <- rutils::roll_sum(sig_nal, win_dow=lag) / lag
   # calculate returns
-  if (is.null(thresh_old)) {
+  if (is.null(threshold)) {
     # calculate returns proportional to sig_nal and scale them to SPY volatility
     position_s <- sig_nal
     pnls <- (position_s * returns)
-    ratio <- sd(diff_xts(log(HighFreq::SPY[index(pnls), 4])))/sd(pnls)
+    ratio <- sd(diffxts(log(HighFreq::SPY[index(pnls), 4])))/sd(pnls)
     pnls <- ratio*pnls
   }
   else {
     # calculate returns of contrarian strategy with threshold
     position_s <- rep.int(NA, NROW(sig_nal))
     position_s[1] <- 0.0
-    position_s[sig_nal > thresh_old] <- 1.0
-    position_s[sig_nal < -thresh_old] <- -1.0
+    position_s[sig_nal > threshold] <- 1.0
+    position_s[sig_nal < -threshold] <- -1.0
     position_s <- zoo::na.locf(position_s)
     pnls <- position_s * returns
     ratio <- 1

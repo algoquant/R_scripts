@@ -81,7 +81,7 @@ colnames(moment_um) <- "moment_um"
 
 lambda_s <- 0:31/30
 
-weights <- sapply(lambda_s, function(lambdav) {
+weights <- sapply(lambda_s, function(lambda) {
   optimd <- optim(par=rep(1.0, nweights),
                   fn=object_ive,
                   method="L-BFGS-B",
@@ -89,7 +89,7 @@ weights <- sapply(lambda_s, function(lambdav) {
                   lower=rep(-10, nweights),
                   excess=excess,
                   covmat=covmat,
-                  lambdav=lambdav,
+                  lambda=lambda,
                   alpha=1)
   optimd$par/sum(optimd$par)
 })  # end sapply
@@ -154,7 +154,7 @@ back_test <- function(se_ries, look_back=100, ordern=5, endpoints=endpoints,.n_r
 # Run back_test() as follows:
 
 endpoints <- seq_along(volumes)
-numrows <- NROW(endpoints)
+nrows <- NROW(endpoints)
 
 back_test(se_ries=volumes, look_back=300, ordern=11, endpoints=endpoints)
 
@@ -363,7 +363,7 @@ taq <- taq[taq$SIZE > 100]
 symbol <- taq$SYM_ROOT[1]
 look_back <- 252
 lagg <- 2
-thresh_old <- 0.3
+threshold <- 0.3
 coeff <- (-1)
 closep <- matrix(taq$PRICE, nc=1)
 volumes <- matrix(taq$SIZE, nc=1)
@@ -379,11 +379,11 @@ vwapv[is.na(vwapv)] <- 0
 position_s <- rep(NA_integer_, NROW(closep))
 position_s[1] <- 0
 # Long positions
-indica_tor <- ((closep - vwapv) > thresh_old*rangev)
+indica_tor <- ((closep - vwapv) > threshold*rangev)
 indica_tor <- HighFreq::roll_count(indica_tor)
 position_s <- ifelse(indica_tor >= lagg, 1, position_s)
 # Short positions
-indica_tor <- ((closep - vwapv) < (-thresh_old*rangev))
+indica_tor <- ((closep - vwapv) < (-threshold*rangev))
 indica_tor <- HighFreq::roll_count(indica_tor)
 position_s <- ifelse(indica_tor >= lagg, -1, position_s)
 position_s <- zoo::na.locf(position_s, na.rm=FALSE)
@@ -443,7 +443,7 @@ source("C:/Develop/R/scripts/backtest_functions.R")
 look_back <- 5
 lagg <- 2
 coeff <- (-1)
-thresh_old <- 0.0
+threshold <- 0.0
 data_env <- rutils::etfenv
 symbolv <- get("symbolv", data_env)
 symbolv <- symbolv[!(symbolv %in% c("VXX", "SVXY", "MTUM"))]
@@ -455,8 +455,8 @@ returns <- rutils::diffit(closep)
 pnls <- backtest_ewma(get(symbol, data_env), look_back=look_back, lagg=lagg, coeff=coeff)
 
 ## Loop over look_backs
-perf_stats <- lapply(3:5, backtest_ewma, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
-pnls <- lapply(perf_stats, function(x) x[, "pnls"])
+perfstats <- lapply(3:5, backtest_ewma, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
+pnls <- lapply(perfstats, function(x) x[, "pnls"])
 pnls <- do.call(cbind, pnls)
 pnls <- rowMeans(pnls)
 mean(pnls)/sd(pnls)
@@ -466,17 +466,17 @@ dygraphs::dygraph(cumsum(pnls), main=paste("Back-test of", symbol, "Strategies")
 
 ## Calculate performance of all ETFs and save to environment
 symbolv <- rutils::etfenv$symbolv
-perf_stats <- lapply(symbolv, function(symbol) {
+perfstats <- lapply(symbolv, function(symbol) {
   ohlc <- get(symbol, data_env)
-  backtest_ewma(ohlc, look_back=20, lagg=1, thresh_old=0, coeff=1)
-  # backtest_zscores(ohlc, look_back=15, lagg=1, thresh_old=1.5, coeff=(-1))
+  backtest_ewma(ohlc, look_back=20, lagg=1, threshold=0, coeff=1)
+  # backtest_zscores(ohlc, look_back=15, lagg=1, threshold=1.5, coeff=(-1))
 })  # end lapply
-names(perf_stats) <- symbolv
-save(perf_stats, file="C:/Develop/data/perf_ewma_trend_lback20.RData")
+names(perfstats) <- symbolv
+save(perfstats, file="C:/Develop/data/perf_ewma_trend_lback20.RData")
 load("C:/Develop/data/perf_ewma_trend_lback20.RData")
 
 # Calculate out-of-sample pnls using performance environment
-pnls <- lapply(perf_stats, function(xtes) {
+pnls <- lapply(perfstats, function(xtes) {
   if (start(xtes) < "2017-01-01") {
     # Out-of-sample pnls
     pnls <- xtes["2010/2017" ,"pnls"]
@@ -493,7 +493,7 @@ symbolv <- names(pnls)
 
 
 # Calculate time series of pnls
-pnls <- lapply(perf_stats, function(xtes) {
+pnls <- lapply(perfstats, function(xtes) {
   if (start(xtes) < "2017-01-01") {
     xtes[ ,"pnls"]
   } else NULL
@@ -515,7 +515,7 @@ symbol <- "MSFT"
 ohlc <- get(symbol, sp500env)["2010/"]
 closep <- log(quantmod::Cl(ohlc))
 # Run model
-pnls <- lapply(2*(5:15), backtest_zscores, ohlc=ohlc, lagg=1, thresh_old=0, coeff=(-1))
+pnls <- lapply(2*(5:15), backtest_zscores, ohlc=ohlc, lagg=1, threshold=0, coeff=(-1))
 pnls <- lapply(pnls, function(x) x[, "pnls"])
 pnls <- do.call(cbind, pnls)
 pnls <- rowMeans(pnls)
@@ -538,7 +538,7 @@ data_env <- sp500env
 pnls <- eapply(data_env, function(ohlc) {
   if ((start(ohlc) < "2015-01-01") & (end(ohlc) > "2020-06-25")) {
     ohlc <- ohlc["2010/2017"]
-    pnls <- lapply(2*(5:15), backtest_zscores, ohlc=ohlc, lagg=1, thresh_old=0, coeff=(-1))
+    pnls <- lapply(2*(5:15), backtest_zscores, ohlc=ohlc, lagg=1, threshold=0, coeff=(-1))
     pnls <- lapply(pnls, function(x) x[, "pnls"])
     pnls <- do.call(cbind, pnls)
     pnls <- rowMeans(pnls)
@@ -563,7 +563,7 @@ process_ed <- eapply(sp500env, function(ohlc) {
   symbol <- rutils::get_name(colnames(ohlc)[1])
   cat(symbol, "\n")
   assign(x=symbol, 
-         value=backtest_zscores(ohlc, look_back=look_back, lagg=lagg, thresh_old=thresh_old, coeff=coeff), 
+         value=backtest_zscores(ohlc, look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff), 
          envir=perf_env)
   symbol
 })  # end eapply
@@ -681,15 +681,15 @@ dygraphs::dygraph(pnls, main="Back-test of Reverting Strategies")
 #############
 ## Rank the S&P500 stock strategies in-sample
 # perf_env is an environment with time series of performance
-perf_stats <- eapply(perf_env, function(xtes) {
+perfstats <- eapply(perf_env, function(xtes) {
   if (start(xtes) < "2010-01-01") {
     pnls <- xtes["2010/2017" ,"pnls"]
     mean(pnls)/sd(pnls)
   } else NULL
 })  # end eapply
-perf_stats <- unlist(perf_stats)
-perf_stats <- sort(perf_stats, decreasing=TRUE)
-symbolv <- names(perf_stats)
+perfstats <- unlist(perfstats)
+perfstats <- sort(perfstats, decreasing=TRUE)
+symbolv <- names(perfstats)
 
 # Calculate the returns of S&P500 stock strategies out-of-sample
 # as a function of the number of stocks selected
@@ -726,7 +726,7 @@ plot(x=10*(1:10), y=profilev, t="l", main="Sharpe of Back-test EWMA Strategies",
 library(HighFreq)
 
 # Best parameters
-# typ_e max_sharpe  min_var
+# typev max_sharpe  min_var
 # interval weeks  weeks
 # look_back	4 4
 # max_eigen	9 9
@@ -749,12 +749,12 @@ returns <- zoo::na.locf(returns, na.rm=FALSE)
 # sum(is.na(returns))
 
 # Define model parameters
-typ_e <- "max_sharpe"
+typev <- "max_sharpe"
 interval <- "weeks"
 look_back <- 6
 max_eigen <- 5
 alpha <- 0.01
-pro_b <- 0.25
+probv <- 0.25
 coeff <- 1
 
 
@@ -762,7 +762,7 @@ coeff <- 1
 endp <- rutils::calc_endpoints(returns, interval=interval)
 # endp <- ifelse(endp<(nweights+1), nweights+1, endp)
 endp <- endp[endp > 2*nweights]
-numrows <- NROW(endp)
+nrows <- NROW(endp)
 # Define start points
 startp <- c(rep_len(1, look_back-1), endp[1:.n_rows-look_back+1)])
 
@@ -771,10 +771,10 @@ pnls <- HighFreq::back_test(excess=returns,
                              returns=returns,
                              startpoints=startp-1,
                              endpoints=endp-1,
-                             pro_b=pro_b,
+                             probv=probv,
                              max_eigen=max_eigen, 
                              alpha=alpha, 
-                             typ_e=typ_e,
+                             typev=typev,
                              coeff=coeff)
 
 pnls[which(is.na(pnls)), ] <- 0
@@ -789,16 +789,16 @@ colnames(pnls) <- c("Strategy", "Index")
 
 weights <- HighFreq::calc_weights(returns=returns[startp[1432]:endp[1432], ],
                                    max_eigen=max_eigen, 
-                                   pro_b=pro_b,
+                                   probv=probv,
                                    alpha=alpha, 
-                                   typ_e=typ_e)
+                                   typev=typev)
 
 weights <- sapply(1:NROW(endp), function(it) 
   HighFreq::calc_weights(returns=returns[startp[it]:endp[it], ],
                          max_eigen=max_eigen, 
-                         pro_b=pro_b,
+                         probv=probv,
                          alpha=alpha, 
-                         typ_e=typ_e))
+                         typev=typev))
 weights <- t(weights)
 weights <- xts::xts(weights, index(returns)[endp])
 weights <- cbind(returns[, 1], weights)
@@ -855,7 +855,7 @@ alpha <- 0.7
 max_eigen <- 5
 endp <- rutils::calc_endpoints(returns, interval="months")
 endp <- endp[endp > 2*nweights]
-numrows <- NROW(endp)
+nrows <- NROW(endp)
 startp <- c(rep_len(1, look_back-1), endp[1:.n_rows-look_back+1)])
 
 retsp <- drop(HighFreq::back_test(excess=excess, 
@@ -1233,14 +1233,14 @@ skew_mad <- runmad(coredata(skew), k=win_dow)
 skew_mad <- c(rep(0, (win_dow-1)/2), skew_mad[-((NROW(skew_mad)-(win_dow-1)/2+1):(NROW(skew_mad)))])
 plot(skew_mad[(NROW(skew_mad)-100*win_dow):NROW(skew_mad)], t="l", xlab="", ylab="", main="skew_mad")
 # calc mad_volu
-quan_tiles <- c("0.5"=0.5, "0.75"=0.75, "0.85"=0.85, "0.95"=0.95)
-mad_volu <- runquantile(coredata(Vo(SPY)), probs=quan_tiles, k=win_dow)
+quantilevs <- c("0.5"=0.5, "0.75"=0.75, "0.85"=0.85, "0.95"=0.95)
+mad_volu <- runquantile(coredata(Vo(SPY)), probs=quantilevs, k=win_dow)
 mad_volu <- mad_volu[, 1, ]
 # lag mad_volu
 mad_volu <- rbind(
   matrix(numeric(ncol(mad_volu)*(win_dow-1)/2), ncol=ncol(mad_volu)),
   mad_volu[-((NROW(mad_volu)-(win_dow-1)/2+1):(NROW(mad_volu))), ])
-colnames(mad_volu) <- names(quan_tiles)
+colnames(mad_volu) <- names(quantilevs)
 mad_volu <- xts(mad_volu, order.by=index(SPY))
 # plot(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], t="l", xlab="", ylab="", main="mad_volu")
 chart_Series(mad_volu[(NROW(mad_volu)-100*win_dow):NROW(mad_volu[,]), 4], name=paste(symbol, "mad_volu"))
@@ -1328,10 +1328,10 @@ last(cumu_pnl)
 chart_Series(cumu_pnl, name=paste(symbol, "optim_rets"))
 
 # loop over thresholds and return regression t-values
-foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(thresh_old) {
-  pos_skew <- coredata(ifelse(skew > thresh_old*skew_mad, 1, 0))
+foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(threshold) {
+  pos_skew <- coredata(ifelse(skew > threshold*skew_mad, 1, 0))
   colnames(pos_skew) <- paste(symbol, "p_skew", sep=".")
-  neg_skew <- coredata(ifelse(skew < -thresh_old*skew_mad, -1, 0))
+  neg_skew <- coredata(ifelse(skew < -threshold*skew_mad, -1, 0))
   colnames(neg_skew) <- paste(symbol, "n_skew", sep=".")
   design <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
   l_m <- lm(formulav, data=as.data.frame(design))
@@ -1421,7 +1421,7 @@ apply(foo, MARGIN=2, sum)
 
 ## run simple strategy
 
-# thresh_old <- 2*mad(roll_skew)  # signal threshold trading level
+# threshold <- 2*mad(roll_skew)  # signal threshold trading level
 # position_s <- NA*numeric(NROW(skew))
 position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
 position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, -coredata(returns))
@@ -1435,8 +1435,8 @@ head(position_s)
 plot(position_s[(NROW(position_s)-100*win_dow):NROW(position_s)], t="l", xlab="", ylab="", main="position_s")
 plot(position_s, t="l", ylim=c(0, 0.001))
 
-position_s <- ifelse(roll_skew>thresh_old, -1, position_s)
-position_s <- ifelse(roll_skew<(-thresh_old), 1, position_s)
+position_s <- ifelse(roll_skew>threshold, -1, position_s)
+position_s <- ifelse(roll_skew<(-threshold), 1, position_s)
 position_s <- ifelse((roll_skew*lag(roll_skew))<0, 0, position_s)
 # lag the position_s
 lag_positions <- c(0, position_s[-NROW(position_s)])
@@ -1681,7 +1681,7 @@ load("C:/Develop/R/lecture_slides/data/sp500_prices.RData")
 n_col <- NCOL(prices)
 endpoints <- rutils::calc_endpoints(prices, interval="months")
 endpoints <- endpoints[endpoints>50]
-numrows <- NROW(endpoints)
+nrows <- NROW(endpoints)
 look_back <- 12
 startpoints <- c(rep_len(1, look_back-1), endpoints[1:.n_rows-look_back+1)])
 # dates <- index(prices)
@@ -1762,7 +1762,7 @@ look_back <- 12
 endpoints <- rutils::calc_endpoints(returns, interval="months")
 # Remove initial endpoints for warmpup
 endpoints <- endpoints[endpoints>50]
-numrows <- NROW(endpoints)
+nrows <- NROW(endpoints)
 # sliding window
 startpoints <- c(rep_len(1, look_back-1), endpoints[1:.n_rows-look_back+1)])
 # expanding window
@@ -1984,7 +1984,7 @@ legend("topleft", legend=colnames(pnls),
 
 
 ## rolling eigenvalues and eigenvectors
-numrows <- NROW(returns)
+nrows <- NROW(returns)
 foo <- roll::roll_eigen(returns[.n_rows-100).n_rows, 1:5], width=10)
 foo$values[1:9, ] <- 0
 # sum(is.na(foo$values))
@@ -2042,7 +2042,7 @@ as.numeric(weights)
 ret_sub <- returns[, 1:5]
 endpoints <- rutils::calc_endpoints(returns, interval="months")
 # endpoints <- endpoints[endpoints>look_back]
-numrows <- NROW(endpoints)
+nrows <- NROW(endpoints)
 look_back <- 10
 startpoints <- c(rep_len(1, look_back-1), endpoints[1:.n_rows-look_back+1)])
 # Perform loop over endpoints and calculate aggregations
@@ -2104,7 +2104,7 @@ reg_models <- sapply(ret_vol, function(x) {
   summary(reg_model)$coefficients[2, ]
 })  # end sapply
 reg_models <- t(reg_models)
-plot(x=lambdavs, y=reg_models[, 3], t="l")
+plot(x=lambdas, y=reg_models[, 3], t="l")
 
 
 garch_sdev <- sqrt(garch_fit@fit$series$h)
@@ -2123,12 +2123,12 @@ bar <- sapply(2:NROW(break_s), function(x) {
 plot(x=break_s[-NROW(break_s)], y=bar, t="l")
 
 # run EWMA strategies
-lambdavs <- seq(0.001, 0.15, 0.01)
-rets_ewma <- lapply(lambdavs, function(lambdav) {
-  simu_ewma(ohlc=ohlc, lambdav=lambdav, wid_th=151)[, 2]
+lambdas <- seq(0.001, 0.15, 0.01)
+rets_ewma <- lapply(lambdas, function(lambda) {
+  simu_ewma(ohlc=ohlc, lambda=lambda, wid_th=151)[, 2]
 })  # end lapply
 rets_ewma <- rutils::do_call(cbind, rets_ewma)
-colnames(rets_ewma) <- paste0("rets_", lambdavs)
+colnames(rets_ewma) <- paste0("rets_", lambdas)
 sapply(rets_ewma, function(x) sqrt(260)*sum(x)/sd(x)/NROW(x))
 chart_Series(cumsum(rets_ewma[, 1]), name="EWMA trend-following strategy")
 
@@ -2493,14 +2493,14 @@ sum(abs(rutils::diffit(position_s))) / mean(abs(position_s)) / 2 / NROW(end_days
 2*NROW(position_s) / sum(abs(rutils::diffit(position_s))) * mean(abs(position_s))
 
 
-# Calculate total pnls from z-scores (dynamic thresh_old)
-cum_pnl <- function(z_scores, thresh_old=1.0, look_back=21, lag=3) {
+# Calculate total pnls from z-scores (dynamic threshold)
+cum_pnl <- function(z_scores, threshold=1.0, look_back=21, lag=3) {
   rangev <- cbind(min=-runMax(-z_scores, n=look_back),
                   max=runMax(z_scores, n=look_back))
   rangev[1:(look_back-1), ] <- rangev[look_back, ]
   rangev <- rutils::lagit(rangev)
-  position_s <- ifelse(z_scores > thresh_old*rangev[, "max"], -1,
-                       ifelse(z_scores < thresh_old*rangev[, "min"], 1, NA))
+  position_s <- ifelse(z_scores > threshold*rangev[, "max"], -1,
+                       ifelse(z_scores < threshold*rangev[, "min"], 1, NA))
   position_s[1] <- 0
   position_s <- na.locf(position_s, na.rm=FALSE)
   position_s <- lapply(1:lag, rutils::lagit, xtes=position_s)
@@ -2509,38 +2509,38 @@ cum_pnl <- function(z_scores, thresh_old=1.0, look_back=21, lag=3) {
   cumsum(position_s*returns)
 }  # end cum_pnl
 
-bar <- cum_pnl(z_scores=z_scores[[3]], thresh_old=0.96, look_back=21, lag=3)
+bar <- cum_pnl(z_scores=z_scores[[3]], threshold=0.96, look_back=21, lag=3)
 plot.zoo(bar[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
-# Calculate total pnls for different thresh_olds
-thresh_olds <- seq(from=0.9, to=1.1, by=0.01)
-bar <- lapply(thresh_olds, cum_pnl,
+# Calculate total pnls for different thresholds
+thresholds <- seq(from=0.9, to=1.1, by=0.01)
+bar <- lapply(thresholds, cum_pnl,
               z_scores=z_scores[[3]],
               look_back=21,
               lag=3)  # end lapply
-names(bar) <- paste0("threshold_", thresh_olds)
+names(bar) <- paste0("threshold_", thresholds)
 unlist(lapply(bar, last))
 
 # Calculate total pnls for different look_backs
 look_backs <- seq(from=11, to=31, by=2)
 bar <- lapply(look_backs, cum_pnl,
               z_scores=z_scores[[3]],
-              thresh_old=0.96,
+              threshold=0.96,
               lag=3)  # end lapply
 names(bar) <- paste0("look_back_", look_backs)
 unlist(lapply(bar, last))
 
 
 
-# function for calculating position_s from z-scores (static thresh_old)
-z_pos <- function(z_scores, thresh_old=2.0) {
-  position_s <- ifelse(abs(z_scores) > thresh_old, sign(z_scores), NA)
+# function for calculating position_s from z-scores (static threshold)
+z_pos <- function(z_scores, threshold=2.0) {
+  position_s <- ifelse(abs(z_scores) > threshold, sign(z_scores), NA)
   position_s[1] <- 0
   na.locf(position_s, na.rm=FALSE)
 }  # end z_pos
 
 # Calculate time series of pnls from z-scores
-position_s <- z_pos(z_scores[[3]], thresh_old=1.4)
+position_s <- z_pos(z_scores[[3]], threshold=1.4)
 position_s <- lapply(1:3, rutils::lagit, xtes=position_s)
 position_s <- rutils::do_call(cbind, position_s)
 position_s <- rowSums(position_s)/NCOL(position_s)
@@ -2549,25 +2549,25 @@ plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
 # Calculate total pnls from z-scores
-cum_pnl <- function(z_scores, thresh_old=2.0, lag=3) {
-  position_s <- z_pos(z_scores, thresh_old=thresh_old)
+cum_pnl <- function(z_scores, threshold=2.0, lag=3) {
+  position_s <- z_pos(z_scores, threshold=threshold)
   position_s <- lapply(1:lag, rutils::lagit, xtes=position_s)
   position_s <- rutils::do_call(cbind, position_s)
   position_s <- rowSums(position_s)/NCOL(position_s)
   -sum(position_s*returns)
 }  # end cum_pnl
 
-cum_pnl(z_scores[[3]], thresh_old=1.4, lag=3)
+cum_pnl(z_scores[[3]], threshold=1.4, lag=3)
 
-# Calculate total pnls for different thresh_olds
-thresh_olds <- seq(from=1.0, to=3.0, by=0.1)
-bar <- sapply(thresh_olds, cum_pnl,
+# Calculate total pnls for different thresholds
+thresholds <- seq(from=1.0, to=3.0, by=0.1)
+bar <- sapply(thresholds, cum_pnl,
               z_scores=z_scores[[3]],
               lag=3)
-bar <- cbind(thresh_olds, bar)
+bar <- cbind(thresholds, bar)
 
 
-position_s <- lapply(z_scores, z_pos, thresh_old=1.0)
+position_s <- lapply(z_scores, z_pos, threshold=1.0)
 position_s <- rutils::do_call(cbind, position_s)
 position_s <- rutils::lagit(position_s, lag=1)
 
@@ -2678,9 +2678,9 @@ chart_Series(x=pnls[end_days, ], name="pnls")
 
 # Apply moving average crossover strategy to resulting pnls
 # Define aggregation window, decay parameter, and calculate VWAP
-lambdav <- 0.01
+lambda <- 0.01
 # Calculate EWMA prices
-weights <- exp(-lambdav*1:(10*look_back+1))
+weights <- exp(-lambda*1:(10*look_back+1))
 weights <- weights/sum(weights)
 ew_ma <- stats::filter(pnls, filter=weights, sides=1)
 ew_ma <- as.numeric(ew_ma)
@@ -2728,9 +2728,9 @@ legend("topleft", legend=c("pnls", "pnl_vwap"),
 
 
 # Define function for simulating minutely EWMA crossover strategy
-simu_ewma <- function(xtes, lambdav=0.05, look_back=51) {
+simu_ewma <- function(xtes, lambda=0.05, look_back=51) {
   # Calculate EWMA prices
-  # weights <- exp(-lambdav*(1:look_back))
+  # weights <- exp(-lambda*(1:look_back))
   # weights <- weights/sum(weights)
   # ew_ma <- as.numeric(stats::filter(xtes, filter=weights, sides=1))
   # ew_ma[1:(look_back-1)] <- ew_ma[look_back]
@@ -2749,7 +2749,7 @@ simu_ewma <- function(xtes, lambdav=0.05, look_back=51) {
 
 end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
 end_hours <- xts::endpoints(HighFreq::SPY, "hours")[-1]
-positions_hours <- simu_ewma(xtes=HighFreq::SPY[end_hours], lambdav=0.01, look_back=1001)
+positions_hours <- simu_ewma(xtes=HighFreq::SPY[end_hours], lambda=0.01, look_back=1001)
 position_s <- rep(NA_integer_, NROW(HighFreq::SPY))
 position_s[1] <- 0
 position_s[end_hours] <- positions_hours
@@ -2763,19 +2763,19 @@ add_TA(position_s < 0, on=-1,
 
 
 
-# Perform parallel loop over lambdavs
-lambdavs <- seq(0.001, 0.03, 0.001)
+# Perform parallel loop over lambdas
+lambdas <- seq(0.001, 0.03, 0.001)
 window_s <- seq(500, 1500, 100)
 
 # Initialize compute cluster under Windows
 library(parallel)
 cluster <- makeCluster(detectCores()-1)
 clusterExport(cluster, varlist=c("ohlc", "look_back", "simu_ewma"))
-# Perform parallel loop over lambdavs under Windows
-returns <- parLapply(cluster, lambdavs, function(lambdav) {
+# Perform parallel loop over lambdas under Windows
+returns <- parLapply(cluster, lambdas, function(lambda) {
   library(quantmod)
   # Simulate EWMA strategy and calculate returns
-  simu_ewma(ohlc=ohlc, lambdav=lambdav, look_back=look_back)[, "returns"]
+  simu_ewma(ohlc=ohlc, lambda=lambda, look_back=look_back)[, "returns"]
 })  # end parLapply
 
 
@@ -2799,21 +2799,21 @@ pnls <- -cumsum(position_s*returns)
 colnames(pnls) <- "SPY skew contrarian"
 chart_Series(x=pnls[end_days, ], name="SPY skew contrarian")
 
-cum_pnl <- function(position_s=skew, thresh_old=0.05, returns=returns) {
-  position_s <- ifelse(abs(position_s)>thresh_old, sign(position_s), NA)
+cum_pnl <- function(position_s=skew, threshold=0.05, returns=returns) {
+  position_s <- ifelse(abs(position_s)>threshold, sign(position_s), NA)
   position_s[1] <- 0
   position_s <- na.locf(position_s, na.rm=FALSE)
   position_s <- rutils::lagit(position_s)
   -sum(position_s*returns)
 }  # end cum_pnl
 
-cum_pnl(thresh_old=0.045, returns=returns)
+cum_pnl(threshold=0.045, returns=returns)
 
-thresh_olds <- seq(from=0.04, to=0.065, by=0.001)
-bar <- sapply(thresh_olds, cum_pnl,
+thresholds <- seq(from=0.04, to=0.065, by=0.001)
+bar <- sapply(thresholds, cum_pnl,
               position_s=as.numeric(rutils::lagit(SPY_design)),
               returns=returns)
-bar <- cbind(thresh_olds, bar)
+bar <- cbind(thresholds, bar)
 
 
 ###############
@@ -2857,9 +2857,9 @@ returns <- 60*HighFreq::run_returns(xtes=HighFreq::SPY)
 
 # Define aggregation window and decay parameter
 look_back <- 51
-lambdav <- 0.05
+lambda <- 0.05
 # Calculate EWMA prices
-weights <- exp(-lambdav*1:look_back)
+weights <- exp(-lambda*1:look_back)
 weights <- weights/sum(weights)
 ew_ma <- stats::filter(closep, filter=weights, sides=1)
 ew_ma[1:(look_back-1)] <- ew_ma[look_back]
@@ -2894,9 +2894,9 @@ colnames(pnls) <- c("VTI", "EWMA PnL")
 
 
 # Define function for simulating daily EWMA crossover strategy
-simu_ewma <- function(ohlc, lambdav=0.05, look_back=51) {
+simu_ewma <- function(ohlc, lambda=0.05, look_back=51) {
   # Calculate EWMA prices
-  weights <- exp(-lambdav*1:look_back)
+  weights <- exp(-lambda*1:look_back)
   weights <- weights/sum(weights)
   closep <- Cl(ohlc)
   ew_ma <- stats::filter(as.numeric(closep), filter=weights, sides=1)
@@ -2927,19 +2927,19 @@ simu_ewma <- function(ohlc, lambdav=0.05, look_back=51) {
 }  # end simu_ewma
 
 
-# Perform parallel loop over lambdavs
-lambdavs <- seq(0.001, 0.03, 0.001)
-lambdavs <- seq(0.01, 1.0, 0.1)
+# Perform parallel loop over lambdas
+lambdas <- seq(0.001, 0.03, 0.001)
+lambdas <- seq(0.01, 1.0, 0.1)
 
 # Initialize compute cluster under Windows
 library(parallel)
 cluster <- makeCluster(detectCores()-1)
 clusterExport(cluster, varlist=c("ohlc", "look_back", "simu_ewma"))
-# Perform parallel loop over lambdavs under Windows
-returns <- parLapply(cluster, lambdavs, function(lambdav) {
+# Perform parallel loop over lambdas under Windows
+returns <- parLapply(cluster, lambdas, function(lambda) {
   library(quantmod)
   # Simulate EWMA strategy and calculate returns
-  simu_ewma(ohlc=ohlc, lambdav=lambdav, look_back=look_back)[, "returns"]
+  simu_ewma(ohlc=ohlc, lambda=lambda, look_back=look_back)[, "returns"]
 })  # end parLapply
 
 
@@ -2950,7 +2950,7 @@ returns <- parLapply(cluster, lambdavs, function(lambdav) {
 endpoints <- xts::endpoints(ohlc, on="days")
 # num_agg <- n_row %/% look_back
 # endpoints <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
-numrows <- NROW(endpoints)
+nrows <- NROW(endpoints)
 # startpoints are single-period lag of endpoints
 startpoints <- endpoints[c(1, 1:.n_rows-1))] + 1
 # redefine endpoints

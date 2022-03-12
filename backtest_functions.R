@@ -134,7 +134,7 @@ sim_revert_trending <- function(signal_short, signal_long, returns, en_ter, ex_i
 
 
 ## Define EWMA backtest function
-backtest_ewma <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) {
+backtest_ewma <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -148,11 +148,11 @@ backtest_ewma <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) 
   position_s <- rep(NA_integer_, NROW(closep))
   position_s[1] <- 0
   # Long positions
-  indica_tor <- ((closep - vwapv) > thresh_old*rangev)
+  indica_tor <- ((closep - vwapv) > threshold*rangev)
   indica_tor <- HighFreq::roll_count(indica_tor)
   position_s <- ifelse(indica_tor >= lagg, 1, position_s)
   # Short positions
-  indica_tor <- ((closep - vwapv) < (-thresh_old*rangev))
+  indica_tor <- ((closep - vwapv) < (-threshold*rangev))
   indica_tor <- HighFreq::roll_count(indica_tor)
   position_s <- ifelse(indica_tor >= lagg, -1, position_s)
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
@@ -167,7 +167,7 @@ backtest_ewma <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) 
 
 
 ## Define Z-Score backtest function
-backtest_zscores <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) {
+backtest_zscores <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   # rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -182,11 +182,11 @@ backtest_zscores <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=
   position_s <- rep(NA_integer_, NROW(closep))
   position_s[1] <- 0
   # Long positions
-  indica_tor <- (sig_nal > thresh_old)
+  indica_tor <- (sig_nal > threshold)
   indica_tor <- HighFreq::roll_count(indica_tor)
   position_s <- ifelse(indica_tor >= lagg, 1, position_s)
   # Short positions
-  indica_tor <- (sig_nal < (-thresh_old))
+  indica_tor <- (sig_nal < (-threshold))
   indica_tor <- HighFreq::roll_count(indica_tor)
   position_s <- ifelse(indica_tor >= lagg, -1, position_s)
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
@@ -202,7 +202,7 @@ backtest_zscores <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=
 
 
 ## Define EWMA backtest function
-backtest_ewmar <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) {
+backtest_ewmar <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   # rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -230,7 +230,7 @@ backtest_ewmar <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1)
 
 
 ## Define EWMA backtest function
-backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) {
+backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -243,8 +243,8 @@ backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=
   # Calculate VWAP indicator
   # indica_tor <- sign(closep - vwapv)
   indica_tor <- integer(NROW(ohlc))
-  indica_tor <- ifelse((closep - vwapv) > thresh_old*rangev, 1, indica_tor)
-  indica_tor <- ifelse((closep - vwapv) < (-thresh_old*rangev), -1, indica_tor)
+  indica_tor <- ifelse((closep - vwapv) > threshold*rangev, 1, indica_tor)
+  indica_tor <- ifelse((closep - vwapv) < (-threshold*rangev), -1, indica_tor)
   indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
   indic_sum[1:lagg] <- 0
   position_s <- rep(NA_integer_, NROW(closep))
@@ -263,7 +263,7 @@ backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=
 
 
 ## Define Z-Score backtest function
-backtest_zscores_ts <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coeff=1) {
+backtest_zscores_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   # rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -276,8 +276,8 @@ backtest_zscores_ts <- function(ohlc, look_back=252, lagg=2, thresh_old=0.0, coe
   sig_nal[1:look_back] <- 0
   
   indica_tor <- integer(NROW(ohlc))
-  indica_tor <- ifelse(sig_nal > thresh_old, 1, indica_tor)
-  indica_tor <- ifelse(sig_nal < (-thresh_old), -1, indica_tor)
+  indica_tor <- ifelse(sig_nal > threshold, 1, indica_tor)
+  indica_tor <- ifelse(sig_nal < (-threshold), -1, indica_tor)
   indic_sum <- HighFreq::roll_sum(t_series=indica_tor, look_back=lagg)
   indic_sum[1:lagg] <- 0
   position_s <- rep(NA_integer_, NROW(closep))

@@ -73,11 +73,11 @@ probab3 <- function(nu_m, p1, p2) {
 
 probab3(5, 0.6, 0.5)
 
-prob_s <- sapply(1:500, probab3, p1=0.6, p2=0.5)
+probs <- sapply(1:500, probab3, p1=0.6, p2=0.5)
 
 # plot in window
 x11()
-plot(prob_s,
+plot(probs,
      xlab="number of coin flips", 
      ylab="probability", 
      main="probability of guessing correct coin", 
@@ -86,9 +86,9 @@ abline(h=0.95, lwd=2, col="red")
 text(x=50, y=0.95,
      labels="0.95 probability",
      lwd=2, pos=3)
-abline(v=findInterval(0.95, prob_s), lwd=2, col="red")
-text(x=findInterval(0.95, prob_s), y=0.8,
-     labels=paste(findInterval(0.95, prob_s), "coin flips"),
+abline(v=findInterval(0.95, probs), lwd=2, col="red")
+text(x=findInterval(0.95, probs), y=0.8,
+     labels=paste(findInterval(0.95, probs), "coin flips"),
      srt=90, lwd=2, pos=2)
 
 
@@ -111,14 +111,14 @@ prob_ab <- (sharpe_ratio/sqrt(250)+1)/2
 probab3(20*250, prob_ab, 0.5)
 
 # annual probabilities of selecting correct manager
-prob_s <- sapply(250*(1:50), probab3, p1=prob_ab, p2=0.5)
+probs <- sapply(250*(1:50), probab3, p1=prob_ab, p2=0.5)
 
 # Years of data needed to select the correct manager, with 95% confidence
-findInterval(0.95, prob_s)
+findInterval(0.95, probs)
 
 # plot in window
 x11()
-plot(prob_s,
+plot(probs,
      xlab="number of years", 
      ylab="probability", 
      main="probability of selecting correct manager", 
@@ -127,8 +127,8 @@ abline(h=0.95, lwd=2, col="red")
 text(x=10, y=0.95,
      labels="0.95 probability",
      lwd=2, pos=3)
-abline(v=findInterval(0.95, prob_s), lwd=2, col="red")
-text(x=findInterval(0.95, prob_s), y=0.8,
-     labels=paste(findInterval(0.95, prob_s), "years"),
+abline(v=findInterval(0.95, probs), lwd=2, col="red")
+text(x=findInterval(0.95, probs), y=0.8,
+     labels=paste(findInterval(0.95, probs), "years"),
      srt=90, lwd=2, pos=2)
 

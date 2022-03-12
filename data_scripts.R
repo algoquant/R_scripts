@@ -41,7 +41,7 @@ cat(etf_gvkeys, file="C:/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
 # Combine different CSV files with S&P500 constituents
 
 # Load old CSV files with S&P500 constituents from the past
-sp500old <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents_2020.csv")
+sp500old <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents2020.csv")
 dim(sp500old)
 # Check if there are missing tickers
 sum(is.na(sp500old$co_tic))

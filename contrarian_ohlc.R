@@ -17,7 +17,7 @@ data_dir <- "C:/Develop/data/ib_data/"
 symbol <- "ES"  # S&P500
 # symbol <- "QM"  # oil
 load(paste0(data_dir, symbol, "_ohlc.RData"))
-numrows <- NROW(ohlc)
+nrows <- NROW(ohlc)
 indeks <- index(ohlc)
 endpoints <- xts::endpoints(ohlc, on="hours")
 
@@ -73,17 +73,17 @@ plot(cumsum(close_open - open_close), ylab="cum returns", t="l", main="open_clos
 
 ## Backtest strategies based on number of consecutive positive and negative returns
 threshold_s <- 1:4
-cum_pnls <- sapply(threshold_s, function(thresh_old) {
-  cat("thresh_old=", thresh_old, "\n")
+cum_pnls <- sapply(threshold_s, function(threshold) {
+  cat("threshold=", threshold, "\n")
   # Initialize positions
   position_s <- rep(NA_integer_,.n_rows)
   position_s[1] <- 0
   # Flip position if several consecutive positive or negative returns
-  position_s[returns_pos_count > thresh_old] <- (-1)
-  position_s[returns_neg_count > thresh_old] <- 1
+  position_s[returns_pos_count > threshold] <- (-1)
+  position_s[returns_neg_count > threshold] <- 1
   # Flip position if several consecutive closes at high or low
-  position_s[close_high_count > thresh_old] <- (-1)
-  position_s[close_low_count > thresh_old] <- 1
+  position_s[close_high_count > threshold] <- (-1)
+  position_s[close_low_count > threshold] <- 1
   # LOCF
   position_s <- zoo::na.locf(position_s, na.rm=FALSE)
   position_s <- rutils::lagit(position_s, lagg=1)
@@ -135,8 +135,8 @@ pnls <- cumsum(position_s*close_close)
 # tail(pnls)
 
 
-## Backtest strategy for flipping if returns scaled by the price range exceed thresh_old
-thresh_old <- 0.9
+## Backtest strategy for flipping if returns scaled by the price range exceed threshold
+threshold <- 0.9
 lagg <- 2
 rm(datav)
 # Scale returns using price range
@@ -146,9 +146,9 @@ returns_norm <- ifelse(rangev>0, close_close/rangev, 0)
 # Initialize positions
 position_s <- rep(NA_integer_,.n_rows)
 position_s[1] <- 0
-# Flip position if the scaled returns exceed thresh_old 
-position_s[returns_norm > thresh_old] <- (-1)
-position_s[returns_norm < (-thresh_old)] <- 1
+# Flip position if the scaled returns exceed threshold 
+position_s[returns_norm > threshold] <- (-1)
+position_s[returns_norm < (-threshold)] <- 1
 # LOCF
 position_s <- zoo::na.locf(position_s, na.rm=FALSE)
 position_s <- rutils::lagit(position_s, lagg=lagg)

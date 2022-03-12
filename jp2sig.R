@@ -17,7 +17,7 @@ symbol <- "AAPL"
 look_back <- 5
 lagg <- 1
 coeff <- 1
-thresh_old <- 0.0
+threshold <- 0.0
 
 ohlc <- get(symbol, sp500env)
 closep <- log(quantmod::Cl(ohlc))
@@ -26,12 +26,12 @@ returns <- rutils::diffit(closep)
 
 
 ## Calculate the strategy performance for a single stock
-pnls <- backtest_ewma_ts(get(symbol, sp500env), look_back=look_back, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+pnls <- backtest_ewma_ts(get(symbol, sp500env), look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
 
 
 ## Calculate the strategy performance for a vector of look_back parameters
-perf_stats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
-pnls <- lapply(perf_stats, function(x) x[, "pnls"])
+perfstats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
+pnls <- lapply(perfstats, function(x) x[, "pnls"])
 pnls <- do.call(cbind, pnls)
 pnls <- rowMeans(pnls)
 mean(pnls)/sd(pnls)
@@ -51,9 +51,9 @@ dygraphs::dygraph(datav, main=paste(colnamev[1], "Strategy")) %>%
 
 
 ## Rank the S&P500 stocks based on strategy returns for a vector of look_back parameters
-perf_stats <- eapply(sp500env, function(ohlc) {
+perfstats <- eapply(sp500env, function(ohlc) {
   if (start(ohlc) < "2017-01-01") {
-    pnls <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc["2010/"], lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+    pnls <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc["2010/"], lagg=lagg, threshold=threshold, coeff=coeff)
     pnls <- lapply(pnls, function(x) x[, "pnls"])
     pnls <- do.call(cbind, pnls)
     pnls <- rowMeans(pnls)
@@ -61,10 +61,10 @@ perf_stats <- eapply(sp500env, function(ohlc) {
   } else NULL
 })  # end eapply
 
-perf_stats <- unlist(perf_stats)
-# names(perf_stats) <- names(sp500env)
-perf_stats <- sort(perf_stats, decreasing=TRUE)
-write.csv(perf_stats, file="C:/Develop/jp2sig/data/backtest_ewma2.csv", row.names=TRUE)
+perfstats <- unlist(perfstats)
+# names(perfstats) <- names(sp500env)
+perfstats <- sort(perfstats, decreasing=TRUE)
+write.csv(perfstats, file="C:/Develop/jp2sig/data/backtest_ewma2.csv", row.names=TRUE)
 
 
 
@@ -74,7 +74,7 @@ process_ed <- eapply(sp500env, function(ohlc) {
   symbol <- rutils::get_name(colnames(ohlc)[1])
   # cat(symbol, "\n")
   assign(x=symbol, 
-         value=backtest_ewma_ts(ohlc, look_back=look_back, lagg=lagg, thresh_old=thresh_old, coeff=coeff), 
+         value=backtest_ewma_ts(ohlc, look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff), 
          envir=perf_env)
   symbol
 })  # end eapply
@@ -85,30 +85,30 @@ load("C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
 
 
 ## Rank the S&P500 stocks based on strategy returns
-perf_stats <- sapply(perf_env, function(xtes) {
+perfstats <- sapply(perf_env, function(xtes) {
   if (start(xtes) < "2017-01-01") {
     pnls <- xtes["2010/" ,"pnls"]
     mean(pnls)/sd(pnls)
   } else NULL
 })  # end eapply
-perf_stats <- unlist(perf_stats)
-# names(perf_stats) <- names(sp500env)
-perf_stats <- sort(perf_stats, decreasing=TRUE)
-write.csv(perf_stats, file="C:/Develop/jp2sig/data/backtest_ewma.csv", row.names=TRUE)
+perfstats <- unlist(perfstats)
+# names(perfstats) <- names(sp500env)
+perfstats <- sort(perfstats, decreasing=TRUE)
+write.csv(perfstats, file="C:/Develop/jp2sig/data/backtest_ewma.csv", row.names=TRUE)
 
 
 
 ## Rank the S&P500 stocks based on strategy returns in-sample
 # perf_env is an environment with time series of performance
-perf_stats <- eapply(perf_env, function(xtes) {
+perfstats <- eapply(perf_env, function(xtes) {
   if (start(xtes) < "2010-01-01") {
     pnls <- xtes["2010/2017" ,"pnls"]
     mean(pnls)/sd(pnls)
   } else NULL
 })  # end eapply
-perf_stats <- unlist(perf_stats)
-perf_stats <- sort(perf_stats, decreasing=TRUE)
-symbolv <- names(perf_stats)
+perfstats <- unlist(perfstats)
+perfstats <- sort(perfstats, decreasing=TRUE)
+symbolv <- names(perfstats)
 
 # Select symbolv with final stock price above $1
 not_penny <- eapply(sp500env, function(ohlc) {
@@ -210,16 +210,16 @@ returns <- rutils::diffit(closep)
 
 ## Calculate the strategy performance for two vectors of look_back parameters
 # This model works well more recently
-thresh_old <- 1.5
-perf_stats <- lapply(13:16, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+threshold <- 1.5
+perfstats <- lapply(13:16, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
 # This model also worked well in 2008
-thresh_old <- 1.0
-perf_stats <- c(perf_stats,
-                lapply(7:15, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff))
-save(perf_stats, file="C:/Develop/jp2sig/data/perf_zscores_revert_xlk.RData")
+threshold <- 1.0
+perfstats <- c(perfstats,
+                lapply(7:15, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff))
+save(perfstats, file="C:/Develop/jp2sig/data/perf_zscores_revert_xlk.RData")
 load("C:/Develop/jp2sig/data/perf_zscores_revert_xlk.RData")
 # Calculate the strategy returns
-pnls <- lapply(perf_stats, function(x) x[, "pnls"])
+pnls <- lapply(perfstats, function(x) x[, "pnls"])
 pnls <- do.call(cbind, pnls)
 pnls <- rowMeans(pnls)
 mean(pnls)/sd(pnls)
@@ -242,7 +242,7 @@ dygraphs::dygraph(datav, main=paste(colnamev[1], "Strategy")) %>%
 ## Save the strategy positions
 
 # Calculate holding periods number of trades
-peri_od <- sapply(perf_stats, function(xtes) {
+peri_od <- sapply(perfstats, function(xtes) {
   position_s <- xtes[, "positions"]
   2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
 })  # end sapply
@@ -250,7 +250,7 @@ mean(peri_od)
 
 
 # Save the strategy positions
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes["2018-01-01/2020-04-22", "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -266,7 +266,7 @@ write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", ro
 # Define variables
 symbol <- "VXX"
 lagg <- 2
-thresh_old <- 0
+threshold <- 0
 coeff <- 1
 
 ohlc <- get(symbol, data_env)
@@ -274,11 +274,11 @@ closep <- log(quantmod::Cl(ohlc))
 returns <- rutils::diffit(closep)
 
 ## Calculate the strategy performance for two vectors of look_back parameters
-perf_stats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
-save(perf_stats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
+perfstats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
+save(perfstats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
 load("C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
 # Calculate the strategy returns
-pnls <- lapply(perf_stats, function(x) x[, "pnls"])
+pnls <- lapply(perfstats, function(x) x[, "pnls"])
 pnls <- do.call(cbind, pnls)
 pnls <- rowMeans(pnls)
 mean(pnls)/sd(pnls)
@@ -300,7 +300,7 @@ dygraphs::dygraph(datav, main=paste(colnamev[1], "Strategy")) %>%
 ## Save the strategy positions
 
 # Calculate holding periods number of trades
-peri_od <- sapply(perf_stats, function(xtes) {
+peri_od <- sapply(perfstats, function(xtes) {
   position_s <- xtes[, "positions"]
   2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
 })  # end sapply
@@ -308,7 +308,7 @@ mean(peri_od)
 
 
 # Save the strategy positions
-position_s <- lapply(perf_stats, function(xtes) {
+position_s <- lapply(perfstats, function(xtes) {
   xtes["2018-01-01/2020-04-22", "positions"]
 })  # end lapply
 position_s <- do.call(cbind, position_s)
@@ -437,9 +437,9 @@ load(file="C:/Develop/lecture_slides/data/sp500.RData")
 look_back <- 10
 lagg <- 1
 coeff <- (-1)
-thresh_old <- 1
+threshold <- 1
 
-pnls <- backtest_zscores_ts(sp500env$YUM["2010/"], look_back=look_back, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+pnls <- backtest_zscores_ts(sp500env$YUM["2010/"], look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
 pnls <- pnls[, "pnls"]
 position_s <-  pnls[, "positions"]
 plot(cumsum(pnls))
@@ -447,7 +447,7 @@ mean(pnls)/sd(pnls)
 
 
 # Calculate past pnls from performance environment
-pnls <- eapply(perf_stats, function(xtes) {
+pnls <- eapply(perfstats, function(xtes) {
   if (start(xtes) < "2017-01-01") {
     pnls <- xtes["2010/2017" ,"pnls"]
     mean(pnls)/sd(pnls)
@@ -460,14 +460,14 @@ symbolv <- names(pnls)
 
 # Calculate pnls of best stocks from environment
 be_st <- lapply(symbolv[1:50], function(symbol) {
-  get(symbol, perf_stats)[, "pnls"]
+  get(symbol, perfstats)[, "pnls"]
 })  # end lapply
 names(be_st) <- symbolv[1:50]
 be_st <- rutils::do_call(cbind, be_st)
 
 # Calculate reverse of pnls of worst stocks
 wo_rst <- lapply(symbolv[(NROW(symbolv)-49):NROW(symbolv)], function(symbol) {
-  get(symbol, perf_stats)[, "pnls"]
+  get(symbol, perfstats)[, "pnls"]
 })  # end lapply
 wo_rst <- rutils::do_call(cbind, wo_rst)
 wo_rst <- (-wo_rst)
@@ -497,7 +497,7 @@ dygraphs::dygraph(pnls, main="Back-test of Reverting Strategies")
 ## Calculate pnls directly
 pnls <- eapply(sp500env, function(ohlc) {
   if (start(ohlc) < "2017-01-01") {
-    pnls <- backtest_zscores_ts(ohlc["2010/"], look_back=look_back, lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+    pnls <- backtest_zscores_ts(ohlc["2010/"], look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
     pnls <- pnls[, "pnls"]
     mean(pnls)/sd(pnls)
   } else NULL
@@ -515,11 +515,11 @@ symbol <- "AAPL"
 look_back <- 5
 lagg <- 1
 coeff <- (-1)
-thresh_old <- 1
+threshold <- 1
 
 pnls <- eapply(sp500env, function(ohlc) {
   if (start(ohlc) < "2017-01-01") {
-    pnls <- lapply(2*(5:15), backtest_zscores_ts, ohlc=ohlc["2010/"], lagg=lagg, thresh_old=thresh_old, coeff=coeff)
+    pnls <- lapply(2*(5:15), backtest_zscores_ts, ohlc=ohlc["2010/"], lagg=lagg, threshold=threshold, coeff=coeff)
     pnls <- lapply(pnls, function(x) x[, "pnls"])
     pnls <- do.call(cbind, pnls)
     pnls <- rowMeans(pnls)

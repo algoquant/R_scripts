@@ -48,7 +48,7 @@ file_names[!isprocessed]
 
 ###############
 # Extract R chunks from single *.Rnw file
-knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture_1.Rnw", documentation=0, quiet=TRUE)
+knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture1.Rnw", documentation=0, quiet=TRUE)
 
 # Extract R chunks from all *.Rnw files, except those that contain "FRE".
 sapply(file_names, knitr::purl, documentation=0, quiet=TRUE)
@@ -73,33 +73,33 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 dir_name <- "/Users/jerzy/Develop/data/"
 # Using lapply() and zoo::write.zoo()
-file_names <- lapply(ls(etfenv), function(sym_bol) {
-  x_ts <- get(sym_bol, envir=etfenv)
-  zoo::write.zoo(x_ts, file=paste0(dir_name, sym_bol, ".csv"))
-  sym_bol
+file_names <- lapply(ls(etfenv), function(symbol) {
+  xtes <- get(symbol, envir=etfenv)
+  zoo::write.zoo(xtes, file=paste0(dir_name, symbol, ".csv"))
+  symbol
 })  # end lapply
 unlist(file_names)
 
 # Or using lapply() and data.table::fwrite()
-file_names <- lapply(ls(sp500env), function(sym_bol) {
-  x_ts <- get(sym_bol, envir=sp500env)
-  data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, sym_bol, ".csv"))
-  sym_bol
+file_names <- lapply(ls(sp500env), function(symbol) {
+  xtes <- get(symbol, envir=sp500env)
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dir_name, symbol, ".csv"))
+  symbol
 })  # end eapply
 names(file_names)
 
 # Or using eapply() and data.table::fwrite()
-file_names <- eapply(sp500env, function(x_ts) {
-  file_name <- rutils::get_name(colnames(x_ts)[1])
-  data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
+file_names <- eapply(sp500env, function(xtes) {
+  file_name <- rutils::get_name(colnames(xtes)[1])
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dir_name, file_name, ".csv"))
   file_name
 })  # end eapply
 names(file_names)
 
 # Or
-file_names <- lapply(as.list(sp500env), function(x_ts) {
-  file_name <- rutils::get_name(colnames(x_ts)[1])
-  data.table::fwrite(data.table::as.data.table(x_ts), file=paste0(dir_name, file_name, ".csv"))
+file_names <- lapply(as.list(sp500env), function(xtes) {
+  file_name <- rutils::get_name(colnames(xtes)[1])
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dir_name, file_name, ".csv"))
   file_name
 })  # end lapply
 names(file_names)
@@ -109,24 +109,24 @@ names(file_names)
 ###############
 # Compare contents of all the files in two different directories, assuming same file names
 
-dir_1 <- "/Users/jerzy/Develop/R/statarb/results"
-dir_2 <- "/Users/jerzy/Users/Jerzy/Downloads/results"
+dir1 <- "/Users/jerzy/Develop/R/statarb/results"
+dir2 <- "/Users/jerzy/Users/Jerzy/Downloads/results"
 # compare all files in two directories assuming file names are the same
-sapply(dir(dir_1), function(fil_e) {
+sapply(dir(dir1), function(filev) {
   all.equal(
-    readLines(file.path(dir_1, fil_e)), 
-    readLines(file.path(dir_2, fil_e)))
+    readLines(file.path(dir1, filev)), 
+    readLines(file.path(dir2, filev)))
 })  # end sapply
 
 
 ## Compare contents of all files in two directories, assuming different file names
 # extract contents of all files in first directory
-foo <- lapply(dir(dir_1), function(fil_e) {
-  scan(file=file.path(dir_1, fil_e), what=character())
+foo <- lapply(dir(dir1), function(filev) {
+  scan(file=file.path(dir1, filev), what=character())
 })  # end sapply
 # extract contents of all files in second directory
-bar <- lapply(dir(dir_2), function(fil_e) {
-  scan(file=file.path(dir_2, fil_e), what=character())
+bar <- lapply(dir(dir2), function(filev) {
+  scan(file=file.path(dir2, filev), what=character())
 })  # end sapply
 sapply(seq_along(foo), function(x) {
   all.equal(foo[x], bar[x])
@@ -137,15 +137,15 @@ sapply(seq_along(foo), function(x) {
 ###############
 # Extract futures symbols from file names
 
-file_names <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec_2017/raw/*")
+file_names <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec2017/raw/*")
 
-name_s <- sapply(file_names, function(x) {
+namesv <- sapply(file_names, function(x) {
   foo <- strsplit(x, split='/')
   foo <- strsplit(xts::last(foo[[1]]), split='_')
   foo[[1]][1]
 })  # end sapply
-name_s <- unname(name_s)
-name_s <- unique(name_s)
+namesv <- unname(namesv)
+namesv <- unique(namesv)
 
 
 
@@ -157,56 +157,56 @@ install.packages("readxl")
 library(readxl)
 
 # Read names of all the sheets from the Excel spreadsheet
-fil_e <- "/Users/jerzy/Develop/R/capstone/Xuewan_Zhao/SP500 5Y Fundamental data.xlsx"
-name_s <- readxl::excel_sheets(fil_e)
+filev <- "/Users/jerzy/Develop/R/capstone/Xuewan_Zhao/SP500 5Y Fundamental data.xlsx"
+namesv <- readxl::excel_sheets(filev)
 
 # Read all the sheets from the Excel spreadsheet - takes very long time
-sheet_s <- lapply(name_s, readxl::read_xlsx, path=fil_e)
+sheets <- lapply(namesv, readxl::read_xlsx, path=filev)
 # Remove first sheet - it's empty
-sheet_s <- sheet_s[-1]
-name_s <- name_s[-1]
+sheets <- sheets[-1]
+namesv <- namesv[-1]
 # Rename sheets to their stock tickers
-name_s <- sapply(name_s, function(x) strsplit(x[1], " ")[[1]][1])
-names(sheet_s) <- name_s
+namesv <- sapply(namesv, function(x) strsplit(x[1], " ")[[1]][1])
+names(sheets) <- namesv
 
-# The sheet_s are a list of tibbles (data frames)
-class(sheet_s)
-tib_ble <- sheet_s[[1]]
-class(tib_ble)
+# The sheets are a list of tibbles (data frames)
+class(sheets)
+tibblev <- sheets[[1]]
+class(tibblev)
 # Some tibble columns are character strings, not numeric
-class(tib_ble$'BEst P/E Ratio')
+class(tibblev$'BEst P/E Ratio')
 
 # Coerce tibble to matrix
 # Function to coerce tibble columns from character strings to numeric
-to_matrix <- function(tib_ble) {
+to_matrix <- function(tibblev) {
   # Coerce columns from strings to numeric
-  lis_t <- lapply(tib_ble, as.numeric)
+  listv <- lapply(tibblev, as.numeric)
   # Flatten list into matrix
-  do.call(cbind, lis_t)
+  do.call(cbind, listv)
 }  # end to_matrix
-mat_rix <- to_matrix(tib_ble)
-colnames(mat_rix)
-# Calculate number of rows in mat_rix
-NROW(mat_rix)
+matrixv <- to_matrix(tibblev)
+colnames(matrixv)
+# Calculate number of rows in matrixv
+NROW(matrixv)
 # Calculate number of NA values in column "P/E Ratio"
-sum(is.na(mat_rix[, "BEst P/E Ratio"]))
+sum(is.na(matrixv[, "BEst P/E Ratio"]))
 
 # Calculate number of NA values in column "P/E Ratio"
-sum(is.na(as.numeric(tib_ble$'BEst P/E Ratio')))
+sum(is.na(as.numeric(tibblev$'BEst P/E Ratio')))
 # Function to calculate number of NA values in column P/E Ratio
-num_na <- function(tib_ble) {
-  sum(is.na(as.numeric(tib_ble$'BEst P/E Ratio')))
+num_na <- function(tibblev) {
+  sum(is.na(as.numeric(tibblev$'BEst P/E Ratio')))
 }  # end num_na
-num_na(tib_ble)
+num_na(tibblev)
 
-# Calculate number of NA values in column "P/E Ratio" in all the sheet_s tibbles
-num_na_s <- sapply(sheet_s, num_na)
+# Calculate number of NA values in column "P/E Ratio" in all the sheets tibbles
+num_na_s <- sapply(sheets, num_na)
 # Or simply
-num_na_s <- sapply(sheet_s, function(tib_ble) 
-  sum(is.na(as.numeric(tib_ble$'BEst P/E Ratio'))))
+num_na_s <- sapply(sheets, function(tibblev) 
+  sum(is.na(as.numeric(tibblev$'BEst P/E Ratio'))))
 median(num_na_s)
 
-# Plot histogram of NA values in column "P/E Ratio" in all the sheet_s elements
+# Plot histogram of NA values in column "P/E Ratio" in all the sheets elements
 x11()
 hist(num_na_s)
 
@@ -227,45 +227,45 @@ seek(connect_ion, where=0, origin="start")
 # column.names <- readBin(connect_ion, character(), n = 3)
 
 # Read the n, k, and version integer values
-da_ta <- readBin(connect_ion, what="integer", n=3)
+datav <- readBin(connect_ion, what="integer", n=3)
 
-da_ta <- readBin(connect_ion, what="double", n=4)
+datav <- readBin(connect_ion, what="double", n=4)
 
 # seek() gives 
 off_set <- seek(connect_ion, origin="end")
 seek(connect_ion, where=12, origin="start")
 
-da_ta <- readBin(connect_ion, what="raw", n=4)
-da_ta <- readBin(connect_ion, what="double", n=4)
-da_ta <- readBin(connect_ion, what="double", n=4, size=4)
-da_ta <- readBin(connect_ion, what="double", n=4, size=4, endian="big")
-da_ta <- readBin(connect_ion, what="numeric", n=4)
-da_ta <- readBin(connect_ion, what="numeric", n=4, size=4)
-da_ta <- readBin(connect_ion, what="numeric", n=4, size=4, endian="big")
+datav <- readBin(connect_ion, what="raw", n=4)
+datav <- readBin(connect_ion, what="double", n=4)
+datav <- readBin(connect_ion, what="double", n=4, size=4)
+datav <- readBin(connect_ion, what="double", n=4, size=4, endian="big")
+datav <- readBin(connect_ion, what="numeric", n=4)
+datav <- readBin(connect_ion, what="numeric", n=4, size=4)
+datav <- readBin(connect_ion, what="numeric", n=4, size=4, endian="big")
 
 close(connect_ion)
 
 
 # Read compressed files directly
 
-connect_ion <- gzfile("/Users/jerzy/Users/Jerzy/Downloads/ESH8_20171213.bin.gz", open="rb")
+connect_ion <- gzfile("/Users/jerzy/Users/Jerzy/Downloads/ESH820171213.bin.gz", open="rb")
 connect_ion <- gzfile("/Users/jerzy/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
 
-col_names <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
+colnames <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
                "pB1r", "sB1r", "pA1r", "sA1r", "pB1c", "sB1c", "pA1c",
                "sA1c")
 
 # read header with format info:  941642 x 15, format 1
 head_er <- readBin(connect_ion, 'integer', 3)
-da_ta <- readBin(connect_ion, 'double', head_er[1]*head_er[2])
-da_ta <- matrix(da_ta, nrow=head_er[1], ncol=head_er[2], 
-                byrow=TRUE, dimnames=list(NULL, col_names))
+datav <- readBin(connect_ion, 'double', head_er[1]*head_er[2])
+datav <- matrix(datav, nrow=head_er[1], ncol=head_er[2], 
+                byrow=TRUE, dimnames=list(NULL, colnames))
 
 close(connect_ion)
 
 
-da_ta <- readBin(connect_ion, what=integer(), n=3)
-da_ta <- readBin(connect_ion, what=double(), n=4)
+datav <- readBin(connect_ion, what=integer(), n=3)
+datav <- readBin(connect_ion, what=double(), n=4)
 
 foo <- seek(connect_ion, origin="end")
 

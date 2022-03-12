@@ -12,24 +12,24 @@
 #   calc_bull_bear - Boolean if TRUE then calculate the 
 #     bull-market and bear-market betas, else only the 
 #     single beta.  Default is FALSE.
-#   thresh_old - threshold level for market returns.
-#     For bull-market only select returns above thresh_old.
-#     For bear-market only select returns below -thresh_old.
-#     Default is thresh_old=0.01.
+#   threshold - threshold level for market returns.
+#     For bull-market only select returns above threshold.
+#     For bear-market only select returns below -threshold.
+#     Default is threshold=0.01.
 # 
 # You can use the functions lm(), summary(), and c().
 
-calc_betas <- function(se_ries, mar_ket, calc_bull_bear=FALSE, thresh_old=0.01) {
+calc_betas <- function(se_ries, mar_ket, calc_bull_bear=FALSE, threshold=0.01) {
   # calculate beta
   betav <- summary(lm(se_ries ~ mar_ket))$coefficients[2, 1]
   if (calc_bull_bear) {
     # calculate bull beta
-    series_sub <- se_ries[mar_ket>thresh_old]
-    market_sub <- mar_ket[mar_ket>thresh_old]
+    series_sub <- se_ries[mar_ket>threshold]
+    market_sub <- mar_ket[mar_ket>threshold]
     bull_beta <- summary(lm(series_sub ~ market_sub))$coefficients[2, 1]
     # calculate bear beta
-    series_sub <- se_ries[mar_ket<(-thresh_old)]
-    market_sub <- mar_ket[mar_ket<(-thresh_old)]
+    series_sub <- se_ries[mar_ket<(-threshold)]
+    market_sub <- mar_ket[mar_ket<(-threshold)]
     bear_beta <- summary(lm(series_sub ~ market_sub))$coefficients[2, 1]
     c(beta=betav, bull_beta=bull_beta, bear_beta=bear_beta)
   } else
@@ -67,13 +67,13 @@ returns <- na.omit(rutils::etfenv$returns[, -(.n_cols-1).n_cols)])
 # of returns, and apply calc_betas() all the columns 
 # excluding the first one "VTI".
 # Pass the arguments: 
-# mar_ket=returns$VTI, calc_bull_bear=TRUE, thresh_old=0.005
+# mar_ket=returns$VTI, calc_bull_bear=TRUE, threshold=0.005
 # through the dots arguments of sapply.
 # Call the output matrix etf_betas.
 # You can also use the function t(().
 
 etf_betas <- sapply(returns[, -1], calc_betas, 
-  mar_ket=returns$VTI, calc_bull_bear=TRUE, thresh_old=0.005)
+  mar_ket=returns$VTI, calc_bull_bear=TRUE, threshold=0.005)
 
 etf_betas <- t(etf_betas)
 
