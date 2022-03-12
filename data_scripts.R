@@ -335,7 +335,7 @@ save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 # Extract Close prices
 prices <- eapply(etfenv, quantmod::Cl)
 prices <- do.call(cbind, prices)
-# Drop ".Close" from colnames
+# Drop ".Close" from colnamev
 colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 # Calculate the log returns
 returns <- xts::diff.xts(log(prices))
@@ -540,7 +540,7 @@ prices <- eapply(etfenv, quantmod::Cl)
 # prices <- lapply(mget(etfenv$symbolv, etfenv), quantmod::Cl)
 prices <- do.call(cbind, prices)
 
-# Drop ".Close" from colnames
+# Drop ".Close" from colnamev
 colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 
 # Calculate the log returns

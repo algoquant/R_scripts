@@ -76,7 +76,7 @@ threshold_s <- 1:4
 cum_pnls <- sapply(threshold_s, function(threshold) {
   cat("threshold=", threshold, "\n")
   # Initialize positions
-  position_s <- rep(NA_integer_,.n_rows)
+  position_s <- rep(NA_integer_, nrows)
   position_s[1] <- 0
   # Flip position if several consecutive positive or negative returns
   position_s[returns_pos_count > threshold] <- (-1)
@@ -99,7 +99,7 @@ plot.zoo(cum_pnls)
 ## Backtest strategy for flipping if two consecutive positive and negative returns
 rm(datav)
 # Initialize positions
-position_s <- rep(NA_integer_,.n_rows)
+position_s <- rep(NA_integer_, nrows)
 position_s[1] <- 0
 # Flip position if several consecutive positive or negative returns
 position_s[returns_pos_count > 1] <- (-1)
@@ -120,7 +120,7 @@ pnls <- cumsum(position_s*close_close)
 ## Backtest strategy for flipping if single close at the high or low
 rm(datav)
 # Initialize positions
-position_s <- rep(NA_integer_,.n_rows)
+position_s <- rep(NA_integer_, nrows)
 position_s[1] <- 0
 # Flip position if close at high or low
 position_s[close_high] <- (-1)
@@ -144,7 +144,7 @@ rangev <- (log(core_data[, 2]) - log(core_data[, 3]))
 close_close <- rutils::diffit(log(closep))
 returns_norm <- ifelse(rangev>0, close_close/rangev, 0)
 # Initialize positions
-position_s <- rep(NA_integer_,.n_rows)
+position_s <- rep(NA_integer_, nrows)
 position_s[1] <- 0
 # Flip position if the scaled returns exceed threshold 
 position_s[returns_norm > threshold] <- (-1)

@@ -1,33 +1,33 @@
 # make_market_loop() Function for market making strategy - loop version
 make_market <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
                         buy_spread, sell_spread, lambda, invent_limit, warm_up) {
- .n_rows <- NROW(ohlc)
+  nrows <- NROW(ohlc)
   openp <- ohlc[, 1]
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
   # look_back <- 111
-  # weights <- exp(-lambda*1:look_back)
-  # weights <- weights/sum(weights)
-  ew_ma <- numeric.n_rows)
+  # weightv <- exp(-lambda*1:look_back)
+  # weightv <- weightv/sum(weightv)
+  ew_ma <- numeric(nrows)
   ew_ma[1] <- ohlc[1, 6]
   # ew_ma <- drop(ew_ma)
   # bia_s is the spread for biasing the limit price, depending on the ew_ma
   # bia_s <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
-  bia_s <- numeric.n_rows)
-  # buylimit <- numeric.n_rows)
-  # sell_limit <- numeric.n_rows)
-  n_buys <- numeric.n_rows)
-  n_sells <- numeric.n_rows)
+  bia_s <- numeric(nrows)
+  # buylimit <- numeric(nrows)
+  # sell_limit <- numeric(nrows)
+  n_buys <- numeric(nrows)
+  n_sells <- numeric(nrows)
   # inventory
-  inv_ent <- numeric.n_rows)
-  buy_s <- numeric.n_rows)
-  sell_s <- numeric.n_rows)
-  re_al <- numeric.n_rows)
-  un_real <- numeric.n_rows)
-  pnls <- numeric.n_rows)
+  inv_ent <- numeric(nrows)
+  buy_s <- numeric(nrows)
+  sell_s <- numeric(nrows)
+  re_al <- numeric(nrows)
+  un_real <- numeric(nrows)
+  pnls <- numeric(nrows)
 
-  for (it in 1:.n_rows-1)) {
+  for (it in 1:(nrows-1)) {
     # cat("iteration:", it, "\n")
     # b_spread <- buy_spread
     # s_spread <- sell_spread
@@ -106,15 +106,15 @@ make_market_vec <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
   look_back <- 111
-  weights <- exp(-lambda*1:look_back)
-  weights <- weights/sum(weights)
-  ew_ma <- HighFreq::roll_wsum(vectorv=rutils::lagit(ohlc)[, 4], weights=rev(weights))
+  weightv <- exp(-lambda*1:look_back)
+  weightv <- weightv/sum(weightv)
+  ew_ma <- HighFreq::roll_wsum(vectorv=rutils::lagit(ohlc)[, 4], weightv=rev(weightv))
   ew_ma <- drop(ew_ma)
   # bia_s is the spread for biasing the limit price, depending on the ew_ma
   # bia_s <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
 
   # Run the trading model (strategy):
-  # bia_s <- numeric.n_rows)
+  # bia_s <- numeric(nrows)
   bia_s <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
 
   # limit prices are the low and high prices of the lagged bar, plus the spreads
@@ -138,11 +138,11 @@ make_market_vec <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
   n_sells <- cumsum(sell_ind)
 
   # Prices of the filled orders
- .n_rows <- NROW(ohlc)
-  buy_s <- numeric.n_rows)
+  nrows <- NROW(ohlc)
+  buy_s <- numeric(nrows)
   buy_s[buy_ind] <- buylimit[buy_ind]
   buy_s <- cumsum(buy_s)
-  sell_s <- numeric.n_rows)
+  sell_s <- numeric(nrows)
   sell_s[sell_ind] <- sell_limit[sell_ind]
   sell_s <- cumsum(sell_s)
 
@@ -174,14 +174,14 @@ make_market_vec <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
 trade_median <- function(returns, ohlc, ohlc_lag=rutils::lagit(ohlc),
                          look_back, threshold, buy_spread, sell_spread, lambda, invent_limit) {
   
- .n_rows <- NROW(ohlc)
+  nrows <- NROW(ohlc)
   openp <- ohlc[, 1]
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
-  # weights <- exp(-lambda*1:look_back)
-  # weights <- weights/sum(weights)
-  # ew_ma <- HighFreq::roll_wsum(vectorv=rutils::lagit(ohlc)[, 4], weights=rev(weights))
+  # weightv <- exp(-lambda*1:look_back)
+  # weightv <- weightv/sum(weightv)
+  # ew_ma <- HighFreq::roll_wsum(vectorv=rutils::lagit(ohlc)[, 4], weightv=rev(weightv))
   # ew_ma <- drop(ew_ma)
   # bia_s is the spread for biasing the limit price, depending on the ew_ma
   # bia_s <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
@@ -195,15 +195,15 @@ trade_median <- function(returns, ohlc, ohlc_lag=rutils::lagit(ohlc),
   # indic <- (indic > threshold)
   
   # Run the trading model (strategy):
-  # bia_s <- numeric.n_rows)
+  # bia_s <- numeric(nrows)
   # limit prices are the low and high prices of the lagged bar, plus the spreads
-  buylimit <- rep(NA_integer_,.n_rows)
+  buylimit <- rep(NA_integer_, nrows)
   # buylimit <- ifelse((abs(rutils::diffit(indic > threshold)) > 0), ohlc_lag[, 3] - buy_spread, 0)
   buylimit <- ifelse((abs(rutils::diffit(indic < (-threshold))) > 0), ohlc_lag[, 4] - buy_spread, 0)
   buylimit <- zoo::na.locf(buylimit, na.rm=FALSE)
   buylimit <- zoo::na.locf(buylimit, na.rm=FALSE, fromLast=TRUE)
   
-  sell_limit <- rep(NA_integer_,.n_rows)
+  sell_limit <- rep(NA_integer_, nrows)
   # sell_limit <- ifelse((abs(rutils::diffit(indic < (-threshold))) > 0), ohlc_lag[, 2] + sell_spread, ohlc_lag[, 2] + 1e5)
   sell_limit <- ifelse((abs(rutils::diffit(indic > threshold)) > 0), ohlc_lag[, 4] + sell_spread, ohlc_lag[, 2] + 1e5)
   sell_limit <- zoo::na.locf(sell_limit, na.rm=FALSE)
@@ -227,10 +227,10 @@ trade_median <- function(returns, ohlc, ohlc_lag=rutils::lagit(ohlc),
   n_sells <- cumsum(sell_ind)
   
   # Prices of the filled orders
-  buy_s <- numeric.n_rows)
+  buy_s <- numeric(nrows)
   buy_s[buy_ind] <- buylimit[buy_ind]
   buy_s <- cumsum(buy_s)
-  sell_s <- numeric.n_rows)
+  sell_s <- numeric(nrows)
   sell_s[sell_ind] <- sell_limit[sell_ind]
   sell_s <- cumsum(sell_s)
   
@@ -265,16 +265,16 @@ make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
                              buy_spread, sell_spread, lambda, invent_limit,
                              look_back=100, warm_up=100) {
   # look_back <- 111
-  # weights <- exp(-lambda*1:look_back)
-  # weights <- weights/sum(weights)
-  # ew_ma <- HighFreq::roll_wsum(vectorv=ohlc[, 4], weights=rev(weights))
+  # weightv <- exp(-lambda*1:look_back)
+  # weightv <- weightv/sum(weightv)
+  # ew_ma <- HighFreq::roll_wsum(vectorv=ohlc[, 4], weightv=rev(weightv))
   # ew_ma <- drop(ew_ma)
 
   # Run the trading model (strategy):
 
   ## Vector code
 
-  # bia_s <- numeric.n_rows)
+  # bia_s <- numeric(nrows)
   # bia_s <- rutils::lagit(ifelse(ohlc[, 4] > ew_ma, -1, 1), lagg=lagg)
 
   # Pnls equal to sum
@@ -284,33 +284,33 @@ make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
 
   ## Loop code
 
- .n_rows <- NROW(ohlc)
+  nrows <- NROW(ohlc)
   openp <- ohlc[, 1]
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
   # look_back <- 111
-  # weights <- exp(-lambda*1:look_back)
-  # weights <- weights/sum(weights)
-  ew_ma <- numeric.n_rows)
+  # weightv <- exp(-lambda*1:look_back)
+  # weightv <- weightv/sum(weightv)
+  ew_ma <- numeric(nrows)
   ew_ma[1] <- ohlc[1, 6]
-  z_score <- numeric.n_rows)
+  z_score <- numeric(nrows)
   # ew_ma <- drop(ew_ma)
   # bia_s is the spread for biasing the limit price, depending on the ew_ma
   # bia_s <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
-  # buylimit <- numeric.n_rows)
-  # sell_limit <- numeric.n_rows)
-  n_buys <- numeric.n_rows)
-  n_sells <- numeric.n_rows)
+  # buylimit <- numeric(nrows)
+  # sell_limit <- numeric(nrows)
+  n_buys <- numeric(nrows)
+  n_sells <- numeric(nrows)
   # inventory
-  inv_ent <- numeric.n_rows)
-  buy_s <- numeric.n_rows)
-  sell_s <- numeric.n_rows)
-  re_al <- numeric.n_rows)
-  un_real <- numeric.n_rows)
-  pnls <- numeric.n_rows)
+  inv_ent <- numeric(nrows)
+  buy_s <- numeric(nrows)
+  sell_s <- numeric(nrows)
+  re_al <- numeric(nrows)
+  un_real <- numeric(nrows)
+  pnls <- numeric(nrows)
 
-  for (it in 1:.n_rows-1)) {
+  for (it in 1:(nrows-1)) {
     # cat("iteration:", it, "\n")
     # b_spread <- buy_spread
     # s_spread <- sell_spread
@@ -334,7 +334,7 @@ make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
 
     ew_ma[it] <- lambda*ohlc[it, 6] + (1-lambda)*ew_ma[max(it-1, 1)]
     # z_score[it] <- calc_zscore(val_ue=closep[it],
-    #                        se_ries=closep[max(it-warm_up, 1):max(it-1, 1)],
+    #                        tseries=closep[max(it-warm_up, 1):max(it-1, 1)],
     #                        design, design_inv, design2, oo_s, oos_t, deg_free)
 
 
@@ -389,7 +389,7 @@ make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
       pnls[it+1] <- ((sell_s[it+1] - buy_s[it+1]) - mark_to_market)
     }  # end for
   }  # end if
-  ew_ma.n_rows] <- lambda*ohlc.n_rows, 6] + (1-lambda)*ew_ma.n_rows-1]
+  ew_ma[nrows] <- lambda*ohlc[nrows, 6] + (1-lambda)*ew_ma[nrows-1]
 
   pnls <- cbind(ohlc[, 1:4], pnls, inv_ent, re_al, un_real, ew_ma)
   colnames(pnls)[5:9] <- c("Strategy PnL", "Inventory", "Realized PnL", "Unrealized PnL", "EWMA")
@@ -400,12 +400,12 @@ make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
 
 ###
 # calc_zscore() Function calculates z-scores of out-of-sample values relative to their predictions
-calc_zscore <- function(val_ue, se_ries, design, design_inv, design2, oo_s, oos_t, deg_free) {
+calc_zscore <- function(val_ue, tseries, design, design_inv, design2, oo_s, oos_t, deg_free) {
 
-  if (NROW(se_ries) < deg_free) return(0)
-  betas <- design_inv %*% se_ries
+  if (NROW(tseries) < deg_free) return(0)
+  betas <- design_inv %*% tseries
   fit_ted <- drop(design %*% betas)
-  residuals <- (se_ries - fit_ted)
+  residuals <- (tseries - fit_ted)
   r_ss <- sqrt(sum(residuals^2)/deg_free)
   predic_tions <- cbind(predicted=drop(oo_s %*% betas),
                         stddev=diag(r_ss*sqrt(oo_s %*% design2 %*% oos_t)))

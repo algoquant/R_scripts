@@ -64,13 +64,13 @@ util_plot2d(position_sharpeRatio(port_folio, "AAPL"), title="Sharpe Ratio, daily
 
 
 # create function for moving average over a vector
-mov_avg <- function(x, win_dow){
+mov_avg <- function(x, look_back){
   output <- x
   n_row <- NROW(x)
   cumsumv <- cumsum(x)
-  output[(win_dow+1):n_row] <- 
-    (cumsumv[-(1:win_dow)]-cumsumv[-((n_row-win_dow+1):n_row)])/win_dow
-  output[1:win_dow] <- cumsum(x[1:win_dow])/(1:win_dow)
+  output[(look_back+1):n_row] <- 
+    (cumsumv[-(1:look_back)]-cumsumv[-((n_row-look_back+1):n_row)])/look_back
+  output[1:look_back] <- cumsum(x[1:look_back])/(1:look_back)
   return(output-0.0000000001)
 }  # end mov_avg
 

@@ -7,7 +7,7 @@
 # 1. (30pts) Create a function called calc_betas() which
 # performs a regression and returns a vector of betas.
 # calc_betas() should accept the following arguments:
-#   se_ries - time series of asset returns,
+#   tseries - time series of asset returns,
 #   mar_ket - time series of market returns,
 #   calc_bull_bear - Boolean if TRUE then calculate the 
 #     bull-market and bear-market betas, else only the 
@@ -19,16 +19,16 @@
 # 
 # You can use the functions lm(), summary(), and c().
 
-calc_betas <- function(se_ries, mar_ket, calc_bull_bear=FALSE, threshold=0.01) {
+calc_betas <- function(tseries, mar_ket, calc_bull_bear=FALSE, threshold=0.01) {
   # calculate beta
-  betav <- summary(lm(se_ries ~ mar_ket))$coefficients[2, 1]
+  betav <- summary(lm(tseries ~ mar_ket))$coefficients[2, 1]
   if (calc_bull_bear) {
     # calculate bull beta
-    series_sub <- se_ries[mar_ket>threshold]
+    series_sub <- tseries[mar_ket>threshold]
     market_sub <- mar_ket[mar_ket>threshold]
     bull_beta <- summary(lm(series_sub ~ market_sub))$coefficients[2, 1]
     # calculate bear beta
-    series_sub <- se_ries[mar_ket<(-threshold)]
+    series_sub <- tseries[mar_ket<(-threshold)]
     market_sub <- mar_ket[mar_ket<(-threshold)]
     bear_beta <- summary(lm(series_sub ~ market_sub))$coefficients[2, 1]
     c(beta=betav, bull_beta=bull_beta, bear_beta=bear_beta)
@@ -42,7 +42,7 @@ calc_betas <- function(se_ries, mar_ket, calc_bull_bear=FALSE, threshold=0.01) {
 # You can use the functions na.omit(() and NCOL().
 
 ncols <- NCOL(rutils::etfenv$returns)
-returns <- na.omit(rutils::etfenv$returns[, -(.n_cols-1).n_cols)])
+returns <- na.omit(rutils::etfenv$returns[, -((ncols-1):ncols)])
 
 # You should get the following output:
 # > colnames(returns)
@@ -55,10 +55,10 @@ returns <- na.omit(rutils::etfenv$returns[, -(.n_cols-1).n_cols)])
 # Call calc_betas() to verify that it works correctly.
 # 
 # You should get the following output:
-# > calc_betas(se_ries=returns$XLB, mar_ket=returns$VTI)
+# > calc_betas(tseries=returns$XLB, mar_ket=returns$VTI)
 # [1] 1.069499
 # 
-# > calc_betas(se_ries=returns$XLB, mar_ket=returns$VTI, calc_bull_bear=TRUE)
+# > calc_betas(tseries=returns$XLB, mar_ket=returns$VTI, calc_bull_bear=TRUE)
 #      beta bull_beta bear_beta 
 # 1.0694993 0.7825841 1.0732377
 

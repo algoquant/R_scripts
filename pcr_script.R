@@ -59,9 +59,9 @@ summary(p_ca)
 p_ca$rotation
 # plot loading barplots in multiple panels
 ncols <- NCOL(SPY_design)
-par(mfrow=c.n_cols %/% 2, 2))
+par(mfrow=c(ncols %/% 2, 2))
 par(mar=c(2, 2, 2, 1), oma=c(0, 0, 0, 0))
-for (ordern in 1:(2*.n_cols %/% 2))) {
+for (ordern in 1:(2*(ncols %/% 2))) {
   barplot(p_ca$rotation[, ordern], 
           las=3, xlab="", ylab="", main="")
   title(paste0("PC", ordern), line=-2.0, 
@@ -149,7 +149,7 @@ betas_running$coefficients[1, ] <- 0
 sapply(betas_running$coefficients, mean)
 
 # calculate rolling mean beta coefficients over time
-betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, win_dow=11)/11
+betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, look_back=11)/11
 tail(betas_rolling)
 
 
@@ -234,7 +234,7 @@ run_pcr <- function(ohlc=NULL, design=NULL, trade_the_close=TRUE, random_ize=FAL
   if (random_ize)
     ohlc <- HighFreq::random_OHLC(ohlc=ohlc)
   if (is.null(design))
-    design <- get_design(ohlc, win_dow=60)
+    design <- get_design(ohlc, look_back=60)
   # calculate close to close returns
   returns_running <- 6.5*60^2*HighFreq::run_returns(xtes=ohlc)
   # calculate returns advanced in time
@@ -271,12 +271,12 @@ run_pcr <- function(ohlc=NULL, design=NULL, trade_the_close=TRUE, random_ize=FAL
 
 
 # create a design matrix from OHLC data
-get_design <- function(ohlc, win_dow) {
+get_design <- function(ohlc, look_back) {
   returns_running <- 6.5*60^2*HighFreq::run_returns(xtes=ohlc)
-  returns_rolling <- HighFreq::roll_vwap(ohlc=ohlc, xtes=returns_running, win_dow=win_dow)
+  returns_rolling <- HighFreq::roll_vwap(ohlc=ohlc, xtes=returns_running, look_back=look_back)
   var_running <- run_variance(ohlc=ohlc)
   skew_running <- run_skew(ohlc=ohlc)
-  hurst_rolling <- roll_hurst(ohlc=ohlc, win_dow=win_dow)
+  hurst_rolling <- roll_hurst(ohlc=ohlc, look_back=look_back)
   design <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
   design <- roll::roll_scale(data=design, width=60, min_obs=1)
   core_data <- coredata(design)
@@ -286,7 +286,7 @@ get_design <- function(ohlc, win_dow) {
   design
 }  # end get_design
 
-SPY_design <- get_design(HighFreq::SPY, win_dow=60)
+SPY_design <- get_design(HighFreq::SPY, look_back=60)
 
 
 ### rolling regressions over SPY_design using package roll
@@ -402,10 +402,10 @@ run_random_pcr <- function(indeks) {
   colnames(ohlc)[ 5] <- "random.volume"
   returns_running <- 6.5*60^2*HighFreq::run_returns(xtes=ohlc)
   returns_advanced <- rutils::lagxts(returns_running, k=-1)
-  returns_rolling <- roll_vwap(ohlc=ohlc, xtes=returns_running, win_dow=win_dow)
+  returns_rolling <- roll_vwap(ohlc=ohlc, xtes=returns_running, look_back=look_back)
   var_running <- 6.5*60^3*HighFreq::run_variance(ohlc=ohlc)
   skew_running <- 6.5*60^4*HighFreq::run_skew(ohlc=ohlc)
-  hurst_rolling <- roll_hurst(ohlc=ohlc, win_dow=win_dow)
+  hurst_rolling <- roll_hurst(ohlc=ohlc, look_back=look_back)
   design_matrix <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
   design_matrix <- roll::roll_scale(data=design_matrix, width=60, min_obs=1)
   core_data <- coredata(design_matrix)
@@ -436,14 +436,14 @@ SPY <- ohlc
 returns_running <- 6.5*60^2*HighFreq::run_returns(xtes=SPY)
 returns_advanced <- rutils::lagxts(returns_running, k=-1)
 colnames(returns_advanced) <- "returns_advanced"
-returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, win_dow=win_dow)
+returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, look_back=look_back)
 colnames(returns_running) <- "returns"
 colnames(returns_rolling) <- "returns.roll"
 var_running <- 6.5*60^3*HighFreq::run_variance(ohlc=SPY)
 colnames(var_running) <- "variance"
 skew_running <- 6.5*60^4*HighFreq::run_skew(ohlc=SPY)
 colnames(skew_running) <- "skew"
-hurst_rolling <- roll_hurst(ohlc=SPY, win_dow=win_dow)
+hurst_rolling <- roll_hurst(ohlc=SPY, look_back=look_back)
 colnames(hurst_rolling) <- "hurst"
 SPY_design <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
 colnames(SPY_design) <- c(colnames(SPY_design)[1:5], "rets_var", "rets_skew")

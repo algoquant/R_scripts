@@ -45,7 +45,7 @@ betas_running$coefficients[1, ] <- 0
 betas <- sapply(betas_running$coefficients, mean)
 
 # calculate rolling mean beta coefficients over time
-betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, win_dow=11)/11
+betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, look_back=11)/11
 tail(betas_rolling)
 
 

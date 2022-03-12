@@ -1973,11 +1973,11 @@ raw_ticks <- rbind(raw_ticks, foo)
 
 ## Apply Hampel filter to remove price jumps
 
-win_dow <- 111
-half_window <- win_dow %/% 2
-medi_an <- TTR::runMedian(raw_ticks$price, n=win_dow)
+look_back <- 111
+half_window <- look_back %/% 2
+medi_an <- TTR::runMedian(raw_ticks$price, n=look_back)
 medi_an <- rutils::lagit(medi_an, lagg=-half_window, pad_zeros=FALSE)
-madv <- TTR::runMAD(raw_ticks$price, n=win_dow)
+madv <- TTR::runMAD(raw_ticks$price, n=look_back)
 madv <- rutils::lagit(madv, lagg=-half_window, pad_zeros=FALSE)
 madv[1:half_window] <- 1
 madv[madv == 0] <- 1
@@ -2159,22 +2159,22 @@ plot.zoo(pnls)
 ## Simple contrarian strategy using Hampel filter - doesn't work too well
 
 # Calculate a time series of rolling z-scores
-win_dow <- 5
+look_back <- 5
 # prices <- big_ticks$price
 returns <- rutils::diffit(big_ticks$price)
-medi_an <- TTR::runMedian(returns, n=win_dow)
-medi_an[1:win_dow] <- 1
+medi_an <- TTR::runMedian(returns, n=look_back)
+medi_an[1:look_back] <- 1
 # sum(is.na(medi_an))
-madv <- TTR::runMAD(returns, n=win_dow)
-madv[1:win_dow] <- 1
+madv <- TTR::runMAD(returns, n=look_back)
+madv[1:look_back] <- 1
 madv[madv < 1e-6] <- 1
 # sum(is.na(madv))
 zscores <- ifelse(madv!=0, (returns-medi_an)/madv, 0)
-zscores[1:win_dow] <- 0
+zscores[1:look_back] <- 0
 # sum(is.na(zscores))
 # madv <- zoo::na.locf(zscores)
-# mad_zscores <- TTR::runMAD(zscores, n=win_dow)
-# mad_zscores[1:win_dow, ] <- 0
+# mad_zscores <- TTR::runMAD(zscores, n=look_back)
+# mad_zscores[1:look_back, ] <- 0
 
 tail(zscores)
 mad(zscores)
@@ -3569,8 +3569,8 @@ library(rutils)
 # Define a rolling look-back window and a half window:
 # Use the %/% operator.
 
-win_dow <- 11
-half_window <- win_dow %/% 2
+look_back <- 11
+half_window <- look_back %/% 2
 
 # Calculate a time series of rolling z-scores
 # (called zscores), using the Hampel filter code
@@ -3579,18 +3579,18 @@ half_window <- win_dow %/% 2
 prices <- Cl(HighFreq::SPY)["T09:31:00/T15:59:00"]
 returns <- rutils::diffit(log(prices))
 
-medi_an <- TTR::runMedian(prices, n=win_dow)
-medi_an[1:win_dow, ] <- 1
+medi_an <- TTR::runMedian(prices, n=look_back)
+medi_an[1:look_back, ] <- 1
 sum(is.na(medi_an))
-madv <- TTR::runMAD(prices, n=win_dow)
-madv[1:win_dow, ] <- 1
+madv <- TTR::runMAD(prices, n=look_back)
+madv[1:look_back, ] <- 1
 sum(is.na(madv))
 zscores <- ifelse(madv!=0, (prices-medi_an)/madv, 0)
-zscores[1:win_dow, ] <- 0
+zscores[1:look_back, ] <- 0
 madv <- zoo::na.locf(zscores)
 sum(is.na(zscores))
-mad_zscores <- TTR::runMAD(zscores, n=win_dow)
-mad_zscores[1:win_dow, ] <- 0
+mad_zscores <- TTR::runMAD(zscores, n=look_back)
+mad_zscores[1:look_back, ] <- 0
 
 # You should get the following output:
 tail(zscores)
@@ -3881,16 +3881,16 @@ oo_s <- cbind(1, look_back + lagg)
 oos_t <- t(oo_s)
 
 # influ_ence <- design %*% design_inv
-# fit_ted <- drop(influ_ence %*% se_ries)
+# fit_ted <- drop(influ_ence %*% tseries)
 
-# se_ries <- ohlc[(look_back+1):(look_back+100), 4]
+# tseries <- ohlc[(look_back+1):(look_back+100), 4]
 # val_ue <- ohlc[201, 4]
-# calc_zscore(val_ue, se_ries, design, design_inv, design2, oo_s, oos_t, deg_free)
+# calc_zscore(val_ue, tseries, design, design_inv, design2, oo_s, oos_t, deg_free)
 
 zscores <- sapply((look_back+1):nrows, function(x) {
-  se_ries <- ohlc[(x-look_back):(x-1), 4]
+  tseries <- ohlc[(x-look_back):(x-1), 4]
   val_ue <- ohlc[x, 4]
-  calc_zscore(val_ue, se_ries, design, design_inv, design2, oo_s, oos_t, deg_free)
+  calc_zscore(val_ue, tseries, design, design_inv, design2, oo_s, oos_t, deg_free)
 })  # end sapply
 zscores <- c(rep(0, look_back), zscores)
 

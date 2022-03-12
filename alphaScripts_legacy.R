@@ -256,7 +256,7 @@ ts.spread <- loadCDS(symbol.cds, field="SPREAD_MID", TERM=7, bucket.interval="1"
 ts.join <- na.locf(cbind(ts.tranche, 2.0*ts.spread/100))
 ts.join <- ts.join[,1] - 3.4*ts.join[,3]
 plot(ts.join["2012-02-01/"])
-# Insert term.string into colnames
+# Insert term.string into colnamev
 colnames(ts.tranche.prices)) <- apply(matrix(colnames(ts.tranche.prices)), 1, function(col.name, term.string) {
   col.string <- strsplit(col.name, '.', fixed=TRUE)[[1]]
   paste(c(col.string[1], term.string, col.string[-1]), collapse=".")

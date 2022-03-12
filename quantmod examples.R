@@ -57,7 +57,7 @@ blah <- diff(log(QQQ[, "QQQ.Adjusted"]))
 tail(blah)
 tail(QQQ_rets)
 
-# but colnames is now "daily.returns"
+# but colnamev is now "daily.returns"
 
 
 # myRet <- sapply(list(STOXX50E,GSPC,N225), dailyReturn)

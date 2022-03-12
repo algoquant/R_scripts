@@ -242,9 +242,9 @@ colnames(position_s) <- "positions"
 # fit logistic regression into buy or sell series
 design <- cbind(position_s, SPY_design[index(position_s)])
 # colnames(design)[1] <- "positions"
-colnames <- colnames(design)
-formulav <- as.formula(paste(colnames[1],
-                             paste0(paste(colnames[-1], collapse=" + "), " - 1"), 
+colnamev <- colnames(design)
+formulav <- as.formula(paste(colnamev[1],
+                             paste0(paste(colnamev[-1], collapse=" + "), " - 1"), 
                              sep=" ~ "))
 glmod <- glm(formulav, data=design, family=binomial(link="logit"))
 summary(glmod)

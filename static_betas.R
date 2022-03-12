@@ -112,31 +112,31 @@ colnames(returns_advanced) <- "returns_advanced"
 
 ### Calculate SPY_design design matrix, containing columns of data aggregations
 # scale to daily returns
-win_dow <- 5
+look_back <- 5
 returns_running <- 6.5*60^2*HighFreq::run_returns(xtes=HighFreq::SPY)
-returns_rolling <- roll_vwap(ohlc=HighFreq::SPY, xtes=returns_running, win_dow=win_dow)
+returns_rolling <- roll_vwap(ohlc=HighFreq::SPY, xtes=returns_running, look_back=look_back)
 colnames(returns_running) <- "returns"
 colnames(returns_rolling) <- "returns.roll"
 
 var_running <- 6.5*60^3*HighFreq::run_variance(ohlc=HighFreq::SPY)
-var_rolling <- HighFreq::roll_vwap(ohlc=HighFreq::SPY, xtes=var_running, win_dow=win_dow)
+var_rolling <- HighFreq::roll_vwap(ohlc=HighFreq::SPY, xtes=var_running, look_back=look_back)
 colnames(var_running) <- "variance"
 colnames(var_rolling) <- "variance.roll"
 
 skew_running <- 6.5*60^4*HighFreq::run_skew(ohlc=HighFreq::SPY)
-skew_rolling <- roll_vwap(ohlc=HighFreq::SPY, xtes=skew_running, win_dow=win_dow)
+skew_rolling <- roll_vwap(ohlc=HighFreq::SPY, xtes=skew_running, look_back=look_back)
 colnames(skew_running) <- "skew"
 colnames(skew_rolling) <- "skew.roll"
 
 # sharpe_running <- HighFreq::run_sharpe(ohlc=HighFreq::SPY)
-# sharpe_rolling <- roll_vwap(ohlc=HighFreq::SPY, xtes=sharpe_running, win_dow=win_dow)
+# sharpe_rolling <- roll_vwap(ohlc=HighFreq::SPY, xtes=sharpe_running, look_back=look_back)
 # colnames(sharpe_running) <- "sharpe"
 # colnames(sharpe_rolling) <- "sharpe.roll"
 #
-# sharpe_rolling <- HighFreq::roll_sharpe(ohlc=HighFreq::SPY, win_dow=win_dow)
+# sharpe_rolling <- HighFreq::roll_sharpe(ohlc=HighFreq::SPY, look_back=look_back)
 # colnames(sharpe_rolling) <- "sharpe.roll"
 
-hurst_rolling <- HighFreq::roll_hurst(ohlc=HighFreq::SPY, win_dow=win_dow)
+hurst_rolling <- HighFreq::roll_hurst(ohlc=HighFreq::SPY, look_back=look_back)
 colnames(hurst_rolling) <- "hurst.roll"
 
 # select most significant factors plus interaction terms
@@ -176,7 +176,7 @@ colnames(sig_nal) <- "signal"
 # lag sig_nal by one period
 # sig_nal <- rutils::lagxts(sig_nal)
 # calculate average of sig_nal over past, to improve forecasts
-# sig_nal <- rutils::roll_sum(sig_nal, win_dow=3) / 3
+# sig_nal <- rutils::roll_sum(sig_nal, look_back=3) / 3
 
 
 ### calculate hit rates by signal quantiles
@@ -583,7 +583,7 @@ back_test <- function(design=NULL, betas=NULL, threshold=NULL, returns=NULL, lag
   sig_nal <- design %*% betas
   sig_nal <- rutils::lagit(sig_nal, lag=lag)
   if (lag > 1)
-    sig_nal <- rutils::roll_sum(sig_nal, win_dow=lag) / lag
+    sig_nal <- rutils::roll_sum(sig_nal, look_back=lag) / lag
   # calculate returns
   if (is.null(threshold)) {
     # calculate returns proportional to sig_nal and scale them to SPY volatility

@@ -251,7 +251,7 @@ close(connect_ion)
 connect_ion <- gzfile("/Users/jerzy/Users/Jerzy/Downloads/ESH820171213.bin.gz", open="rb")
 connect_ion <- gzfile("/Users/jerzy/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
 
-colnames <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
+colnamev <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
                "pB1r", "sB1r", "pA1r", "sA1r", "pB1c", "sB1c", "pA1c",
                "sA1c")
 
@@ -259,7 +259,7 @@ colnames <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
 head_er <- readBin(connect_ion, 'integer', 3)
 datav <- readBin(connect_ion, 'double', head_er[1]*head_er[2])
 datav <- matrix(datav, nrow=head_er[1], ncol=head_er[2], 
-                byrow=TRUE, dimnames=list(NULL, colnames))
+                byrow=TRUE, dimnames=list(NULL, colnamev))
 
 close(connect_ion)
 

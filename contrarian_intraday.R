@@ -61,7 +61,7 @@ bid_offer <- 0.000001
 
 # Rerun the model
 ## Backtest strategy for flipping if two consecutive positive and negative returns
-position_s <- rep(NA_integer_,.n_rows)
+position_s <- rep(NA_integer_, nrows)
 position_s[1] <- 0
 # Flip position if the scaled returns exceed threshold 
 position_s[returns_scaled > threshold] <- (-1)

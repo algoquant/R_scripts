@@ -35,11 +35,11 @@ colnames(returns_adv) <- "returns_adv"
 # residuals of the regression of the time series of closep prices
 dates <- xts::.index(ohlc)
 look_back <- 11
-z_scores <- HighFreq::roll_zscores(response=closep, 
+zscores <- HighFreq::roll_zscores(response=closep, 
                                    design=matrix(as.numeric(dates), nc=1), 
                                    look_back=look_back)
-colnames(z_scores) <- "z_scores"
-z_scores[1:3] <- 0
+colnames(zscores) <- "zscores"
+zscores[1:3] <- 0
 close_open <- (closep-openp)
 colnames(close_open) <- "close_open"
 close_high <- (closep-highp)
@@ -62,7 +62,7 @@ indicator_s <- cbind(returns, volat, skew)
 look_back <- 60
 indicator_s <- roll::roll_scale(indicator_s, width=look_back, min_obs=1)
 indicator_s[1, ] <- 0
-indicator_s <- cbind(indicator_s, z_scores)
+indicator_s <- cbind(indicator_s, zscores)
 indicator_s[1:3, ] <- 0
 colnamev <- colnames(indicator_s)
 
