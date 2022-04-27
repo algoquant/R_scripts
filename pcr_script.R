@@ -159,29 +159,29 @@ tail(betas_rolling)
 betas_lagged <- rutils::lagxts(betas_running$coefficients)
 
 # forecast the returns from today's factors in SPY_design times the lagged betas
-# note that "sig_nal" has minus sign, because betas_running are
+# note that "score" has minus sign, because betas_running are
 # calculated in the opposite sign by roll_pcr()
-sig_nal <-
+score <-
   -rowSums(betas_lagged[, -1]*SPY_design[index(betas_running$coefficients)]) -
   betas_lagged[, 1]
 
 
-### perform backtests: invest proportional to sig_nal
+### perform backtests: invest proportional to score
 
 ### trade immediately at the close
-# lag sig_nal by one period into the future
-sig_nal <- rutils::lagxts(sig_nal)
-# pnls <- exp(cumsum(sig_nal * returns_running))
+# lag score by one period into the future
+score <- rutils::lagxts(score)
+# pnls <- exp(cumsum(score * returns_running))
 # or, invest fixed notional using sign()
-pnls <- exp(cumsum(sign(sig_nal) * returns_running))
+pnls <- exp(cumsum(sign(score) * returns_running))
 
 ### or, trade at the open in the next period
-# lag sig_nal two periods into future
-sig_nal <- rutils::lagxts(sig_nal, lag=2)
+# lag score two periods into future
+score <- rutils::lagxts(score, lag=2)
 # calculate open to open returns
 returns_open <- HighFreq::run_returns(xtes=HighFreq::SPY, colnum=1, scalit=FALSE)
 colnames(returns_open) <- "returns_advanced"
-pnls <- exp(cumsum(sign(sig_nal) * returns_open))
+pnls <- exp(cumsum(sign(score) * returns_open))
 
 
 ### plotting
@@ -249,24 +249,24 @@ run_pcr <- function(ohlc=NULL, design=NULL, trade_the_close=TRUE, random_ize=FAL
   # lag the betas by a single period
   betas_lagged <- rutils::lagxts(betas_running$coefficients)
   # forecast the returns from today's factors in design times the lagged betas
-  # note that "sig_nal" has minus sign, because betas_running are
+  # note that "score" has minus sign, because betas_running are
   # calculated in the opposite sign by roll_pcr()
-  sig_nal <-
+  score <-
     -rowSums(betas_lagged[, -1]*design[index(betas_running$coefficients)]) -
     betas_lagged[, 1]
   if (trade_the_close) {
     # trade immediately at the close
-    # lag sig_nal by one period into the future
-    sig_nal <- rutils::lagxts(sig_nal)
+    # lag score by one period into the future
+    score <- rutils::lagxts(score)
   }
   else {
     # trade at the open in the next period
-    # lag sig_nal two periods into future
-    sig_nal <- rutils::lagxts(sig_nal, lag=2)
+    # lag score two periods into future
+    score <- rutils::lagxts(score, lag=2)
     # calculate open to open returns
     returns_running <- 6.5*60^2*HighFreq::run_returns(xtes=ohlc, colnum=1)
   }
-  cumsum(sign(sig_nal) * returns_running)
+  cumsum(sign(score) * returns_running)
 }  # end run_pcr
 
 

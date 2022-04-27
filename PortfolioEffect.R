@@ -53,8 +53,8 @@ util_plot2d(position_variance(port_folio, "AAPL"), title="Variance, daily", Lege
   util_line2d(portfolio_variance(port_folio), Legend="Portfolio")
 
 #  Compute portfolio and position Sharpe Ratio (daily)
-util_plot2d(position_sharpeRatio(port_folio, "AAPL"), title="Sharpe Ratio, daily", Legend="AAPL") + 
-  util_line2d(position_sharpeRatio(port_folio, "GOOG"), Legend="GOOG") + 
+util_plot2d(positharpeRatio(port_folio, "AAPL"), title="Sharpe Ratio, daily", Legend="AAPL") + 
+  util_line2d(positharpeRatio(port_folio, "GOOG"), Legend="GOOG") + 
   util_line2d(portfolio_sharpeRatio(port_folio), Legend="Portfolio")
 
 

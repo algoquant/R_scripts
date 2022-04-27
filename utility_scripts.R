@@ -48,7 +48,7 @@ file_names[!isprocessed]
 
 ###############
 # Extract R chunks from single *.Rnw file
-knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture1.Rnw", documentation=0, quiet=TRUE)
+knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture_1.Rnw", documentation=0, quiet=TRUE)
 
 # Extract R chunks from all *.Rnw files, except those that contain "FRE".
 sapply(file_names, knitr::purl, documentation=0, quiet=TRUE)

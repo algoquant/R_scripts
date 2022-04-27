@@ -76,18 +76,18 @@ threshold_s <- 1:4
 cum_pnls <- sapply(threshold_s, function(threshold) {
   cat("threshold=", threshold, "\n")
   # Initialize positions
-  position_s <- rep(NA_integer_, nrows)
-  position_s[1] <- 0
+  posit <- rep(NA_integer_, nrows)
+  posit[1] <- 0
   # Flip position if several consecutive positive or negative returns
-  position_s[returns_pos_count > threshold] <- (-1)
-  position_s[returns_neg_count > threshold] <- 1
+  posit[returns_pos_count > threshold] <- (-1)
+  posit[returns_neg_count > threshold] <- 1
   # Flip position if several consecutive closes at high or low
-  position_s[close_high_count > threshold] <- (-1)
-  position_s[close_low_count > threshold] <- 1
+  posit[close_high_count > threshold] <- (-1)
+  posit[close_low_count > threshold] <- 1
   # LOCF
-  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-  position_s <- rutils::lagit(position_s, lagg=1)
-  cumsum(position_s*close_close)
+  posit <- zoo::na.locf(posit, na.rm=FALSE)
+  posit <- rutils::lagit(posit, lagg=1)
+  cumsum(posit*close_close)
 })  # end sapply
 
 # Plot in panels
@@ -99,39 +99,39 @@ plot.zoo(cum_pnls)
 ## Backtest strategy for flipping if two consecutive positive and negative returns
 rm(datav)
 # Initialize positions
-position_s <- rep(NA_integer_, nrows)
-position_s[1] <- 0
+posit <- rep(NA_integer_, nrows)
+posit[1] <- 0
 # Flip position if several consecutive positive or negative returns
-position_s[returns_pos_count > 1] <- (-1)
-position_s[returns_neg_count > 1] <- 1
+posit[returns_pos_count > 1] <- (-1)
+posit[returns_neg_count > 1] <- 1
 # Flip position if several consecutive closes at high or low
-position_s[close_high_count > 1] <- (-1)
-position_s[close_low_count > 1] <- 1
+posit[close_high_count > 1] <- (-1)
+posit[close_low_count > 1] <- 1
 # LOCF
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s, lagg=1)
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit, lagg=1)
 # Calculate number of trades
-sum(abs(rutils::diffit(position_s))) / NROW(position_s) / 2
+sum(abs(rutils::diffit(posit))) / NROW(posit) / 2
 # Calculate strategy pnls
-pnls <- cumsum(position_s*close_close)
+pnls <- cumsum(posit*close_close)
 # tail(pnls)
 
 
 ## Backtest strategy for flipping if single close at the high or low
 rm(datav)
 # Initialize positions
-position_s <- rep(NA_integer_, nrows)
-position_s[1] <- 0
+posit <- rep(NA_integer_, nrows)
+posit[1] <- 0
 # Flip position if close at high or low
-position_s[close_high] <- (-1)
-position_s[close_low] <- 1
+posit[close_high] <- (-1)
+posit[close_low] <- 1
 # LOCF
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s, lagg=1)
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit, lagg=1)
 # Calculate number of trades
-sum(abs(rutils::diffit(position_s))) / NROW(position_s) / 2
+sum(abs(rutils::diffit(posit))) / NROW(posit) / 2
 # Calculate strategy pnls
-pnls <- cumsum(position_s*close_close)
+pnls <- cumsum(posit*close_close)
 # tail(pnls)
 
 
@@ -144,18 +144,18 @@ rangev <- (log(core_data[, 2]) - log(core_data[, 3]))
 close_close <- rutils::diffit(log(closep))
 returns_norm <- ifelse(rangev>0, close_close/rangev, 0)
 # Initialize positions
-position_s <- rep(NA_integer_, nrows)
-position_s[1] <- 0
+posit <- rep(NA_integer_, nrows)
+posit[1] <- 0
 # Flip position if the scaled returns exceed threshold 
-position_s[returns_norm > threshold] <- (-1)
-position_s[returns_norm < (-threshold)] <- 1
+posit[returns_norm > threshold] <- (-1)
+posit[returns_norm < (-threshold)] <- 1
 # LOCF
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s, lagg=lagg)
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit, lagg=lagg)
 # Calculate number of trades
-sum(abs(rutils::diffit(position_s))) / NROW(position_s) / 2
+sum(abs(rutils::diffit(posit))) / NROW(posit) / 2
 # Calculate strategy pnls
-pnls <- cumsum(position_s*close_close)
+pnls <- cumsum(posit*close_close)
 # tail(pnls)
 
 

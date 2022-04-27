@@ -371,7 +371,7 @@ save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-### Download daily OHLC bars for multiple SP500 symbols in a loop
+### Download from Polygon daily OHLC bars for multiple SP500 symbols in a loop
 
 # Select SP500 symbols
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
@@ -657,9 +657,9 @@ returns <- xts::diff.xts(log(prices))
 
 ## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
-sam_ple <- sample(NCOL(returns), s=100, replace=FALSE)
-prices100 <- prices[, sam_ple]
-returns100 <- returns[, sam_ple]
+samplev <- sample(NCOL(returns), s=100, replace=FALSE)
+prices100 <- prices[, samplev]
+returns100 <- returns[, samplev]
 
 ## Calculate scaled returns using price range - experimental
 returns_scaled <- eapply(sp500env, function(ohlc) {
@@ -686,7 +686,7 @@ sum(!is.finite(returns_scaled))
 # returns_scaled <- zoo::na.locf(returns_scaled, fromLast=TRUE)
 colnames(returns_scaled) <- colnamev
 
-returns100_scaled <- returns_scaled[, sam_ple]
+returns100_scaled <- returns_scaled[, samplev]
 
 ## Save the data
 save(prices, prices100,

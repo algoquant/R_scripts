@@ -57,9 +57,9 @@ colnames(volume) <- "volume"
 variance <- HighFreq::roll_variance(ohlc=log(ohlc), look_back=look_back, scalit=FALSE)
 colnames(variance) <- "variance"
 
-sig_nal <- HighFreq::roll_zscores(response=close_num, design=design, look_back=look_back)
-colnames(sig_nal) <- "sig_nal"
-sig_nal[1:look_back] <- 0
+score <- HighFreq::roll_zscores(response=close_num, design=design, look_back=look_back)
+colnames(score) <- "score"
+score[1:look_back] <- 0
 
 roll_sharpe
 
@@ -370,26 +370,26 @@ volumes <- matrix(taq$SIZE, nc=1)
 returns <- rutils::diffit(closep)
 
 # Calculate VWAP indicator
-vwapv <- HighFreq::roll_sum(t_series=closep*volumes, look_back=look_back)
-volume_rolling <- HighFreq::roll_sum(t_series=volumes, look_back=look_back)
+vwapv <- HighFreq::roll_sum(tseries=closep*volumes, look_back=look_back)
+volume_rolling <- HighFreq::roll_sum(tseries=volumes, look_back=look_back)
 vwapv <- vwapv/volume_rolling
 vwapv[is.na(vwapv)] <- 0
 # hist((closep - vwapv), breaks=100, xlim=c(-0.3, 0.3))
 # Simulate strategy
-position_s <- rep(NA_integer_, NROW(closep))
-position_s[1] <- 0
+posit <- rep(NA_integer_, NROW(closep))
+posit[1] <- 0
 # Long positions
-indica_tor <- ((closep - vwapv) > threshold*rangev)
-indica_tor <- HighFreq::roll_count(indica_tor)
-position_s <- ifelse(indica_tor >= lagg, 1, position_s)
+indic <- ((closep - vwapv) > threshold*rangev)
+indic <- HighFreq::roll_count(indic)
+posit <- ifelse(indic >= lagg, 1, posit)
 # Short positions
-indica_tor <- ((closep - vwapv) < (-threshold*rangev))
-indica_tor <- HighFreq::roll_count(indica_tor)
-position_s <- ifelse(indica_tor >= lagg, -1, position_s)
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
+indic <- ((closep - vwapv) < (-threshold*rangev))
+indic <- HighFreq::roll_count(indic)
+posit <- ifelse(indic >= lagg, -1, posit)
+posit <- zoo::na.locf(posit, na.rm=FALSE)
 # Lag the positions to trade in next period
-position_s <- rutils::lagit(position_s, lagg=1)
-pnls <- cumsum(coeff*returns*position_s)
+posit <- rutils::lagit(posit, lagg=1)
+pnls <- cumsum(coeff*returns*posit)
 # plot(pnls, t="l")
 
 # Create date-time index
@@ -610,15 +610,15 @@ dygraphs::dygraph(pnls, main="Back-test of Reverting Strategies")
 
 # Calculate holding period number of trades for best stocks from environment
 period_s <- sapply(symbols[1:20], function(symbol) {
-  position_s <- get(symbol, perf_env)[, "positions"]
-  2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
+  posit <- get(symbol, perf_env)[, "positions"]
+  2*NROW(posit) / sum(abs(rutils::diffit(posit)))
 })  # end sapply
 names(period_s) <- symbols[1:20]
 
 # Calculate holding period number of trades for worst stocks
 period_s <- sapply(symbols[(NROW(symbols)-19):NROW(symbols)], function(symbol) {
-  position_s <- get(symbol, perf_env)[, "positions"]
-  2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
+  posit <- get(symbol, perf_env)[, "positions"]
+  2*NROW(posit) / sum(abs(rutils::diffit(posit)))
 })  # end sapply
 names(period_s) <- symbols[(NROW(symbols)-19):NROW(symbols)]
 
@@ -1312,14 +1312,14 @@ tail(design)
 formulav <- as.formula(paste(colnames(design)[1], paste(paste(colnames(design)[-1], collapse=" + "), "- 1"), sep="~"))
 formulav <- as.formula(paste(colnames(design)[1], paste(colnames(design)[2], "- 1"), sep="~"))
 
-l_m <- lm(formulav, data=as.data.frame(design))
+lmod <- lm(formulav, data=as.data.frame(design))
 # Perform regressions over different calendar periods
-l_m <- lm(formulav, data=as.data.frame(design["2011-01-01/"]))
-l_m <- lm(formulav, data=as.data.frame(design["/2011-01-01"]))
-lm_summ <- summary(l_m)
-l_m <- lm(formulav, data=as.data.frame(design["2010-05-05/2010-05-07"]))
-lm_summ <- summary(l_m)
-lm_predict <- predict(l_m, newdata=as.data.frame(design["2010-05-06"]))
+lmod <- lm(formulav, data=as.data.frame(design["2011-01-01/"]))
+lmod <- lm(formulav, data=as.data.frame(design["/2011-01-01"]))
+lm_summ <- summary(lmod)
+lmod <- lm(formulav, data=as.data.frame(design["2010-05-05/2010-05-07"]))
+lm_summ <- summary(lmod)
+lm_predict <- predict(lmod, newdata=as.data.frame(design["2010-05-06"]))
 foo <- data.frame(sign(lm_predict), coredata(design["2010-05-06", 1]))
 colnames(foo) <- c("lm_pred", "realized")
 table(foo)
@@ -1334,8 +1334,8 @@ foo <- sapply(structure(2:10, paste0("thresh", names=2:10)), function(threshold)
   neg_skew <- coredata(ifelse(skew < -threshold*skew_mad, -1, 0))
   colnames(neg_skew) <- paste(symbol, "n_skew", sep=".")
   design <- cbind(sign(lag_rets), sign(coredata(vwap_diff)), pos_skew, neg_skew)
-  l_m <- lm(formulav, data=as.data.frame(design))
-  lm_summ <- summary(l_m)
+  lmod <- lm(formulav, data=as.data.frame(design))
+  lm_summ <- summary(lmod)
   lm_summ$coefficients[, "t value"]
 }, USE.NAMES=TRUE)  # end sapply
 
@@ -1347,19 +1347,19 @@ endpoints <- xts::endpoints(SPY[dates], on="days")
 endpoints <- format(index((SPY[dates])[endpoints[-1], ]), "%Y-%m-%d")
 look_back <- 10
 
-position_s <-
+posit <-
   lapply(look_back:NROW(endpoints),
          function(endpoint) {
            dates <- paste0(endpoints[endpoint-look_back+1], "/", endpoints[endpoint-1])
-           l_m <- lm(formulav, data=as.data.frame(design[dates]))
+           lmod <- lm(formulav, data=as.data.frame(design[dates]))
            datav <- design[endpoints[endpoint]]
-           xts(x=predict(l_m, newdata=as.data.frame(datav)), order.by=index(datav))
+           xts(x=predict(lmod, newdata=as.data.frame(datav)), order.by=index(datav))
          }  # end anon function
   )  # end lapply
-position_s <- rutils::do_call(rbind, position_s)
-chart_Series(position_s, name=paste(symbol, "optim_rets"))
+posit <- rutils::do_call(rbind, posit)
+chart_Series(posit, name=paste(symbol, "optim_rets"))
 
-cumu_pnl <- cumsum(sign(position_s)*returns[index(position_s), 1])
+cumu_pnl <- cumsum(sign(posit)*returns[index(posit), 1])
 last(cumu_pnl)
 chart_Series(cumu_pnl, name=paste(symbol, "optim_rets"))
 
@@ -1401,7 +1401,7 @@ table(foo)
 
 # scatterplot of skew and daily_rets
 plot(formulav, data=design, xlab="skew", ylab="rets")
-abline(l_m, col="blue")
+abline(lmod, col="blue")
 
 cor.test(formula=as.formula(paste("~", paste(colnames(design), collapse=" + "))), data=as.data.frame(design))
 
@@ -1413,7 +1413,7 @@ design <- cbind(
 
 
 # multiply matrix columns
-foo <- t(t(coredata(design[, -1]))*coef(l_m)[-1])
+foo <- t(t(coredata(design[, -1]))*coef(lmod)[-1])
 dim(foo)
 tail(foo)
 apply(foo, MARGIN=2, sum)
@@ -1422,24 +1422,24 @@ apply(foo, MARGIN=2, sum)
 ## run simple strategy
 
 # threshold <- 2*mad(roll_skew)  # signal threshold trading level
-# position_s <- NA*numeric(NROW(skew))
-position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
-position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, -coredata(returns))
-position_s <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
-position_s <- pos_skew + neg_skew + sign(coredata(vwap_diff))
-position_s <- -sign(skew) + sign(coredata(vwap_diff))
-position_s <- coredata(design[, -1]) %*% coef(l_m)
-sum(is.na(position_s))
-NROW(position_s)
-head(position_s)
-plot(position_s[(NROW(position_s)-100*look_back):NROW(position_s)], t="l", xlab="", ylab="", main="position_s")
-plot(position_s, t="l", ylim=c(0, 0.001))
+# posit <- NA*numeric(NROW(skew))
+posit <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
+posit <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, -coredata(returns))
+posit <- ifelse((pos_skew!=0) | (neg_skew!=0), 1, sign(coredata(vwap_diff)))
+posit <- pos_skew + neg_skew + sign(coredata(vwap_diff))
+posit <- -sign(skew) + sign(coredata(vwap_diff))
+posit <- coredata(design[, -1]) %*% coef(lmod)
+sum(is.na(posit))
+NROW(posit)
+head(posit)
+plot(posit[(NROW(posit)-100*look_back):NROW(posit)], t="l", xlab="", ylab="", main="posit")
+plot(posit, t="l", ylim=c(0, 0.001))
 
-position_s <- ifelse(roll_skew>threshold, -1, position_s)
-position_s <- ifelse(roll_skew<(-threshold), 1, position_s)
-position_s <- ifelse((roll_skew*lag(roll_skew))<0, 0, position_s)
-# lag the position_s
-lag_positions <- c(0, position_s[-NROW(position_s)])
+posit <- ifelse(roll_skew>threshold, -1, posit)
+posit <- ifelse(roll_skew<(-threshold), 1, posit)
+posit <- ifelse((roll_skew*lag(roll_skew))<0, 0, posit)
+# lag the posit
+lag_positions <- c(0, posit[-NROW(posit)])
 lag_positions <- na.locf(lag_positions, na.rm=FALSE)
 lag_positions <- merge(roll_skew, lag_positions)
 colnames(lag_positions)[2] <-
@@ -1457,7 +1457,7 @@ chart_Series(
   name=paste(symbol, "contrarian skew strategy frequency of trades"))
 # Calculate transaction costs
 bid_offer <- 0.001  # 10 bps for liquid ETFs
-costs <- bid_offer*abs(position_s-lag_positions)/2
+costs <- bid_offer*abs(posit-lag_positions)/2
 pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - costs
 
 
@@ -1466,10 +1466,10 @@ pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - costs
 roll_vwap <- function(win_short=10, win_long=100, prices, returns) {
   vwap_short <- coredata(roll_vwap(ohlc=prices, look_back=win_short))
   vwap_long <- coredata(roll_vwap(ohlc=prices, look_back=win_long))
-# lag the position_s
-  position_s <- sign(vwap_short - vwap_long)
-  position_s <- c(0, position_s[-NROW(position_s)])
-  sum(position_s*returns)
+# lag the posit
+  posit <- sign(vwap_short - vwap_long)
+  posit <- c(0, posit[-NROW(posit)])
+  sum(posit*returns)
 }  # end roll_vwap
 
 roll_vwap(prices=SPY, returns=returns)
@@ -2325,8 +2325,8 @@ colnames(variance) <- "variance"
 # set plot panels
 # par(mfrow=c(2,1))
 # chart_Series(HighFreq::SPY["2013-11-15"], name="SPY")
-# chart_Series(SPY_design["2013-11-15"], name="position_s")
-# plot.zoo(position_s[match(index(HighFreq::SPY["2013-11-15"]), index(HighFreq::SPY))], main="position_s")
+# chart_Series(SPY_design["2013-11-15"], name="posit")
+# plot.zoo(posit[match(index(HighFreq::SPY["2013-11-15"]), index(HighFreq::SPY))], main="posit")
 # bars with zero skew
 # bar_s <- HighFreq::SPY["2013-11-15"][(skew["2013-11-15"]==0)]
 
@@ -2383,16 +2383,16 @@ rangev <- cbind(min=-runMax(-indic, n=look_back),
                 max=runMax(indic, n=look_back))
 rangev[1:(look_back-1), ] <- rangev[look_back, ]
 rangev <- rutils::lagit(rangev)
-# Calculate position_s and pnls from z-scores and rangev
-position_s <- ifelse(indic > 0.96*rangev[, "max"], -1,
+# Calculate posit and pnls from z-scores and rangev
+posit <- ifelse(indic > 0.96*rangev[, "max"], -1,
                      ifelse(indic < 0.96*rangev[, "min"], 1, NA))
-position_s[1] <- 0
-position_s <- na.locf(position_s, na.rm=FALSE)
-# position_s <- rutils::lagit(position_s)
-position_s <- lapply(1:3, rutils::lagit, xtes=position_s)
-position_s <- rutils::do_call(cbind, position_s)
-position_s <- rowSums(position_s)/NCOL(position_s)
-cum_pnls <- cumsum(position_s*returns)
+posit[1] <- 0
+posit <- na.locf(posit, na.rm=FALSE)
+# posit <- rutils::lagit(posit)
+posit <- lapply(1:3, rutils::lagit, xtes=posit)
+posit <- rutils::do_call(cbind, posit)
+posit <- rowSums(posit)/NCOL(posit)
+cum_pnls <- cumsum(posit*returns)
 x11()
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
@@ -2415,15 +2415,15 @@ variance <- 6.5*60^3*HighFreq::run_variance(ohlc=HighFreq::SPY, scalit=TRUE)
 variance <- sqrt(variance)
 range(variance)
 range(variance[variance > 1e-06])
-pnls <- position_s*returns
+pnls <- posit*returns
 mo_del <- lm(pnls[variance > 1e-03] ~ variance[variance > 1e-03])
 summary(mo_del)
 plot(x=as.numeric(variance[variance > 1e-03]), y=as.numeric(pnls[variance > 1e-03]))
 
 
-## Calculate the strategy success rate as the product of the forecast position_s times the actual position (return direction)
+## Calculate the strategy success rate as the product of the forecast posit times the actual position (return direction)
 # result: there is no significant correlation between the daily average success rate and the level of variance
-bar <- apply.daily(position_s*sign(returns), FUN=sum)
+bar <- apply.daily(posit*sign(returns), FUN=sum)
 foo <- apply.daily(variance, FUN=sum)
 mo_del <- lm(bar ~ foo)
 summary(mo_del)
@@ -2474,23 +2474,23 @@ rangev <- rutils::lagit(rangev)
 # plot.zoo(rangev[end_days, 1], main="rolling min of z-scores", xlab=NA, ylab=NA)
 
 
-# Calculate position_s and pnls from z-scores and rangev
+# Calculate posit and pnls from z-scores and rangev
 
-position_s <- ifelse(zscores[[3]] > 0.96*rangev[, "max"], -1,
+posit <- ifelse(zscores[[3]] > 0.96*rangev[, "max"], -1,
                      ifelse(zscores[[3]] < 0.96*rangev[, "min"], 1, NA))
-position_s[1] <- 0
-position_s <- na.locf(position_s, na.rm=FALSE)
-# position_s <- rutils::lagit(position_s)
-position_s <- lapply(1:3, rutils::lagit, xtes=position_s)
-position_s <- rutils::do_call(cbind, position_s)
-position_s <- -rowSums(position_s)/NCOL(position_s)
-cum_pnls <- cumsum(position_s*returns)
+posit[1] <- 0
+posit <- na.locf(posit, na.rm=FALSE)
+# posit <- rutils::lagit(posit)
+posit <- lapply(1:3, rutils::lagit, xtes=posit)
+posit <- rutils::do_call(cbind, posit)
+posit <- -rowSums(posit)/NCOL(posit)
+cum_pnls <- cumsum(posit*returns)
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 # Average number of trades per day
-sum(abs(rutils::diffit(position_s))) / mean(abs(position_s)) / 2 / NROW(end_days)
+sum(abs(rutils::diffit(posit))) / mean(abs(posit)) / 2 / NROW(end_days)
 # Average holding period (minutes)
-2*NROW(position_s) / sum(abs(rutils::diffit(position_s))) * mean(abs(position_s))
+2*NROW(posit) / sum(abs(rutils::diffit(posit))) * mean(abs(posit))
 
 
 # Calculate total pnls from z-scores (dynamic threshold)
@@ -2499,14 +2499,14 @@ cum_pnl <- function(zscores, threshold=1.0, look_back=21, lag=3) {
                   max=runMax(zscores, n=look_back))
   rangev[1:(look_back-1), ] <- rangev[look_back, ]
   rangev <- rutils::lagit(rangev)
-  position_s <- ifelse(zscores > threshold*rangev[, "max"], -1,
+  posit <- ifelse(zscores > threshold*rangev[, "max"], -1,
                        ifelse(zscores < threshold*rangev[, "min"], 1, NA))
-  position_s[1] <- 0
-  position_s <- na.locf(position_s, na.rm=FALSE)
-  position_s <- lapply(1:lag, rutils::lagit, xtes=position_s)
-  position_s <- rutils::do_call(cbind, position_s)
-  position_s <- rowSums(position_s)/NCOL(position_s)
-  cumsum(position_s*returns)
+  posit[1] <- 0
+  posit <- na.locf(posit, na.rm=FALSE)
+  posit <- lapply(1:lag, rutils::lagit, xtes=posit)
+  posit <- rutils::do_call(cbind, posit)
+  posit <- rowSums(posit)/NCOL(posit)
+  cumsum(posit*returns)
 }  # end cum_pnl
 
 bar <- cum_pnl(zscores=zscores[[3]], threshold=0.96, look_back=21, lag=3)
@@ -2532,29 +2532,29 @@ unlist(lapply(bar, last))
 
 
 
-# function for calculating position_s from z-scores (static threshold)
+# function for calculating posit from z-scores (static threshold)
 z_pos <- function(zscores, threshold=2.0) {
-  position_s <- ifelse(abs(zscores) > threshold, sign(zscores), NA)
-  position_s[1] <- 0
-  na.locf(position_s, na.rm=FALSE)
+  posit <- ifelse(abs(zscores) > threshold, sign(zscores), NA)
+  posit[1] <- 0
+  na.locf(posit, na.rm=FALSE)
 }  # end z_pos
 
 # Calculate time series of pnls from z-scores
-position_s <- z_pos(zscores[[3]], threshold=1.4)
-position_s <- lapply(1:3, rutils::lagit, xtes=position_s)
-position_s <- rutils::do_call(cbind, position_s)
-position_s <- rowSums(position_s)/NCOL(position_s)
-cum_pnls <- -cumsum(position_s*returns)
+posit <- z_pos(zscores[[3]], threshold=1.4)
+posit <- lapply(1:3, rutils::lagit, xtes=posit)
+posit <- rutils::do_call(cbind, posit)
+posit <- rowSums(posit)/NCOL(posit)
+cum_pnls <- -cumsum(posit*returns)
 plot.zoo(cum_pnls[end_days], main="cum_pnls", xlab=NA, ylab=NA)
 
 
 # Calculate total pnls from z-scores
 cum_pnl <- function(zscores, threshold=2.0, lag=3) {
-  position_s <- z_pos(zscores, threshold=threshold)
-  position_s <- lapply(1:lag, rutils::lagit, xtes=position_s)
-  position_s <- rutils::do_call(cbind, position_s)
-  position_s <- rowSums(position_s)/NCOL(position_s)
-  -sum(position_s*returns)
+  posit <- z_pos(zscores, threshold=threshold)
+  posit <- lapply(1:lag, rutils::lagit, xtes=posit)
+  posit <- rutils::do_call(cbind, posit)
+  posit <- rowSums(posit)/NCOL(posit)
+  -sum(posit*returns)
 }  # end cum_pnl
 
 cum_pnl(zscores[[3]], threshold=1.4, lag=3)
@@ -2567,17 +2567,17 @@ bar <- sapply(thresholds, cum_pnl,
 bar <- cbind(thresholds, bar)
 
 
-position_s <- lapply(zscores, z_pos, threshold=1.0)
-position_s <- rutils::do_call(cbind, position_s)
-position_s <- rutils::lagit(position_s, lag=1)
+posit <- lapply(zscores, z_pos, threshold=1.0)
+posit <- rutils::do_call(cbind, posit)
+posit <- rutils::lagit(posit, lag=1)
 
 
 z_rets <- lapply(zscores, function(zscores) {
-  position_s <- ifelse(abs(zscores) > 2.0, sign(zscores), NA)
-  position_s[1] <- 0
-  position_s <- na.locf(position_s, na.rm=FALSE)
-  position_s <- rutils::lagit(position_s)
-  -position_s*returns
+  posit <- ifelse(abs(zscores) > 2.0, sign(zscores), NA)
+  posit[1] <- 0
+  posit <- na.locf(posit, na.rm=FALSE)
+  posit <- rutils::lagit(posit)
+  -posit*returns
 })  # end lapply
 
 cum_pnls <- lapply(z_rets, cumsum)
@@ -2654,24 +2654,24 @@ betas[1, ] <- 0
 betas[end_days, ] <- co_ef
 betas <- na.locf(betas, na.rm=FALSE)
 
-# Calculate position_s and pnls
-position_s <- rowSums(SPY_design * betas)
+# Calculate posit and pnls
+posit <- rowSums(SPY_design * betas)
 # static betas work better than rolling regression
 # betas <- c(rep(-1.0, 5), 0.00)
-position_s <- rowSums(SPY_design %*% betas)
-# position_s <- ifelse(abs(position_s)>0.01, sign(position_s), NA)
-# position_s[1] <- 0
-# position_s <- na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s)
-position_s <- rutils::roll_sum(position_s, look_back=5) / 5
-# histo_gram <- hist(position_s, breaks=200, xlim=c(-0.05, 0.05))
+posit <- rowSums(SPY_design %*% betas)
+# posit <- ifelse(abs(posit)>0.01, sign(posit), NA)
+# posit[1] <- 0
+# posit <- na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit)
+posit <- rutils::roll_sum(posit, look_back=5) / 5
+# histo_gram <- hist(posit, breaks=200, xlim=c(-0.05, 0.05))
 # Average number of trades per day
-sum(abs(rutils::diffit(position_s))) / mean(abs(position_s)) / 2 / NROW(end_days)
+sum(abs(rutils::diffit(posit))) / mean(abs(posit)) / 2 / NROW(end_days)
 # Average holding period (minutes)
-2*NROW(position_s) / sum(abs(rutils::diffit(position_s))) * mean(abs(position_s))
-# colnames(position_s) <- "position_s"
-# plot.zoo(cbind(position_s[end_days], HighFreq::SPY[end_days, 4])["2010", ])
-pnls <- cumsum(position_s*returns)
+2*NROW(posit) / sum(abs(rutils::diffit(posit))) * mean(abs(posit))
+# colnames(posit) <- "posit"
+# plot.zoo(cbind(posit[end_days], HighFreq::SPY[end_days, 4])["2010", ])
+pnls <- cumsum(posit*returns)
 colnames(pnls) <- "SPY contrarian"
 chart_Series(x=pnls["2008-01-29/2008-01-31"], name="pnls")
 chart_Series(x=pnls[end_days, ], name="pnls")
@@ -2714,9 +2714,9 @@ plot_theme <- chart_theme()
 plot_theme$col$line.col <- c("orange", "blue")
 chart_Series(back_test, theme=plot_theme,
              name="SPY contrarian strategy plus vwap")
-add_TA(cbind(HighFreq::SPY[, 4], position_s)[dates, 2] > 0, on=-1,
+add_TA(cbind(HighFreq::SPY[, 4], posit)[dates, 2] > 0, on=-1,
        col="lightgreen", border="lightgreen")
-add_TA(cbind(HighFreq::SPY[, 4], position_s)[dates, 2] < 0, on=-1,
+add_TA(cbind(HighFreq::SPY[, 4], posit)[dates, 2] < 0, on=-1,
        col="lightgrey", border="lightgrey")
 legend("topleft", legend=c("pnls", "pnl_vwap"),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
@@ -2741,24 +2741,24 @@ simu_ewma <- function(xtes, lambda=0.05, look_back=51) {
   trade_dates <- which(trade_dates) + 1
   trade_dates <- trade_dates[trade_dates<NROW(xtes)]
   # Calculate positions, either: -1, 0, or 1
-  position_s <- rep(NA_integer_, NROW(xtes))
-  position_s[1] <- 0
-  position_s[trade_dates] <- rutils::lagit(indic)[trade_dates]
-  na.locf(position_s, na.rm=FALSE)
+  posit <- rep(NA_integer_, NROW(xtes))
+  posit[1] <- 0
+  posit[trade_dates] <- rutils::lagit(indic)[trade_dates]
+  na.locf(posit, na.rm=FALSE)
 }  # end simu_ewma
 
 end_days <- xts::endpoints(HighFreq::SPY, "days")[-1]
 end_hours <- xts::endpoints(HighFreq::SPY, "hours")[-1]
 positions_hours <- simu_ewma(xtes=HighFreq::SPY[end_hours], lambda=0.01, look_back=1001)
-position_s <- rep(NA_integer_, NROW(HighFreq::SPY))
-position_s[1] <- 0
-position_s[end_hours] <- positions_hours
-position_s <- na.locf(position_s, na.rm=FALSE)
-chart_Series(-cumsum(position_s*returns)[end_days], name="SPY minutely vwap strategy")
-position_s <- xts(position_s, order.by=index(returns))
-add_TA(position_s > 0, on=-1,
+posit <- rep(NA_integer_, NROW(HighFreq::SPY))
+posit[1] <- 0
+posit[end_hours] <- positions_hours
+posit <- na.locf(posit, na.rm=FALSE)
+chart_Series(-cumsum(posit*returns)[end_days], name="SPY minutely vwap strategy")
+posit <- xts(posit, order.by=index(returns))
+add_TA(posit > 0, on=-1,
        col="lightgreen", border="lightgreen")
-add_TA(position_s < 0, on=-1,
+add_TA(posit < 0, on=-1,
        col="lightgrey", border="lightgrey")
 
 
@@ -2791,27 +2791,27 @@ bar <- rutils::roll_sum(rutils::lagit(skew), look_back=3) / 3
 bar <- -cumsum(returns*sign(bar))
 
 
-position_s <- ifelse(abs(SPY_design)>0.052, sign(SPY_design), NA)
-position_s[1] <- 0
-position_s <- na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s)
-pnls <- -cumsum(position_s*returns)
+posit <- ifelse(abs(SPY_design)>0.052, sign(SPY_design), NA)
+posit[1] <- 0
+posit <- na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit)
+pnls <- -cumsum(posit*returns)
 colnames(pnls) <- "SPY skew contrarian"
 chart_Series(x=pnls[end_days, ], name="SPY skew contrarian")
 
-cum_pnl <- function(position_s=skew, threshold=0.05, returns=returns) {
-  position_s <- ifelse(abs(position_s)>threshold, sign(position_s), NA)
-  position_s[1] <- 0
-  position_s <- na.locf(position_s, na.rm=FALSE)
-  position_s <- rutils::lagit(position_s)
-  -sum(position_s*returns)
+cum_pnl <- function(posit=skew, threshold=0.05, returns=returns) {
+  posit <- ifelse(abs(posit)>threshold, sign(posit), NA)
+  posit[1] <- 0
+  posit <- na.locf(posit, na.rm=FALSE)
+  posit <- rutils::lagit(posit)
+  -sum(posit*returns)
 }  # end cum_pnl
 
 cum_pnl(threshold=0.045, returns=returns)
 
 thresholds <- seq(from=0.04, to=0.065, by=0.001)
 bar <- sapply(thresholds, cum_pnl,
-              position_s=as.numeric(rutils::lagit(SPY_design)),
+              posit=as.numeric(rutils::lagit(SPY_design)),
               returns=returns)
 bar <- cbind(thresholds, bar)
 
@@ -2871,20 +2871,20 @@ indic <- sign(closep - ew_ma[, 2])
 trade_dates <- (rutils::diffit(indic) != 0)
 trade_dates <- which(trade_dates) + 1
 # Calculate positions, either: -1, 0, or 1
-position_s <- rep(NA_integer_, NROW(closep))
-position_s[1] <- 0
-position_s[trade_dates] <- rutils::lagit(indic)[trade_dates]
-position_s <- na.locf(position_s, na.rm=FALSE)
-position_s <- xts(position_s, order.by=index(ohlc))
+posit <- rep(NA_integer_, NROW(closep))
+posit[1] <- 0
+posit[trade_dates] <- rutils::lagit(indic)[trade_dates]
+posit <- na.locf(posit, na.rm=FALSE)
+posit <- xts(posit, order.by=index(ohlc))
 
 prices_lag <- rutils::lagit(closep)
-position_lagged <- rutils::lagit(position_s)
+position_lagged <- rutils::lagit(posit)
 # Calculate daily profits and losses
 returns <- position_lagged*(closep - prices_lag)
 returns[trade_dates] <-
   position_lagged[trade_dates] *
   (openp[trade_dates] - prices_lag[trade_dates]) +
-  position_s[trade_dates] *
+  posit[trade_dates] *
   (closep[trade_dates] - openp[trade_dates])
 # Calculate annualized Sharpe ratio of strategy returns
 sqrt(260)*sum(returns)/sd(returns)/NROW(returns)
@@ -2907,22 +2907,22 @@ simu_ewma <- function(ohlc, lambda=0.05, look_back=51) {
   trade_dates <- which(trade_dates) + 1
   trade_dates <- trade_dates[trade_dates<NROW(ohlc)]
   # Calculate positions, either: -1, 0, or 1
-  position_s <- rep(NA_integer_, NROW(closep))
-  position_s[1] <- 0
-  position_s[trade_dates] <- rutils::lagit(indic)[trade_dates]
-  position_s <- xts(na.locf(position_s, na.rm=FALSE), order.by=index(ohlc))
+  posit <- rep(NA_integer_, NROW(closep))
+  posit[1] <- 0
+  posit[trade_dates] <- rutils::lagit(indic)[trade_dates]
+  posit <- xts(na.locf(posit, na.rm=FALSE), order.by=index(ohlc))
   openp <- Op(ohlc)
   prices_lag <- rutils::lagit(closep)
-  position_lagged <- rutils::lagit(position_s)
+  position_lagged <- rutils::lagit(posit)
   # Calculate daily profits and losses
   returns <- position_lagged*(closep - prices_lag)
   returns[trade_dates] <-
     position_lagged[trade_dates] *
     (openp[trade_dates] - prices_lag[trade_dates]) +
-    position_s[trade_dates] *
+    posit[trade_dates] *
     (closep[trade_dates] - openp[trade_dates])
-  output <- cbind(position_s, returns)
-  colnames(output) <- c("position_s", "returns")
+  output <- cbind(posit, returns)
+  colnames(output) <- c("posit", "returns")
   output
 }  # end simu_ewma
 

@@ -59,34 +59,34 @@ plot(blah)
 
 # signal threshold trading level
 threshold <- 0.5
-# sig_nal <- sign(skew-threshold)
-sig_nal <- NA*numeric(nrow(skew))
-sig_nal <- ifelse(skew>threshold, -1, sig_nal)
-sig_nal <- ifelse(skew<(-threshold), 1, sig_nal)
-sig_nal <- ifelse((skew*lag(skew))<0, 0, sig_nal)
-# sig_nal <- xts(x=sig_nal, order.by=index(skew))
+# score <- sign(skew-threshold)
+score <- NA*numeric(nrow(skew))
+score <- ifelse(skew>threshold, -1, score)
+score <- ifelse(skew<(-threshold), 1, score)
+score <- ifelse((skew*lag(skew))<0, 0, score)
+# score <- xts(x=score, order.by=index(skew))
 # lag the signal by one
-# sig_nal <- lag(sig_nal)
-sig_nal <- c(0, sig_nal)
-sig_nal <- sig_nal[-length(sig_nal)]
-sig_nal <- na.locf(sig_nal)
-sig_nal <- merge(skew, sig_nal)
-colnames(sig_nal)[2] <- "positions"
+# score <- lag(score)
+score <- c(0, score)
+score <- score[-length(score)]
+score <- na.locf(score)
+score <- merge(skew, score)
+colnames(score)[2] <- "positions"
 
 # number of bars in long and short positions
-sum(sig_nal[, 2]>0)
-sum(sig_nal[, 2]<0)
+sum(score[, 2]>0)
+sum(score[, 2]<0)
 
-chart_Series(sig_nal["2013-10-12/2013-11-13"],
+chart_Series(score["2013-10-12/2013-11-13"],
              name=paste(symbol, "skew"))
 
-# chart_xts(sig_nal["2013-10-12/2013-11-13"])
+# chart_xts(score["2013-10-12/2013-11-13"])
 
 # plotting
 rangev <- "2013-10-12/2013-11-13"
 # extract and modify plot object to reduce y-axis range
-chobj <- chart_Series(x=sig_nal[rangev, 1], 
-                      name=paste(colnames(sig_nal[rangev, 1]), "/", date()), 
+chobj <- chart_Series(x=score[rangev, 1], 
+                      name=paste(colnames(score[rangev, 1]), "/", date()), 
                       plot=FALSE)
 # extract and modify ylim using accessor and setter functions
 ylim <- chobj$get_ylim()
@@ -94,16 +94,16 @@ ylim[[2]] <- structure(c(-1, 1), fixed=TRUE)
 chobj$set_ylim(ylim)
 # render the plot
 plot(chobj)
-add_TA(sig_nal[rangev, 2]>0, on=-1, col="lightgreen", border=NA)
-add_TA(sig_nal[rangev, 2]<0, on=-1, col="lightpink", border=NA)
-add_TA(sig_nal[rangev, 2]==0, on=-1, col="lightgrey", border=NA)
+add_TA(score[rangev, 2]>0, on=-1, col="lightgreen", border=NA)
+add_TA(score[rangev, 2]<0, on=-1, col="lightpink", border=NA)
+add_TA(score[rangev, 2]==0, on=-1, col="lightgrey", border=NA)
 
 # cumulative PnL
-blah <- cumsum(sig_nal[, 2]*returns[, 1])
+blah <- cumsum(score[, 2]*returns[, 1])
 plot(blah, format.labels="%Y-%m")
 
 # number of position flips
-blahh <- diff(sig_nal[, 2])
+blahh <- diff(score[, 2])
 blahh[1,] <- 0
 head(blahh)
 tail(blahh)

@@ -173,21 +173,21 @@ dygraphs::dygraph(pnls, main="Back-test of EWMA strategies")
 nums <- 80
 # Calculate the positions of the best performing stocks
 be_st <- lapply(symbolv[1:nums], function(symbol) {
-  position_s <- get(symbol, perf_env)["2018-01-01/2020-04-22" ,"positions"]
-  indeks <- paste(format(index(position_s)), "21:00:00")
-  position_s <- cbind(indeks, rep(symbol, NROW(position_s)), as.character(position_s))
-  colnames(position_s) <- c("time", "TICKER", "position_dollars")
-  write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+  posit <- get(symbol, perf_env)["2018-01-01/2020-04-22" ,"positions"]
+  indeks <- paste(format(index(posit)), "21:00:00")
+  posit <- cbind(indeks, rep(symbol, NROW(posit)), as.character(posit))
+  colnames(posit) <- c("time", "TICKER", "position_dollars")
+  write.table(posit, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
   NULL
 })  # end lapply
 # Calculate the positions of the worst performing stocks
 wo_rst <- lapply(symbolv[(NROW(symbolv)-nums+1):NROW(symbolv)], function(symbol) {
-  position_s <- get(symbol, perf_env)["2018-01-01/2020-04-22" ,"positions"]
-  indeks <- paste(format(index(position_s)), "21:00:00")
-  position_s <- (-position_s)
-  position_s <- cbind(indeks, rep(symbol, NROW(position_s)), as.character(position_s))
-  colnames(position_s) <- c("time", "TICKER", "position_dollars")
-  write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+  posit <- get(symbol, perf_env)["2018-01-01/2020-04-22" ,"positions"]
+  indeks <- paste(format(index(posit)), "21:00:00")
+  posit <- (-posit)
+  posit <- cbind(indeks, rep(symbol, NROW(posit)), as.character(posit))
+  colnames(posit) <- c("time", "TICKER", "position_dollars")
+  write.table(posit, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
   NULL
 })  # end lapply
 
@@ -243,22 +243,22 @@ dygraphs::dygraph(datav, main=paste(colnamev[1], "Strategy")) %>%
 
 # Calculate holding periods number of trades
 peri_od <- sapply(perfstats, function(xtes) {
-  position_s <- xtes[, "positions"]
-  2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
+  posit <- xtes[, "positions"]
+  2*NROW(posit) / sum(abs(rutils::diffit(posit)))
 })  # end sapply
 mean(peri_od)
 
 
 # Save the strategy positions
-position_s <- lapply(perfstats, function(xtes) {
+posit <- lapply(perfstats, function(xtes) {
   xtes["2018-01-01/2020-04-22", "positions"]
 })  # end lapply
-position_s <- do.call(cbind, position_s)
-indeks <- paste(format(index(position_s)), "21:00:00")
-position_s <- rowSums(position_s)
-position_s <- cbind(indeks, rep(symbol, NROW(position_s)), as.character(position_s))
-colnames(position_s) <- c("time", "TICKER", "position_dollars")
-write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+posit <- do.call(cbind, posit)
+indeks <- paste(format(index(posit)), "21:00:00")
+posit <- rowSums(posit)
+posit <- cbind(indeks, rep(symbol, NROW(posit)), as.character(posit))
+colnames(posit) <- c("time", "TICKER", "position_dollars")
+write.table(posit, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
 
 
 ## Trending strategy using backtest_ewma_ts()
@@ -301,33 +301,33 @@ dygraphs::dygraph(datav, main=paste(colnamev[1], "Strategy")) %>%
 
 # Calculate holding periods number of trades
 peri_od <- sapply(perfstats, function(xtes) {
-  position_s <- xtes[, "positions"]
-  2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
+  posit <- xtes[, "positions"]
+  2*NROW(posit) / sum(abs(rutils::diffit(posit)))
 })  # end sapply
 mean(peri_od)
 
 
 # Save the strategy positions
-position_s <- lapply(perfstats, function(xtes) {
+posit <- lapply(perfstats, function(xtes) {
   xtes["2018-01-01/2020-04-22", "positions"]
 })  # end lapply
-position_s <- do.call(cbind, position_s)
-indeks <- paste(format(index(position_s)), "21:00:00")
-position_s <- rowSums(position_s)
-position_s <- cbind(indeks, rep(symbol, NROW(position_s)), as.character(position_s))
-colnames(position_s) <- c("time", "TICKER", "position_dollars")
-write.table(position_s, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
+posit <- do.call(cbind, posit)
+indeks <- paste(format(index(posit)), "21:00:00")
+posit <- rowSums(posit)
+posit <- cbind(indeks, rep(symbol, NROW(posit)), as.character(posit))
+colnames(posit) <- c("time", "TICKER", "position_dollars")
+write.table(posit, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.names=FALSE, col.names=FALSE, append=TRUE)
 
 
 
 ## Read the strategy positions back
 
 # Read the strategy positions back
-position_s <- read.csv(file="C:/Develop/jp2sig/data/positions.csv", stringsAsFactors=FALSE)
+posit <- read.csv(file="C:/Develop/jp2sig/data/positions.csv", stringsAsFactors=FALSE)
 # Split time series into daily list
-position_s <- split(position_s, position_s$TICKER)
+posit <- split(posit, posit$TICKER)
 # cbind the list back into a time series and compare with the original
-position_s <- lapply(position_s, function(datav) {
+posit <- lapply(posit, function(datav) {
   # Extract dates index
   symbol <- datav[1, "TICKER"]
   indeks <- datav[, "time"]
@@ -339,11 +339,11 @@ position_s <- lapply(position_s, function(datav) {
   datav
 })  # end lapply
 
-position_s <- rutils::do_call(cbind, position_s)
-position_s$VXX[is.na(position_s$VXX)] <- 0
-sum(is.na(position_s))
-indeks <- index(position_s)
-symbols_strategy <- colnames(position_s)
+posit <- rutils::do_call(cbind, posit)
+posit$VXX[is.na(posit$VXX)] <- 0
+sum(is.na(posit))
+indeks <- index(posit)
+symbols_strategy <- colnames(posit)
 
 # Select ETF returns
 symbolv <- rutils::etfenv$symbolv
@@ -372,7 +372,7 @@ sum(is.na(returns))
 returns <- returns[, symbols_strategy]
 
 # Calculate the strategy returns
-returns_strategy <- returns*position_s
+returns_strategy <- returns*posit
 returns_strategy <- rowMeans(returns_strategy)
 returns_strategy <- xts::xts(returns_strategy, indeks)
 # Plot it
@@ -404,26 +404,26 @@ chart_Series(x=pnls, name="Back-test of EWMA strategies")
 dygraphs::dygraph(pnls, main="Back-test of EWMA strategies")
 
 
-# Loop over sp500 stocks and get position_s
+# Loop over sp500 stocks and get posit
 sp500env <- sp500env
 symbolv <- c("PG", "CDNS", "YUM", "YUMC", "KHC", "SNPS", "ODFL", "CHRW", "AWK", "SO", "EA", "FIS", "DG", "BAX", "HRL", "MSFT", "XOM", "BSX", "JNJ", "CLX", "CL", "MCD", "WMT", "SBUX", "LLY", "ADM", "BIO", "XLNX", "ATVI", "DISH", "K", "SHW", "SIG", "CSCO", "INTU", "VRTX", "FB", "ORCL", "DUK", "KSS", "ROP", "AKAM", "MXIM", "TXN", "NEM", "COST", "EL", "JWN", "ACN", "FISV", "KLAC", "PFE", "TYL", "BIIB", "MCHP", "BBBY", "DRE", "PEP", "LIN", "NKE", "TROW", "LEN", "HOLX", "NVR", "UDR", "WEC", "DHI", "NI")
 
-position_s <- lapply(symbolv, function(symbol) {
+posit <- lapply(symbolv, function(symbol) {
   backtest_ewma_ts(get(symbol, sp500env), look_back=look_back, lagg=lagg, coeff=coeff)[, "positions"]
 })  # end lapply
 
-position_s <- rutils::do_call(cbind, position_s)
-names(position_s) <- symbolv
-position_s[1, ] <- 0
-position_s <- na.locf(position_s, na.rm=FALSE)
-zoo::write.zoo(position_s, file="C:/Develop/jp2sig/data/positions_ewma.csv", sep=",", col.names=TRUE)
+posit <- rutils::do_call(cbind, posit)
+names(posit) <- symbolv
+posit[1, ] <- 0
+posit <- na.locf(posit, na.rm=FALSE)
+zoo::write.zoo(posit, file="C:/Develop/jp2sig/data/positions_ewma.csv", sep=",", col.names=TRUE)
 
 
 load(file="C:/Develop/lecture_slides/data/sp500_returns.RData")
 returns <- returns[, symbolv]
 returns[1, is.na(returns[1, ])] <- 0
 returns <- na.locf(returns, na.rm=FALSE)
-pnls <- xts::xts(cumsum(rowMeans(position_s*returns)), index(returns))
+pnls <- xts::xts(cumsum(rowMeans(posit*returns)), index(returns))
 
 
 
@@ -441,7 +441,7 @@ threshold <- 1
 
 pnls <- backtest_zscores_ts(sp500env$YUM["2010/"], look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
 pnls <- pnls[, "pnls"]
-position_s <-  pnls[, "positions"]
+posit <-  pnls[, "positions"]
 plot(cumsum(pnls))
 mean(pnls)/sd(pnls)
 

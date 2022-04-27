@@ -29,42 +29,42 @@ colnames(returns_adv) <- "returns_adv"
 # Calculate total PnL and add penalty for over-trading.
 # Optimize betas with LASSO penalty.
 
-# Calculate sig_nal using average returns times variance plus hurst
+# Calculate score using average returns times variance plus hurst
 # SPY_design <- SPY_design[, c("returns", "returns.roll", "variance", "hurst", "rets_var")]
-sig_nal <- SPY_design[, "returns.roll"] * (SPY_design[, "variance"] + SPY_design[, "hurst"])
+score <- SPY_design[, "returns.roll"] * (SPY_design[, "variance"] + SPY_design[, "hurst"])
 # apply rolling centering and scaling to the design matrix
-sig_nal <- roll::roll_scale(data=sig_nal, width=6.5*60, min_obs=1)
-sig_nal[1] <- 0
-sig_nal <- zoo::na.locf(sig_nal, na.rm=FALSE)
-colnames(sig_nal) <- "signal"
-hist(sig_nal, breaks=30)
-hist(sig_nal[abs(sig_nal)<2], breaks=30)
+score <- roll::roll_scale(data=score, width=6.5*60, min_obs=1)
+score[1] <- 0
+score <- zoo::na.locf(score, na.rm=FALSE)
+colnames(score) <- "signal"
+hist(score, breaks=30)
+hist(score[abs(score)<2], breaks=30)
 
 # trade out-of-sample
 threshold <- 14.0
-position_s <- rep.int(NA, NROW(SPY))
-position_s[1] <- 0
-position_s[sig_nal > threshold] <- -1
-position_s[sig_nal < -threshold] <- 1
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s)
-pnls <- exp(cumsum(position_s*returns_running))
+posit <- rep.int(NA, NROW(SPY))
+posit[1] <- 0
+posit[score > threshold] <- -1
+posit[score < -threshold] <- 1
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit)
+pnls <- exp(cumsum(posit*returns_running))
 colnames(pnls) <- "SPY contrarian"
 # average number of trades per day
-sum(abs(rutils::diffit(position_s))) / 2 / NROW(endpoints(SPY_design, on="days"))
+sum(abs(rutils::diffit(posit))) / 2 / NROW(endpoints(SPY_design, on="days"))
 # average holding period (minutes)
-2*NROW(position_s) / sum(abs(rutils::diffit(position_s)))
+2*NROW(posit) / sum(abs(rutils::diffit(posit)))
 # average PnL per trade
-last(pnls)/(sum(abs(rutils::diffit(position_s))) / 2)
+last(pnls)/(sum(abs(rutils::diffit(posit))) / 2)
 
 cum_pnl <- function(threshold) {
-  position_s <- rep.int(NA, NROW(SPY))
-  position_s[1] <- 0
-  position_s[sig_nal > threshold] <- -1
-  position_s[sig_nal < -threshold] <- 1
-  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-  position_s <- rutils::lagit(position_s)
-  exp(sum(position_s*returns_running))
+  posit <- rep.int(NA, NROW(SPY))
+  posit[1] <- 0
+  posit[score > threshold] <- -1
+  posit[score < -threshold] <- 1
+  posit <- zoo::na.locf(posit, na.rm=FALSE)
+  posit <- rutils::lagit(posit)
+  exp(sum(posit*returns_running))
 }  # end cum_pnl
 
 cum_pnl(threshold)
@@ -147,12 +147,12 @@ abline(v=match(bu_y, dates), col="blue", lwd=1)
 
 
 ## trade optimal strategy in-sample
-position_s <- rep.int(NA, NROW(ohlc))
-position_s[1] <- 0
-position_s[match(bu_y, dates)] <- 1.0
-position_s[match(se_ll, dates)] <- -1.0
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-pnls <- exp(cumsum((position_s * returns_running[dates])))-1
+posit <- rep.int(NA, NROW(ohlc))
+posit[1] <- 0
+posit[match(bu_y, dates)] <- 1.0
+posit[match(se_ll, dates)] <- -1.0
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+pnls <- exp(cumsum((posit * returns_running[dates])))-1
 colnames(pnls) <- "SPY Optimal"
 last(pnls)
 chart_Series(pnls)
@@ -198,12 +198,12 @@ cum_pnl <- function(param_s, xtes=ohlc) {
   future <- rutils::lagit(xtes[, 4], lag=-param_s[1]) - xtes[, 4]
   bu_y <- which(future > param_s[2])
   se_ll <- which(future < param_s[2])
-  position_s <- NA*xtes[, 4]
-  position_s[1] <- 0
-  position_s[bu_y] <- 1
-  position_s[se_ll] <- -1
-  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-  -exp(sum(position_s*returns_running[index(xtes)]))
+  posit <- NA*xtes[, 4]
+  posit[1] <- 0
+  posit[bu_y] <- 1
+  posit[se_ll] <- -1
+  posit <- zoo::na.locf(posit, na.rm=FALSE)
+  -exp(sum(posit*returns_running[index(xtes)]))
 }  # end cum_pnl
 
 -cum_pnl(param_s=c(30, 6))
@@ -231,16 +231,16 @@ optimd$optim$bestmem
 
 
 ## create buy / sell series for logit model
-position_s <- xts(logical(NROW(ohlc)), order.by=dates)
+posit <- xts(logical(NROW(ohlc)), order.by=dates)
 # se_ll <- index(returns_adv[dates])
-position_s[bu_y] <- TRUE
-position_s[se_ll] <- TRUE
-# position_s <- position_s + rutils::lagit(position_s) + rutils::lagit(position_s, lag=-1)
-# position_s <- xts(as.logical(position_s), order.by=dates)
-colnames(position_s) <- "positions"
+posit[bu_y] <- TRUE
+posit[se_ll] <- TRUE
+# posit <- posit + rutils::lagit(posit) + rutils::lagit(posit, lag=-1)
+# posit <- xts(as.logical(posit), order.by=dates)
+colnames(posit) <- "positions"
 
 # fit logistic regression into buy or sell series
-design <- cbind(position_s, SPY_design[index(position_s)])
+design <- cbind(posit, SPY_design[index(posit)])
 # colnames(design)[1] <- "positions"
 colnamev <- colnames(design)
 formulav <- as.formula(paste(colnamev[1],
@@ -262,19 +262,19 @@ hist(forecastvs)
 # forecastvs <- 1 / (1 + exp(-SPY_design[dates] %*% glmod$coefficients))
 threshold <- 0.5
 # threshold <- threshold_s[7]
-confu_sion <- table(position_s, (forecastvs < threshold))
+confu_sion <- table(posit, (forecastvs < threshold))
 dimnames(confu_sion) <- list(hypothesis=rownames(confu_sion),
                              forecast=colnames(confu_sion))
 confu_sion
 confu_sion <- confu_sion / rowSums(confu_sion)
 c(typeI=confu_sion[2, 1], typeII=confu_sion[1, 2])
 
-con_fuse(position_s, forecastvs, threshold=threshold)
+con_fuse(posit, forecastvs, threshold=threshold)
 # define vector of discrimination thresholds
 threshold_s <- seq(0.45, 0.55, by=0.01)
 # calculate error rates
 error_rates <- sapply(threshold_s, con_fuse,
-                      response=position_s,
+                      response=posit,
                       forecastvs=forecastvs)  # end sapply
 error_rates <- t(error_rates)
 which.min(abs(error_rates[, 1]-error_rates[, 2]))
@@ -284,7 +284,7 @@ which.min(rowSums(error_rates))
 # calculate in-sample confusion matrix using simple regression
 # forecastvs <- SPY_design[dates] %*% betas_buy
 # threshold <- 100
-# confu_sion <- table(position_s, (forecastvs > threshold))
+# confu_sion <- table(posit, (forecastvs > threshold))
 # dimnames(confu_sion) <- list(hypothesis=rownames(confu_sion),
 #                              forecast=colnames(confu_sion))
 # confu_sion
@@ -293,34 +293,34 @@ which.min(rowSums(error_rates))
 
 ## trade out-of-sample
 # new_data <- SPY_design["2010"]
-position_s <- rep.int(NA, NROW(SPY))
-position_s[1] <- 0
+posit <- rep.int(NA, NROW(SPY))
+posit[1] <- 0
 # buy_prob <- predict(logit_buy, newdata=SPY_design, type="response")
 buy_prob <- 1 / (1 + exp(-SPY_design %*% logit_buy$coefficients))
 # buy_prob <- as.numeric(SPY_design %*% logit_buy$coefficients)
-position_s[buy_prob > threshold] <- 1
+posit[buy_prob > threshold] <- 1
 # sell_prob <- predict(logit_sell, newdata=SPY_design, type="response")
 sell_prob <- 1 / (1 + exp(-SPY_design %*% logit_sell$coefficients))
-position_s[sell_prob > threshold] <- -1
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s)
+posit[sell_prob > threshold] <- -1
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit)
 # returns <- 6.5*60^2*HighFreq::run_returns(xtes=HighFreq::SPY[index(SPY_design)])
-pnls <- exp(cumsum(position_s*returns_running)) - 1
+pnls <- exp(cumsum(posit*returns_running)) - 1
 colnames(pnls) <- "SPY logit"
 # average number of trades per day
-# position_s <- xts(position_s, order.by=index(SPY_design))
-sum(abs(rutils::diffits(position_s))) / 2 / NROW(endpoints(position_s, on="days"))
+# posit <- xts(posit, order.by=index(SPY_design))
+sum(abs(rutils::diffits(posit))) / 2 / NROW(endpoints(posit, on="days"))
 # average holding period (minutes)
-2*NROW(position_s) / sum(abs(rutils::diffits(position_s)))
+2*NROW(posit) / sum(abs(rutils::diffits(posit)))
 
 cum_pnl <- function(threshold) {
-  position_s <- rep.int(NA, NROW(SPY))
-  position_s[1] <- 0
-  position_s[buy_prob > threshold] <- 1
-  position_s[sell_prob > threshold] <- -1
-  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-  position_s <- rutils::lagit(position_s)
-  exp(sum(position_s*returns_running))
+  posit <- rep.int(NA, NROW(SPY))
+  posit[1] <- 0
+  posit[buy_prob > threshold] <- 1
+  posit[sell_prob > threshold] <- -1
+  posit <- zoo::na.locf(posit, na.rm=FALSE)
+  posit <- rutils::lagit(posit)
+  exp(sum(posit*returns_running))
 }  # end cum_pnl
 
 cum_pnl(threshold)
@@ -336,7 +336,7 @@ abline(v=match(se_ll, dates), col="red", lwd=1)
 abline(v=match(bu_y, dates), col="blue", lwd=1)
 
 rangev <- "2010-05-05/2010-05-07"
-pnls <- exp(cumsum(position_s[rangev]*returns[rangev]))
+pnls <- exp(cumsum(posit[rangev]*returns[rangev]))
 colnames(pnls) <- "SPY logit"
 bench_mark <- cbind(exp(cumsum(returns[rangev])), pnls)
 
@@ -348,9 +348,9 @@ chart_Series(bench_mark, theme=plot_theme,
 legend("topleft", legend=colnames(bench_mark),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
        col=plot_theme$col$line.col, bty="n")
-add_TA(position_s > 0, on=-1,
+add_TA(posit > 0, on=-1,
        col="lightgreen", border="lightgreen")
-add_TA(position_s < 0, on=-1,
+add_TA(posit < 0, on=-1,
        col="lightgrey", border="lightgrey")
 
 
@@ -358,18 +358,18 @@ add_TA(position_s < 0, on=-1,
 ###############
 ### identify turning points by maximizing cumulative PnL - very compute intensive
 
-position_s <- rep.int(NA, NROW(ohlc))
-position_s[1] <- 0
+posit <- rep.int(NA, NROW(ohlc))
+posit[1] <- 0
 
-pnls <- function(poin_t=NA, directio_n=NA, position_s=NA, returns=NA) {
-  position_s[poin_t] <- directio_n
-  position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-  exp(cumsum(position_s*returns))
+pnls <- function(poin_t=NA, directio_n=NA, posit=NA, returns=NA) {
+  posit[poin_t] <- directio_n
+  posit <- zoo::na.locf(posit, na.rm=FALSE)
+  exp(cumsum(posit*returns))
 }  # end pnls
 
-foo <- pnls(NROW(ohlc) %/% 4, directio_n=1, position_s=position_s, returns=returns)
+foo <- pnls(NROW(ohlc) %/% 4, directio_n=1, posit=posit, returns=returns)
 
-# foo <- sapply(seq_along(position_s), pnls, directio_n=1, position_s=position_s, returns=returns)
+# foo <- sapply(seq_along(posit), pnls, directio_n=1, posit=posit, returns=returns)
 which.max(foo)
 
 
@@ -441,24 +441,24 @@ betas <- summary(model)$coefficients[, "t value"]
 names(betas)[-1] <- sapply(names(betas)[-1], function(x) strsplit(x, split="]")[[1]][2])
 
 
-## calculate the forecast sig_nal by applying betas out-of-sample to the remaining data
-sig_nal <- design %*% betas
-colnames(sig_nal) <- "signal"
-# lag sig_nal by one period
-sig_nal <- rutils::lagit(sig_nal)
-# calculate average of sig_nal over past, to improve forecasts
-sig_nal <- rutils::roll_sum(sig_nal, look_back=3) / 3
+## calculate the forecast score by applying betas out-of-sample to the remaining data
+score <- design %*% betas
+colnames(score) <- "signal"
+# lag score by one period
+score <- rutils::lagit(score)
+# calculate average of score over past, to improve forecasts
+score <- rutils::roll_sum(score, look_back=3) / 3
 
 
 ## calculate hit rates by signal quantiles
-hit_s <- sign(sig_nal * returns_running)[-rangev, ]
-hit_s <- cbind(sig_nal[-rangev, ], hit_s)
+hit_s <- sign(score * returns_running)[-rangev, ]
+hit_s <- cbind(score[-rangev, ], hit_s)
 colnames(hit_s) <- c("signal", "hits")
 x11()
-# histogram of sig_nal
+# histogram of score
 histo_gram <- hist(hit_s[, "signal"], breaks=100, xlim=c(-10, 15))
 histo_gram$breaks
-# quantiles of sig_nal
+# quantiles of score
 quantiles <- quantile(hit_s[, "signal"], probs=seq(0.05, 0.95, 0.1))
 # extreme quantiles have higher hit rates
 sapply(seq_along(quantiles)[-1], function(x)
@@ -467,36 +467,36 @@ sapply(seq_along(quantiles)[-1], function(x)
   sum(hit_s[(hit_s[, "signal"]>=quantiles[x-1]) & (hit_s[, "signal"]<quantiles[x]), "hits"]))
 
 
-## backtest: invest proportional to sig_nal - but it trades too much
+## backtest: invest proportional to score - but it trades too much
 # calculate out-of-sample pnls
-# pnls <- exp(cumsum(sign(sig_nal) * returns_running[-rangev, ]))
-pnls <- (sig_nal * returns_running)[-rangev, ]
+# pnls <- exp(cumsum(sign(score) * returns_running[-rangev, ]))
+pnls <- (score * returns_running)[-rangev, ]
 # scale pnls to SPY volatility
 pnls <- pnls*sd(diffits(log(HighFreq::SPY[index(pnls), 4])))/sd(pnls)
 pnls <- exp(cumsum(pnls))
 
 
 ## backtest the contrarian strategy with threshold:
-# sell when sig_nal exceeds threshold, hold, and buy when sig_nal is below -threshold
+# sell when score exceeds threshold, hold, and buy when score is below -threshold
 threshold <- 1.0
-position_s <- rep.int(NA, NROW(sig_nal))
-position_s[sig_nal > threshold] <- -1.0
-position_s[sig_nal < (-threshold)] <- 1.0
-position_s[rangev] <- 0.0
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-# lag the position_s ?
-# position_s <- c(0, position_s[-NROW(position_s)])
-# position_s <- xts(position_s, order.by=index(returns_running))
-# position_s <- cbind(sig_nal, position_s)
-# colnames(position_s)[2] <- "positions"
+posit <- rep.int(NA, NROW(score))
+posit[score > threshold] <- -1.0
+posit[score < (-threshold)] <- 1.0
+posit[rangev] <- 0.0
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+# lag the posit ?
+# posit <- c(0, posit[-NROW(posit)])
+# posit <- xts(posit, order.by=index(returns_running))
+# posit <- cbind(score, posit)
+# colnames(posit)[2] <- "positions"
 # calculate cumulative PnL
-pnls <- exp(cumsum((position_s * returns_running)[-rangev, ]))
+pnls <- exp(cumsum((posit * returns_running)[-rangev, ]))
 last(pnls)
-# pnls <- cumsum(position_s[, 2]*returns)
+# pnls <- cumsum(posit[, 2]*returns)
 # chart_Series(pnls)
 
 
-## backtest: sell when sig_nal exceeds threshold, hold, and buy when sig_nal is below -threshold
+## backtest: sell when score exceeds threshold, hold, and buy when score is below -threshold
 pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, returns=returns_running[-rangev, ], bid_offer=0.0, lag=1)
 
 pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)
@@ -542,30 +542,30 @@ data.frame(dates=index(bench_mark), coredata(bench_mark)) %>%
 
 ## back_test function
 back_test <- function(design=NULL, betas=NULL, threshold=NULL, returns=NULL, lag=1, bid_offer=0.0) {
-  sig_nal <- design %*% betas
-  sig_nal <- rutils::lagit(sig_nal, lag=lag)
+  score <- design %*% betas
+  score <- rutils::lagit(score, lag=lag)
   if (lag > 1)
-    sig_nal <- rutils::roll_sum(sig_nal, look_back=lag) / lag
+    score <- rutils::roll_sum(score, look_back=lag) / lag
   # calculate returns
   if (is.null(threshold)) {
-    # calculate returns proportional to sig_nal and scale them to SPY volatility
-    position_s <- sig_nal
-    pnls <- (position_s * returns)
+    # calculate returns proportional to score and scale them to SPY volatility
+    posit <- score
+    pnls <- (posit * returns)
     factorv <- sd(diffits(log(HighFreq::SPY[index(pnls), 4])))/sd(pnls)
     pnls <- factorv*pnls
   }
   else {
     # calculate returns of contrarian strategy with threshold
-    position_s <- rep.int(NA, NROW(sig_nal))
-    position_s[1] <- 0.0
-    position_s[sig_nal > threshold] <- 1.0
-    position_s[sig_nal < (-threshold)] <- -1.0
-    position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-    pnls <- position_s * returns
+    posit <- rep.int(NA, NROW(score))
+    posit[1] <- 0.0
+    posit[score > threshold] <- 1.0
+    posit[score < (-threshold)] <- -1.0
+    posit <- zoo::na.locf(posit, na.rm=FALSE)
+    pnls <- posit * returns
     factorv <- 1
   }
   # calculate transaction costs
-  costs <- factorv*bid_offer*abs(rutils::diffit(position_s))
+  costs <- factorv*bid_offer*abs(rutils::diffit(posit))
   # calculate cumulative PnL
   pnls <- exp(cumsum(pnls - costs))
   colnames(pnls) <- "backtest"
@@ -593,15 +593,15 @@ foo[, 1] <- foo[, 1] - as.numeric(foo[1, 1])
 foo[, 2] <- foo[, 2] - as.numeric(foo[1, 2])
 chart_Series(foo, theme=plot_theme,
              name="Backtest of PCR strategy for SPY")
-add_TA(position_s[rangev] > 0, on=-1,
+add_TA(posit[rangev] > 0, on=-1,
        col="lightgreen", border="lightgreen")
-add_TA(position_s[rangev] < 0, on=-1,
+add_TA(posit[rangev] < 0, on=-1,
        col="lightgrey", border="lightgrey")
 legend("topleft", legend=colnames(foo),
        inset=0.1, bg="white", lty=c(1, 1), lwd=c(6, 6),
        col=plot_theme$col$line.col, bty="n")
 
-bar <- xts(sig_nal, order.by=index(returns_running))[rangev]
+bar <- xts(score, order.by=index(returns_running))[rangev]
 bench_mark <- SPY[index(bar), 4]
 bench_mark <- bench_mark - as.numeric(bench_mark[1, ])
 bar <- cbind(bench_mark, bar)

@@ -61,20 +61,20 @@ bid_offer <- 0.000001
 
 # Rerun the model
 ## Backtest strategy for flipping if two consecutive positive and negative returns
-position_s <- rep(NA_integer_, nrows)
-position_s[1] <- 0
+posit <- rep(NA_integer_, nrows)
+posit[1] <- 0
 # Flip position if the scaled returns exceed threshold 
-position_s[returns_scaled > threshold] <- (-1)
-position_s[returns_scaled < (-threshold)] <- 1
+posit[returns_scaled > threshold] <- (-1)
+posit[returns_scaled < (-threshold)] <- 1
 # LOCF
-position_s <- zoo::na.locf(position_s, na.rm=FALSE)
-position_s <- rutils::lagit(position_s, lagg=lagg)
+posit <- zoo::na.locf(posit, na.rm=FALSE)
+posit <- rutils::lagit(posit, lagg=lagg)
 # Calculate position turnover
-turn_over <- abs(rutils::diffit(position_s)) / 2
+turn_over <- abs(rutils::diffit(posit)) / 2
 # Calculate number of trades
-# sum(turn_over)/NROW(position_s)
+# sum(turn_over)/NROW(posit)
 # Calculate strategy pnls
-pnls <- (position_s*returns)
+pnls <- (posit*returns)
 # Calculate transaction costs
 costs <- bid_offer*turn_over
 pnls <- (pnls - costs)
