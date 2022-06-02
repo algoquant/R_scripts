@@ -20,8 +20,8 @@ setwd("/Users/jerzy/Develop/lecture_slides")
 # Render files without using error handler.
 sapply(file_names, knitr::knit2pdf, bib_engine="biber")
 
-# Render files using error handler.
-# Boolean vector of names already processed.
+## Render files using error handler.
+# Create a Boolean vector of names already processed.
 processed_names <- NULL
 isprocessed <- file_names %in% processed_names
 # Loop over the file_names and render them into *.pdf files.
