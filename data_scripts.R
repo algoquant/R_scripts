@@ -9,217 +9,6 @@ library(HighFreq)
 
 
 ###############
-# Download from WRDS the Compustat names table using package rWRDS
-
-devtools::install_github("davidsovich/rwrds")
-library(rwrds)
-library(dplyr)
-
-wrds_con <- rwrds::wrds_connect(username="jp3900", password="Wtinlke18")
-# Downloads Compustat names table as dplyr
-names_table <- rwrds::compustat_names(wrds=wrds_con, subset=FALSE, dl=TRUE)
-dim(names_table)
-write.csv(names_table, file="C:/Develop/data/WRDS/compustat_table.csv", row.names=FALSE)
-# rm(compustat_table)
-names_table <- read.csv(file="C:/Develop/data/WRDS/compustat_table.csv", stringsAsFactors=FALSE)
-# symbol <- "VTI"
-# match(symbol, names_table$tic)
-# Get cusips of symbolv tickers
-indeks <- match(symbolv, names_table$tic)
-names(indeks) <- symbolv
-etf_cusips <- names_table$cusip[indeks]
-names(etf_cusips) <- symbolv
-# Save cusips into text file
-cat(etf_cusips, file="C:/Develop/data/WRDS/etf_cusips.txt", sep="\n")
-# Save gvkeys into text file
-etf_gvkeys <- names_table$gvkey[indeks]
-names(etf_gvkeys) <- symbolv
-cat(etf_gvkeys, file="C:/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
-
-
-###############
-# Combine different CSV files with S&P500 constituents
-
-# Load old CSV files with S&P500 constituents from the past
-sp500old <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents2020.csv")
-dim(sp500old)
-# Check if there are missing tickers
-sum(is.na(sp500old$co_tic))
-sum(sp500old$co_tic == "")
-# Remove rows with missing tickers
-sp500old <- sp500old[!(sp500old$co_tic == ""), ]
-# Replace dots with hyphens in tickers
-sp500old$co_tic <- gsub("[.]", "-", sp500old$co_tic)
-# Remove suffixes from tickers
-# sp500old$co_tic <- rutils::get_name(sp500old$co_tic)
-# (needs recalculating) Load unavailable tickers from Tiingo download - mergers, etc.
-tickna <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/tickna.csv")
-tickna <- unname(unlist(tickna))
-# Select available tickers
-sp500old <- sp500old[!(sp500old$co_tic %in% tickna), ]
-# Extract all the old tickers
-tickold <- unique(sp500old$co_tic)
-
-
-# Load CSV file with current SPY holdings
-sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/spyholdings.csv")
-# Replace dots with hyphens in tickers
-sp500table$Ticker <- gsub("[.]", "-", sp500table$Ticker)
-tickers <- sp500table$Ticker
-# Select only those old tickers that are not new
-tickold <- tickold[!(tickold %in% tickers)]
-# Select rows with old tickers
-sp500old <- sp500old[sp500old$co_tic %in% tickold, c("co_conm","co_tic")]
-# Rename columns
-colnames(sp500old) <- c("Name", "Ticker")
-sp500old$Name <- stringr::str_to_title(sp500old$Name)
-# Add columns
-sp500old$Identifier <- rep_len(NA, NROW(sp500old))
-sp500old$SEDOL <- rep_len(NA, NROW(sp500old))
-# Combine the tickers
-sp500table <- rbind(sp500table[, 1:4], sp500old)
-sp500table <- sp500table[, c("Ticker", "Name", "Identifier", "SEDOL")]
-
-# Save the tickers
-write.csv(sp500table, file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", row.names=FALSE)
-
-
-
-###############
-# (old) Read CSV file with S&P500 constituents
-
-sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
-duplicates <- table(sp500table$gvkey)
-duplicates <- duplicates[duplicates > 1]
-duplicates <- sp500table[match(as.numeric(names(duplicates)), sp500table$gvkey), ]
-# Select unique gvkeys
-sp500gvkeys <- unique(sp500table$gvkey)
-# foo <- sp500table[match(sp500gvkeys, sp500table$gvkey), ]
-# Save gvkeys into text file
-cat(sp500gvkeys, file="C:/Develop/data/WRDS/sp500gvkeys.txt", sep="\n")
-# Select unique cusips and remove empty cusips
-sp500cusips <- unique(sp500table$co_cusip)
-sp500cusips <- sp500cusips[-which(sp500cusips == "")]
-# Some cusips are empty
-which(sp500cusips == "")
-# Remove empty cusips
-sp500cusips <- sp500cusips[-which(sp500cusips == "")]
-cat(sp500cusips, file="C:/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
-# Find the rows corresponding to the sp500cusips
-rows_cusips <- sp500table[match(sp500cusips, sp500table$co_cusip), ]
-# Find the rows corresponding to duplicate gvkeys
-duplicates <- table(rows_cusips$gvkey)
-duplicates <- duplicates[duplicates > 1]
-duplicates <- rows_cusips[rows_cusips$gvkey %in% as.numeric(names(duplicates)), ]
-# Select unique sp500 tickers
-sp500tickers <- unique(sp500table$co_tic)
-
-
-
-###############
-# Download TAP ETF OHLC prices from WRDS to CSV file, read
-# it, and format into xts series.
-# WRDS query name EMM_OHLC
-# https://wrds-web.wharton.upenn.edu/wrds/ds/compd/secd/index.cfm
-# Column names:
-# datadate ajexdi cshtrd  prccd  prchd  prcld prcod trfd
-# ajexdi and trfd columns are adjustment factors.
-
-# Read CSV file with TAP OHLC prices
-ohlc <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
-# ohlc contains cusips not in sp500cusips
-cusips <- unique(ohlc$cusip)
-cusips %in% sp500cusips
-# Select data only for sp500cusips
-ohlc <- ohlc[ohlc$cusip %in% sp500cusips, ]
-# ohlc contains tickers not in sp500tickers
-tickers <- unique(ohlc$tic)
-tickers %in% sp500tickers
-# Select data only for sp500tickers
-ohlc <- ohlc[ohlc$tic %in% sp500tickers, ]
-# Select ticker from sp500table
-symbol <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
-# Plot adjusted close prices
-# plot(ohlc[, "prcld"]/ohlc[, "ajexdi"]*ohlc[, "trfd"], t="l")
-# Adjustment factor
-adjfact <- drop(ohlc[, c("ajexdi")])
-# Daily total return factor
-trfact <- drop(ohlc[, "trfd"])
-# Extract dates index
-indeks <- drop(ohlc[, "datadate"])
-indeks <- lubridate::ymd(indeks)
-# ohlc <- ohlc[, -match(c("ajexdi", "trfd"), colnames(ohlc))]
-# Select only OHLCV data
-ohlc <- ohlc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
-colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
-# Coerce to xts series
-ohlc <- xts::xts(ohlc, indeks)
-# Fill initial Open NA prices
-is_na <- is.na(ohlc[, 1])
-ohlc[is_na, 1] <- (ohlc[is_na, 2] + ohlc[is_na, 3])/2
-sum(is.na(ohlc))
-# Adjust all the prices
-ohlc[, 1:4] <- trfact*ohlc[, 1:4]/adjfact/trfact[NROW(trfact)]
-ohlc <- na.omit(ohlc)
-xts::isOrdered(zoo::index(ohlc))
-plot(quantmod::Cl(ohlc))
-head(ohlc)
-tail(ohlc)
-
-
-
-###############
-# Define formatting function for OHLC prices
-# download from WRDS into CSV files.
-# Output is an OHLCV xts series.
-
-format_ohlc <- function(ohlc, environ_ment) {
-  # symbol <- ohlc[1, "tic"]
-  symbol <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
-  # ohlc <- ohlc[ohlc$tic == symbol, ]
-  # Adjustment factor
-  adjfact <- drop(ohlc[, c("ajexdi")])
-  # Daily total return factor
-  trfact <- drop(ohlc[, "trfd"])
-  # Fill NA values
-  trfact <- ifelse(is.na(trfact), 1, trfact)
-  # Extract dates index
-  indeks <- drop(ohlc[, "datadate"])
-  indeks <- lubridate::ymd(indeks)
-  # Select only OHLCV data
-  ohlc <- ohlc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
-  colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
-  # Coerce to xts series
-  ohlc <- xts::xts(ohlc, indeks)
-  # Fill NA prices
-  is_na <- is.na(ohlc[, 1])
-  ohlc[is_na, 1] <- (ohlc[is_na, 2] + ohlc[is_na, 3])/2
-  # Adjust the prices
-  ohlc[, 1:4] <- trfact*ohlc[, 1:4]/adjfact/trfact[NROW(trfact)]
-  # Copy the OHLCV data to environ_ment
-  ohlc <- na.omit(ohlc)
-  assign(x=symbol, value=ohlc, envir=environ_ment)
-  symbol
-}  # end format_ohlc
-
-
-# Load OHLC prices from CSV file downloaded from CRSP
-etf_prices <- read.csv(file="C:/Develop/data/WRDS/etf_prices_crsp.csv", stringsAsFactors=FALSE)
-
-# Create new data environment
-etfenv <- new.env()
-# Perform OHLC aggregations by ticker symbol column
-process_ed <- lapply(split(etf_prices, etf_prices$tic), format_ohlc, environ_ment=etfenv)
-plot(quantmod::Cl(etfenv$USO))
-# Save OHLC prices to .RData file
-save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
-# Load OHLC prices from .RData file
-load("/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
-
-
-
-
-###############
 ### Download OHLC bars from Polygon
 # Only 15 years of data with current plan
 
@@ -297,9 +86,9 @@ apikey <- "UJcr9ctoMBXEBK1Mqu_KQAkUuBxLvEtE"
 
 # Select ETF symbols for asset allocation
 symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
-              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
-              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
-              "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
+             "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
+             "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
+             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
 # Create new environment for ETF data
 etfenv <- new.env()
 
@@ -354,7 +143,7 @@ riskstats$Name <- rownames(riskstats)
 etfenv$riskstats <- riskstats
 # Calculate the beta, alpha, Treynor ratio, and other performance statistics
 capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv], 
-                                               Rb=returns[, "VTI"], scale=252)
+                                              Rb=returns[, "VTI"], scale=252)
 colnamev <- strsplit(colnames(capmstats), split=" ")
 colnamev <- do.call(cbind, colnamev)[1, ]
 colnames(capmstats) <- colnamev
@@ -477,113 +266,96 @@ dygraphs::dygraph(cumsum(returns), main="SPY and VXX Returns") %>%
 
 
 ###############
-# Download ETF OHLC prices from Alpha Vantage and save them
-# to an .RData file.
+# Coerce time zones
+# Index had America/New_York time zone while the clock time was actually UTC
 
-library(rutils)  # Load package rutils
-# Select ETF symbolv for asset allocation
-symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
-              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
-              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
-              "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
-
-# Create environment for data
-etfenv <- new.env()
-
-# Copy symbolv into etfenv
-# symbolv <- ls(etfenv)
-etfenv$symbolv <- symbolv
-
-# Boolean vector of symbolv already downloaded
-isdownloaded <- symbolv %in% ls(etfenv)
-# Download data for symbolv using single command - creates pacing error
-getsymbolv.av(symbolv, adjust=TRUE, env=etfenv,
-              output.size="full", api.key="T7JPW54ES8G75310")
-# Download data from Alpha Vantage using while loop
-nattempts <- 0  # number of download attempts
-while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
-  # Download data and copy it into environment
-  nattempts <- nattempts + 1
-  cat("Download attempt = ", nattempts, "\n")
-  for (symbol in na.omit(symbolv[!isdownloaded][1:5])) {
-    cat("Processing: ", symbol, "\n")
-    tryCatch(  # With error handler
-      quantmod::getsymbolv.av(symbol, adjust=TRUE, env=etfenv, auto.assign=TRUE, output.size="full", api.key="T7JPW54ES8G75310"),
-      # Error handler captures error condition
-      error=function(error_cond) {
-        print(paste("error handler: ", error_cond))
-      },  # end error handler
-      finally=print(paste("symbol=", symbol))
-    )  # end tryCatch
-  }  # end for
-  # Update vector of symbolv already downloaded
-  isdownloaded <- symbolv %in% ls(etfenv)
-  cat("Pausing 1 minute to avoid pacing...\n")
-  Sys.sleep(65)
-}  # end while
+load("/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+dates <- zoo::index(spyohlc)
+# Get same moment of time in UTC time zone
+dates <- lubridate::with_tz(dates, "UTC")
+# Get same clock time in America/New_York time zone
+dates <- lubridate::force_tz(dates, "America/New_York")
+zoo::index(spyohlc) <- dates
+save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
-# Adjust OHLC prices if needed
-for (symbol in symbolv) {
-  cat("Processing: ", symbol, "\n")
-  ohlc <- etfenv[[symbol]]
-  # Calculate price adjustment vector
-  ratio <- as.numeric(Ad(ohlc)/Cl(ohlc))
-  # Adjust OHLC prices
-  ohlc[, 1:4] <- ratio*ohlc[, 1:4]
-  assign(symbol, ohlc, etfenv)
-}  # end for
 
-# Extract Close prices
-prices <- eapply(etfenv, quantmod::Cl)
-# Or
-# prices <- lapply(mget(etfenv$symbolv, etfenv), quantmod::Cl)
-prices <- do.call(cbind, prices)
+###############
+# Combine different CSV files with S&P500 constituents
 
-# Drop ".Close" from colnamev
-colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
+# Load old CSV files with S&P500 constituents from the past
+sp500old <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents2020.csv")
+dim(sp500old)
+# Check if there are missing tickers
+sum(is.na(sp500old$co_tic))
+sum(sp500old$co_tic == "")
+# Remove rows with missing tickers
+sp500old <- sp500old[!(sp500old$co_tic == ""), ]
+# Replace dots with hyphens in tickers
+sp500old$co_tic <- gsub("[.]", "-", sp500old$co_tic)
+# Remove suffixes from tickers
+# sp500old$co_tic <- rutils::get_name(sp500old$co_tic)
+# (needs recalculating) Load unavailable tickers from Tiingo download - mergers, etc.
+tickna <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/tickna.csv")
+tickna <- unname(unlist(tickna))
+# Select available tickers
+sp500old <- sp500old[!(sp500old$co_tic %in% tickna), ]
+# Extract all the old tickers
+tickold <- unique(sp500old$co_tic)
 
-# Calculate the log returns
-returns <- xts::diff.xts(log(prices))
-# Or
-# returns <- lapply(prices, function(xtes) {
-#   xts::diff.xts(log(xtes))
-# })  # end lapply
-# returns <- do.call(cbind, returns)
 
-# Copy prices and returns into etfenv
-etfenv$prices <- prices
-etfenv$returns <- returns
+# Load CSV file with current SPY holdings
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/spyholdings.csv")
+# Replace dots with hyphens in tickers
+sp500table$Ticker <- gsub("[.]", "-", sp500table$Ticker)
+tickers <- sp500table$Ticker
+# Select only those old tickers that are not new
+tickold <- tickold[!(tickold %in% tickers)]
+# Select rows with old tickers
+sp500old <- sp500old[sp500old$co_tic %in% tickold, c("co_conm","co_tic")]
+# Rename columns
+colnames(sp500old) <- c("Name", "Ticker")
+sp500old$Name <- stringr::str_to_title(sp500old$Name)
+# Add columns
+sp500old$Identifier <- rep_len(NA, NROW(sp500old))
+sp500old$SEDOL <- rep_len(NA, NROW(sp500old))
+# Combine the tickers
+sp500table <- rbind(sp500table[, 1:4], sp500old)
+sp500table <- sp500table[, c("Ticker", "Name", "Identifier", "SEDOL")]
 
-# Calculate the risk-return statistics
-riskstats <- PerformanceAnalytics::table.Stats(returns)
-# Transpose the data frame
-riskstats <- as.data.frame(t(riskstats))
-# Add Name column
-riskstats$Name <- rownames(riskstats)
-# Copy riskstats into etfenv
-etfenv$riskstats <- riskstats
+# Save the tickers
+write.csv(sp500table, file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", row.names=FALSE)
 
-# Calculate the beta, alpha, Treynor ratio, and other performance statistics
-capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv], 
-                         Rb=returns[, "VTI"], scale=252)
-colnamev <- strsplit(colnames(capmstats), split=" ")
-colnamev <- do.call(cbind, colnamev)[1, ]
-colnames(capmstats) <- colnamev
-capmstats <- t(capmstats)
-capmstats <- capmstats[, -1]
-colnamev <- colnames(capmstats)
-whichv <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), colnamev)
-colnamev[whichv] <- c("Alpha", "Information", "Treynor")
-colnames(capmstats) <- colnamev
-capmstats <- capmstats[order(capmstats[, "Alpha"], decreasing=TRUE), ]
-# Copy capmstats into etfenv
-etfenv$capmstats <- capmstats
 
-# Save ETF data to .RData file
-save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
-# Copy file to C:\Develop\R\rutils\data\etf_data.RData
 
+###############
+# (old) Read CSV file with S&P500 constituents
+
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
+duplicates <- table(sp500table$gvkey)
+duplicates <- duplicates[duplicates > 1]
+duplicates <- sp500table[match(as.numeric(names(duplicates)), sp500table$gvkey), ]
+# Select unique gvkeys
+sp500gvkeys <- unique(sp500table$gvkey)
+# foo <- sp500table[match(sp500gvkeys, sp500table$gvkey), ]
+# Save gvkeys into text file
+cat(sp500gvkeys, file="C:/Develop/data/WRDS/sp500gvkeys.txt", sep="\n")
+# Select unique cusips and remove empty cusips
+sp500cusips <- unique(sp500table$co_cusip)
+sp500cusips <- sp500cusips[-which(sp500cusips == "")]
+# Some cusips are empty
+which(sp500cusips == "")
+# Remove empty cusips
+sp500cusips <- sp500cusips[-which(sp500cusips == "")]
+cat(sp500cusips, file="C:/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
+# Find the rows corresponding to the sp500cusips
+rows_cusips <- sp500table[match(sp500cusips, sp500table$co_cusip), ]
+# Find the rows corresponding to duplicate gvkeys
+duplicates <- table(rows_cusips$gvkey)
+duplicates <- duplicates[duplicates > 1]
+duplicates <- rows_cusips[rows_cusips$gvkey %in% as.numeric(names(duplicates)), ]
+# Select unique sp500 tickers
+sp500tickers <- unique(sp500table$co_tic)
 
 
 
@@ -622,8 +394,6 @@ sum(!unlist(foo))
 save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 # Load OHLC prices from .RData file
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
-
-
 
 
 
@@ -710,18 +480,172 @@ ohlc <- xts::xts(ohlc[, -(1:2)], order.by=dates)
 save(ohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
 
 
-###############
-# Coerce time zones
-# Index had America/New_York time zone while the clock time was actually UTC
 
-load("/Volumes/external/Develop/data/polygon/spy_minutes.RData")
-dates <- zoo::index(spyohlc)
-# Get same moment of time in UTC time zone
-dates <- lubridate::with_tz(dates, "UTC")
-# Get same clock time in America/New_York time zone
-dates <- lubridate::force_tz(dates, "America/New_York")
-zoo::index(spyohlc) <- dates
-save(spyohlc, file="/Volumes/external/Develop/data/polygon/spy_minutes.RData")
+###############
+## Download VIX CSV files from CBOE
+
+# Old stuff - ignore?
+# Download text data from URL - doesn't download data - just html code
+foo <- RCurl::getURL("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
+foo <- readLines("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
+foo <- read.csv("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
+class(foo)
+NROW(foo)
+bar <- grep(glob2rx("*.csv"), foo)
+# end old stuff
+
+# Read CBOE futures expiration dates
+dates <- read.csv(file="C:/Develop/R/data/futures_expiration_dates_codes.csv",
+                  stringsAsFactors=FALSE, row.names=1)
+data_dir <- "C:/Users/Jerzy/Downloads/vix_data"
+# dir.create(data_dir)
+symbolv <- rownames(dates)
+# Select only some symbolv
+se_lect <- 19:NROW(symbolv)
+symbolv <- symbolv[se_lect]
+file_names <- file.path(data_dir, paste0(symbolv, ".csv"))
+log_file <- file.path(data_dir, "log_file.txt")
+cboe_url <- "https://markets.cboe.com/us/futures/market_statistics/historical_data/products/csv/VX/"
+urls <- paste0(cboe_url, dates[se_lect, 1])
+# Download files in a loop
+for (it in seq_along(urls)) {
+  tryCatch(  # Warning and error handler
+    download.file(urls[it],
+                  destfile=file_names[it], quiet=TRUE),
+    # Warning handler captures warning condition
+    warning=function(warning_cond) {
+      cat(paste("warning handler: ", warning_cond, "\n"), file=log_file, append=TRUE)
+    },  # end warning handler
+    # Error handler captures error condition
+    error=function(error_cond) {
+      cat(paste("error handler: ", error_cond, "\n"), append=TRUE)
+    },  # end error handler
+    finally=cat(paste("Processing file name =", file_names[it], "\n"), append=TRUE)
+  )  # end tryCatch
+}  # end for
+
+
+
+## Read CBOE futures data from CSV files
+
+# Define utility function
+# last <- function(x) x[NROW(x)]
+
+# Load VIX futures data from binary file
+load(file="C:/Develop/data/vix_data/vix_cboe.RData")
+colnamev <- colnames(vix_env$VXF8)
+
+# Get all CSV file names in the data_dir directory
+# data_dir <- "C:/Users/Jerzy/Downloads/vix_data"
+data_dir <- "C:/Develop/data/vix_data/"
+file_names <- Sys.glob(paste(data_dir, "VX*.csv", sep="/"))
+
+vix_env_new <- new.env()
+
+# Loop over the file_names, load data from CSV files,
+# and copy the bar data to vix_env_new
+for (file_name in file_names) {
+  # Load time series data from CSV file
+  ohlc <- read.zoo(file=file_name,
+                   header=TRUE, sep=",")
+  colnames(ohlc)[8] <- colnamev[5]
+  ohlc <- ohlc[, colnamev]
+  # Coerce data to numeric and make xts
+  ohlc <- xts(apply(ohlc, 2, as.numeric), index(ohlc))
+  # Create sym bol from file name
+  symbol <- strsplit(file_name, split="/")[[1]]
+  symbol <- strsplit(last(symbol), split="[.]")[[1]][1]
+  assign(x=symbol, value=ohlc, envir=vix_env_new)
+}  # end for
+
+# Copy from vix_env_new to vix_env
+rm(VXN8, envir=vix_env_new)
+symbolv <- ls(vix_env_new)
+for (symbol in symbolv) {
+  rm(symbol, envir=vix_env)
+  assign(x=symbol, value=get(symbol, envir=vix_env_new), envir=vix_env)
+}  # end for
+
+save(vix_env, file="C:/Develop/data/vix_data/vix_cboe.RData")
+
+
+
+## Load futures data from RData files
+
+# Read the symbolv
+symbolv <- scan(file="C:/Develop/data/bar_data/etf_symbolv.txt", what=character(), sep=",")
+# Specify the file directory
+file_dir <- "C:/Develop/data/bar_data/"
+# Specify new environment for data
+etfenv <- new.env()
+# Specify the file names
+# file_names <- paste0(file_dir, symbolv, ".RData")
+
+# Load data in a loop and copy into etfenv
+for (symbol in symbolv) {
+  # Specify the file name
+  file_name <- paste0(file_dir, symbol, ".RData")
+  load_ed <- load(file=file_name)
+  assign(x=symbol, value=get(load_ed), envir=etfenv)
+}  # end for
+
+
+## Combine the ETF series of prices into a single xts series and save it into etfenv
+
+# Extract only first 4 OHLC price columns from each ETF series
+assign(x="ohlc",
+       value=rutils::do_call(cbind, eapply(etfenv, function(xtes) xtes[, 1:4])),
+       envir=etfenv)
+# ohlc <- rutils::do_call(cbind, eapply(etfenv, function(xtes) xtes[, 1:4]))
+etfenv$ohlc <- na.omit(etfenv$ohlc)
+# Subset to trading hours
+etfenv$ohlc <- etfenv$ohlc["T09:00:00/T16:30:00"]
+# Save the bar data to binary file
+save(etfenv, file=paste0(file_dir, "etf_series.RData"))
+
+
+
+## Load futures data from binary files and combine into a single xts series
+# First load ES1 data and extract only first 4 OHLC price columns
+load(file="C:/Develop/data/ES1.RData")
+com_bo <- ohlc[, 1:4]
+colnames(com_bo) <- paste0("ES1.", colnames(com_bo))
+# Next load TU1 data and cbind it to ES1 data
+load(file="C:/Develop/data/TU1UST2yr.RData")
+ohlc <- ohlc[, 1:4]
+colnames(ohlc) <- paste0("TU1.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
+# Next load TY1 data and cbind it to ES1 data
+load(file="C:/Develop/data/TY1UST10yr.RData")
+ohlc <- ohlc[, 1:4]
+colnames(ohlc) <- paste0("TY1.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
+# Next load UX1 data and cbind it to ES1 data
+load(file="C:/Develop/data/UX1_VIX.RData")
+ohlc <- ohlc[, 1:4]
+colnames(ohlc) <- paste0("UX1.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
+load(file="C:/Develop/data/UX2_VIX.RData")
+ohlc <- ohlc[, 1:4]
+# Next load UX1 data and cbind it to ES1 data
+colnames(ohlc) <- paste0("UX2.", colnames(ohlc))
+com_bo <- cbind(com_bo, ohlc)
+
+# Combine into a single xts series
+ohlc <- na.omit(com_bo)
+# Save the bar data to binary file
+save(com_bo, file="C:/Develop/data/combined.RData")
+# load(file="C:/Develop/data/combined.RData")
+
+# plot dygraph
+label_s <- c("TY1.Close", "TU1.Close")
+# dygraphs::dygraph(cbind(closep, dataa())["2018-02-09"], main="OHLC Technicals Strategy") %>%
+dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), label_s], main="OHLC Data") %>%
+  dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%
+  dySeries(label_s[2], axis="y2", col=c("blue", "red"))
+
+
 
 
 ###############
@@ -885,8 +809,119 @@ colnames(chain_ed) <- c("Open", "High", "Low", "Close", "Volume")
 
 
 
-###########
-# Download multiple symbolv from Bloomberg
+###############
+# Download ETF OHLC prices from Alpha Vantage and save them
+# to an .RData file.
+
+library(rutils)  # Load package rutils
+# Select ETF symbolv for asset allocation
+symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
+              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
+              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
+              "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV")
+
+# Create environment for data
+etfenv <- new.env()
+
+# Copy symbolv into etfenv
+# symbolv <- ls(etfenv)
+etfenv$symbolv <- symbolv
+
+# Boolean vector of symbolv already downloaded
+isdownloaded <- symbolv %in% ls(etfenv)
+# Download data for symbolv using single command - creates pacing error
+getsymbolv.av(symbolv, adjust=TRUE, env=etfenv,
+              output.size="full", api.key="T7JPW54ES8G75310")
+# Download data from Alpha Vantage using while loop
+nattempts <- 0  # number of download attempts
+while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
+  # Download data and copy it into environment
+  nattempts <- nattempts + 1
+  cat("Download attempt = ", nattempts, "\n")
+  for (symbol in na.omit(symbolv[!isdownloaded][1:5])) {
+    cat("Processing: ", symbol, "\n")
+    tryCatch(  # With error handler
+      quantmod::getsymbolv.av(symbol, adjust=TRUE, env=etfenv, auto.assign=TRUE, output.size="full", api.key="T7JPW54ES8G75310"),
+      # Error handler captures error condition
+      error=function(error_cond) {
+        print(paste("error handler: ", error_cond))
+      },  # end error handler
+      finally=print(paste("symbol=", symbol))
+    )  # end tryCatch
+  }  # end for
+  # Update vector of symbolv already downloaded
+  isdownloaded <- symbolv %in% ls(etfenv)
+  cat("Pausing 1 minute to avoid pacing...\n")
+  Sys.sleep(65)
+}  # end while
+
+
+# Adjust OHLC prices if needed
+for (symbol in symbolv) {
+  cat("Processing: ", symbol, "\n")
+  ohlc <- etfenv[[symbol]]
+  # Calculate price adjustment vector
+  ratio <- as.numeric(Ad(ohlc)/Cl(ohlc))
+  # Adjust OHLC prices
+  ohlc[, 1:4] <- ratio*ohlc[, 1:4]
+  assign(symbol, ohlc, etfenv)
+}  # end for
+
+# Extract Close prices
+prices <- eapply(etfenv, quantmod::Cl)
+# Or
+# prices <- lapply(mget(etfenv$symbolv, etfenv), quantmod::Cl)
+prices <- do.call(cbind, prices)
+
+# Drop ".Close" from colnamev
+colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
+
+# Calculate the log returns
+returns <- xts::diff.xts(log(prices))
+# Or
+# returns <- lapply(prices, function(xtes) {
+#   xts::diff.xts(log(xtes))
+# })  # end lapply
+# returns <- do.call(cbind, returns)
+
+# Copy prices and returns into etfenv
+etfenv$prices <- prices
+etfenv$returns <- returns
+
+# Calculate the risk-return statistics
+riskstats <- PerformanceAnalytics::table.Stats(returns)
+# Transpose the data frame
+riskstats <- as.data.frame(t(riskstats))
+# Add Name column
+riskstats$Name <- rownames(riskstats)
+# Copy riskstats into etfenv
+etfenv$riskstats <- riskstats
+
+# Calculate the beta, alpha, Treynor ratio, and other performance statistics
+capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv], 
+                         Rb=returns[, "VTI"], scale=252)
+colnamev <- strsplit(colnames(capmstats), split=" ")
+colnamev <- do.call(cbind, colnamev)[1, ]
+colnames(capmstats) <- colnamev
+capmstats <- t(capmstats)
+capmstats <- capmstats[, -1]
+colnamev <- colnames(capmstats)
+whichv <- match(c("Annualized Alpha", "Information Ratio", "Treynor Ratio"), colnamev)
+colnamev[whichv] <- c("Alpha", "Information", "Treynor")
+colnames(capmstats) <- colnamev
+capmstats <- capmstats[order(capmstats[, "Alpha"], decreasing=TRUE), ]
+# Copy capmstats into etfenv
+etfenv$capmstats <- capmstats
+
+# Save ETF data to .RData file
+save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+# Copy file to C:\Develop\R\rutils\data\etf_data.RData
+
+
+
+
+###############
+# Download multiple symbols from Bloomberg
 
 # install.packages("Rblpapi")
 library(Rblpapi)
@@ -920,7 +955,7 @@ lapply(seq_along(bbg_symbolv), function(indeks) {
 
 
 
-###########
+###############
 # Load data from CSV files
 
 ## Load time series data from a single CSV file
@@ -1042,173 +1077,140 @@ setwd(dir=c_wd)
 
 
 
-## Download VIX CSV files from CBOE
+###############
+# Download TAP ETF OHLC prices from WRDS to CSV file, read
+# it, and format into xts series.
+# WRDS query name EMM_OHLC
+# https://wrds-web.wharton.upenn.edu/wrds/ds/compd/secd/index.cfm
+# Column names:
+# datadate ajexdi cshtrd  prccd  prchd  prcld prcod trfd
+# ajexdi and trfd columns are adjustment factors.
 
-# Old stuff - ignore?
-# Download text data from URL - doesn't download data - just html code
-foo <- RCurl::getURL("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
-foo <- readLines("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
-foo <- read.csv("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
-class(foo)
-NROW(foo)
-bar <- grep(glob2rx("*.csv"), foo)
-# end old stuff
-
-# Read CBOE futures expiration dates
-dates <- read.csv(file="C:/Develop/R/data/futures_expiration_dates_codes.csv",
-                   stringsAsFactors=FALSE, row.names=1)
-data_dir <- "C:/Users/Jerzy/Downloads/vix_data"
-# dir.create(data_dir)
-symbolv <- rownames(dates)
-# Select only some symbolv
-se_lect <- 19:NROW(symbolv)
-symbolv <- symbolv[se_lect]
-file_names <- file.path(data_dir, paste0(symbolv, ".csv"))
-log_file <- file.path(data_dir, "log_file.txt")
-cboe_url <- "https://markets.cboe.com/us/futures/market_statistics/historical_data/products/csv/VX/"
-urls <- paste0(cboe_url, dates[se_lect, 1])
-# Download files in a loop
-for (it in seq_along(urls)) {
-  tryCatch(  # Warning and error handler
-    download.file(urls[it],
-                  destfile=file_names[it], quiet=TRUE),
-    # Warning handler captures warning condition
-    warning=function(warning_cond) {
-      cat(paste("warning handler: ", warning_cond, "\n"), file=log_file, append=TRUE)
-    },  # end warning handler
-    # Error handler captures error condition
-    error=function(error_cond) {
-      cat(paste("error handler: ", error_cond, "\n"), append=TRUE)
-    },  # end error handler
-    finally=cat(paste("Processing file name =", file_names[it], "\n"), append=TRUE)
-  )  # end tryCatch
-}  # end for
-
-
-
-## Read CBOE futures data from CSV files
-
-# Define utility function
-# last <- function(x) x[NROW(x)]
-
-# Load VIX futures data from binary file
-load(file="C:/Develop/data/vix_data/vix_cboe.RData")
-colnamev <- colnames(vix_env$VXF8)
-
-# Get all CSV file names in the data_dir directory
-# data_dir <- "C:/Users/Jerzy/Downloads/vix_data"
-data_dir <- "C:/Develop/data/vix_data/"
-file_names <- Sys.glob(paste(data_dir, "VX*.csv", sep="/"))
-
-vix_env_new <- new.env()
-
-# Loop over the file_names, load data from CSV files,
-# and copy the bar data to vix_env_new
-for (file_name in file_names) {
-  # Load time series data from CSV file
-  ohlc <- read.zoo(file=file_name,
-                    header=TRUE, sep=",")
-  colnames(ohlc)[8] <- colnamev[5]
-  ohlc <- ohlc[, colnamev]
-  # Coerce data to numeric and make xts
-  ohlc <- xts(apply(ohlc, 2, as.numeric), index(ohlc))
-  # Create sym bol from file name
-  symbol <- strsplit(file_name, split="/")[[1]]
-  symbol <- strsplit(last(symbol), split="[.]")[[1]][1]
-  assign(x=symbol, value=ohlc, envir=vix_env_new)
-}  # end for
-
-# Copy from vix_env_new to vix_env
-rm(VXN8, envir=vix_env_new)
-symbolv <- ls(vix_env_new)
-for (symbol in symbolv) {
-  rm(symbol, envir=vix_env)
-  assign(x=symbol, value=get(symbol, envir=vix_env_new), envir=vix_env)
-}  # end for
-
-save(vix_env, file="C:/Develop/data/vix_data/vix_cboe.RData")
+# Read CSV file with TAP OHLC prices
+ohlc <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
+# ohlc contains cusips not in sp500cusips
+cusips <- unique(ohlc$cusip)
+cusips %in% sp500cusips
+# Select data only for sp500cusips
+ohlc <- ohlc[ohlc$cusip %in% sp500cusips, ]
+# ohlc contains tickers not in sp500tickers
+tickers <- unique(ohlc$tic)
+tickers %in% sp500tickers
+# Select data only for sp500tickers
+ohlc <- ohlc[ohlc$tic %in% sp500tickers, ]
+# Select ticker from sp500table
+symbol <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
+# Plot adjusted close prices
+# plot(ohlc[, "prcld"]/ohlc[, "ajexdi"]*ohlc[, "trfd"], t="l")
+# Adjustment factor
+adjfact <- drop(ohlc[, c("ajexdi")])
+# Daily total return factor
+trfact <- drop(ohlc[, "trfd"])
+# Extract dates index
+indeks <- drop(ohlc[, "datadate"])
+indeks <- lubridate::ymd(indeks)
+# ohlc <- ohlc[, -match(c("ajexdi", "trfd"), colnames(ohlc))]
+# Select only OHLCV data
+ohlc <- ohlc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
+colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
+# Coerce to xts series
+ohlc <- xts::xts(ohlc, indeks)
+# Fill initial Open NA prices
+is_na <- is.na(ohlc[, 1])
+ohlc[is_na, 1] <- (ohlc[is_na, 2] + ohlc[is_na, 3])/2
+sum(is.na(ohlc))
+# Adjust all the prices
+ohlc[, 1:4] <- trfact*ohlc[, 1:4]/adjfact/trfact[NROW(trfact)]
+ohlc <- na.omit(ohlc)
+xts::isOrdered(zoo::index(ohlc))
+plot(quantmod::Cl(ohlc))
+head(ohlc)
+tail(ohlc)
 
 
 
-## Load futures data from RData files
+###############
+# Define formatting function for OHLC prices.
+# Download from WRDS into CSV files.
+# Output is an OHLCV xts series.
 
-# Read the symbolv
-symbolv <- scan(file="C:/Develop/data/bar_data/etf_symbolv.txt", what=character(), sep=",")
-# Specify the file directory
-file_dir <- "C:/Develop/data/bar_data/"
-# Specify new environment for data
+format_ohlc <- function(ohlc, environ_ment) {
+  # symbol <- ohlc[1, "tic"]
+  symbol <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
+  # ohlc <- ohlc[ohlc$tic == symbol, ]
+  # Adjustment factor
+  adjfact <- drop(ohlc[, c("ajexdi")])
+  # Daily total return factor
+  trfact <- drop(ohlc[, "trfd"])
+  # Fill NA values
+  trfact <- ifelse(is.na(trfact), 1, trfact)
+  # Extract dates index
+  indeks <- drop(ohlc[, "datadate"])
+  indeks <- lubridate::ymd(indeks)
+  # Select only OHLCV data
+  ohlc <- ohlc[, c("prcod", "prchd", "prcld", "prccd", "cshtrd")]
+  colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume"), sep=".")
+  # Coerce to xts series
+  ohlc <- xts::xts(ohlc, indeks)
+  # Fill NA prices
+  is_na <- is.na(ohlc[, 1])
+  ohlc[is_na, 1] <- (ohlc[is_na, 2] + ohlc[is_na, 3])/2
+  # Adjust the prices
+  ohlc[, 1:4] <- trfact*ohlc[, 1:4]/adjfact/trfact[NROW(trfact)]
+  # Copy the OHLCV data to environ_ment
+  ohlc <- na.omit(ohlc)
+  assign(x=symbol, value=ohlc, envir=environ_ment)
+  symbol
+}  # end format_ohlc
+
+
+# Load OHLC prices from CSV file downloaded from CRSP
+etf_prices <- read.csv(file="C:/Develop/data/WRDS/etf_prices_crsp.csv", stringsAsFactors=FALSE)
+
+# Create new data environment
 etfenv <- new.env()
-# Specify the file names
-# file_names <- paste0(file_dir, symbolv, ".RData")
-
-# Load data in a loop and copy into etfenv
-for (symbol in symbolv) {
-  # Specify the file name
-  file_name <- paste0(file_dir, symbol, ".RData")
-  load_ed <- load(file=file_name)
-  assign(x=symbol, value=get(load_ed), envir=etfenv)
-}  # end for
-
-
-## Combine the ETF series of prices into a single xts series and save it into etfenv
-
-# Extract only first 4 OHLC price columns from each ETF series
-assign(x="ohlc",
-       value=rutils::do_call(cbind, eapply(etfenv, function(xtes) xtes[, 1:4])),
-       envir=etfenv)
-# ohlc <- rutils::do_call(cbind, eapply(etfenv, function(xtes) xtes[, 1:4]))
-etfenv$ohlc <- na.omit(etfenv$ohlc)
-# Subset to trading hours
-etfenv$ohlc <- etfenv$ohlc["T09:00:00/T16:30:00"]
-# Save the bar data to binary file
-save(etfenv, file=paste0(file_dir, "etf_series.RData"))
+# Perform OHLC aggregations by ticker symbol column
+process_ed <- lapply(split(etf_prices, etf_prices$tic), format_ohlc, environ_ment=etfenv)
+plot(quantmod::Cl(etfenv$USO))
+# Save OHLC prices to .RData file
+save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+# Load OHLC prices from .RData file
+load("/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-## Load futures data from binary files and combine into a single xts series
-# First load ES1 data and extract only first 4 OHLC price columns
-load(file="C:/Develop/data/ES1.RData")
-com_bo <- ohlc[, 1:4]
-colnames(com_bo) <- paste0("ES1.", colnames(com_bo))
-# Next load TU1 data and cbind it to ES1 data
-load(file="C:/Develop/data/TU1UST2yr.RData")
-ohlc <- ohlc[, 1:4]
-colnames(ohlc) <- paste0("TU1.", colnames(ohlc))
-com_bo <- cbind(com_bo, ohlc)
-# Next load TY1 data and cbind it to ES1 data
-load(file="C:/Develop/data/TY1UST10yr.RData")
-ohlc <- ohlc[, 1:4]
-colnames(ohlc) <- paste0("TY1.", colnames(ohlc))
-com_bo <- cbind(com_bo, ohlc)
-# Next load UX1 data and cbind it to ES1 data
-load(file="C:/Develop/data/UX1_VIX.RData")
-ohlc <- ohlc[, 1:4]
-colnames(ohlc) <- paste0("UX1.", colnames(ohlc))
-com_bo <- cbind(com_bo, ohlc)
-load(file="C:/Develop/data/UX2_VIX.RData")
-ohlc <- ohlc[, 1:4]
-# Next load UX1 data and cbind it to ES1 data
-colnames(ohlc) <- paste0("UX2.", colnames(ohlc))
-com_bo <- cbind(com_bo, ohlc)
+###############
+# Download from WRDS the Compustat names table using package rWRDS
 
-# Combine into a single xts series
-ohlc <- na.omit(com_bo)
-# Save the bar data to binary file
-save(com_bo, file="C:/Develop/data/combined.RData")
-# load(file="C:/Develop/data/combined.RData")
+devtools::install_github("davidsovich/rwrds")
+library(rwrds)
+library(dplyr)
 
-# plot dygraph
-label_s <- c("TY1.Close", "TU1.Close")
-# dygraphs::dygraph(cbind(closep, dataa())["2018-02-09"], main="OHLC Technicals Strategy") %>%
-dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), label_s], main="OHLC Data") %>%
-  dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%
-  dySeries(label_s[2], axis="y2", col=c("blue", "red"))
+wrds_con <- rwrds::wrds_connect(username="jp3900", password="Wtinlke18")
+# Downloads Compustat names table as dplyr
+names_table <- rwrds::compustat_names(wrds=wrds_con, subset=FALSE, dl=TRUE)
+dim(names_table)
+write.csv(names_table, file="C:/Develop/data/WRDS/compustat_table.csv", row.names=FALSE)
+# rm(compustat_table)
+names_table <- read.csv(file="C:/Develop/data/WRDS/compustat_table.csv", stringsAsFactors=FALSE)
+# symbol <- "VTI"
+# match(symbol, names_table$tic)
+# Get cusips of symbolv tickers
+indeks <- match(symbolv, names_table$tic)
+names(indeks) <- symbolv
+etf_cusips <- names_table$cusip[indeks]
+names(etf_cusips) <- symbolv
+# Save cusips into text file
+cat(etf_cusips, file="C:/Develop/data/WRDS/etf_cusips.txt", sep="\n")
+# Save gvkeys into text file
+etf_gvkeys <- names_table$gvkey[indeks]
+names(etf_gvkeys) <- symbolv
+cat(etf_gvkeys, file="C:/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
 
 
 
 ####################################
-# ignore below
+# Ignore below
 
 
 # Coerce bbg_data from data frame to xts
