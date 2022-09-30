@@ -303,9 +303,11 @@ sp500old <- sp500old[!(sp500old$co_tic %in% tickna), ]
 # Extract all the old tickers
 tickold <- unique(sp500old$co_tic)
 
-
+# Download CSV file with current SPY ETF holdings
+# https://www.ssga.com/us/en/intermediary/etfs/funds/spdr-sp-500-etf-trust-spy
+# https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf
 # Load CSV file with current SPY holdings
-sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/spyholdings.csv")
+sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/SPY_holdings.csv")
 # Replace dots with hyphens in tickers
 sp500table$Ticker <- gsub("[.]", "-", sp500table$Ticker)
 tickers <- sp500table$Ticker
@@ -714,12 +716,12 @@ save(data_env, file="data_env.RData")
 
 chain_ohlc <- function(ohlc1, ohlc2) {
   if (end(ohlc1) < start(ohlc2)) {
-    di_ff <- as.numeric(ohlc2[start(ohlc2), 4]) - as.numeric(ohlc1[end(ohlc1), 4])
-    ohlc1[, c(1:4, 6)] <- ohlc1[, c(1:4, 6)] + di_ff
+    diffv <- as.numeric(ohlc2[start(ohlc2), 4]) - as.numeric(ohlc1[end(ohlc1), 4])
+    ohlc1[, c(1:4, 6)] <- ohlc1[, c(1:4, 6)] + diffv
     return(rbind(ohlc1, ohlc2))
   } else if (end(ohlc2) < start(ohlc1)) {
-    di_ff <- as.numeric(ohlc1[start(ohlc1), 4]) - as.numeric(ohlc2[end(ohlc2), 4])
-    ohlc2[, c(1:4, 6)] <- ohlc2[, c(1:4, 6)] + di_ff
+    diffv <- as.numeric(ohlc1[start(ohlc1), 4]) - as.numeric(ohlc2[end(ohlc2), 4])
+    ohlc2[, c(1:4, 6)] <- ohlc2[, c(1:4, 6)] + diffv
     return(rbind(ohlc2, ohlc1))
   } else {
     warning("Overlapping data")
@@ -735,9 +737,9 @@ dim(ohlc)
 colnames(ohlc) <- paste(symbol, c("Open", "High", "Low", "Close", "Volume", "WAP", "Count"), sep=".")
 
 # Create new time index
-in_deks <- seq.int(from=5*((as.numeric(Sys.time())-NROW(ohlc)) %/% 5), by=5, length.out=NROW(ohlc))
-in_deks <- as.POSIXct(in_deks, tz="America/New_York", origin="1970-01-01")
-ohlc <- xts::xts(coredata(ohlc), in_deks)
+indeks <- seq.int(from=5*((as.numeric(Sys.time())-NROW(ohlc)) %/% 5), by=5, length.out=NROW(ohlc))
+indeks <- as.POSIXct(indeks, tz="America/New_York", origin="1970-01-01")
+ohlc <- xts::xts(coredata(ohlc), indeks)
 sum(is.na(ohlc))
 
 library(dygraphs)

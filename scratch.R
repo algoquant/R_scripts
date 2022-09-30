@@ -1,14 +1,95 @@
+######
+# Determine if intervals with higher volatility have larger Hurst exponents
+# Conclusion: they don't
 
-library(microbenchmark)
-summary(microbenchmark(
-  encode_it=encode_it(datav),
-  encode_itt=encode_itt(datav),
-  times=10))[, c(1, 4, 5)]
+# Split returns into intervals using end points
+retsp <- na.omit(rutils::etfenv$returns$VTI)
+# endp <- rutils::calc_endpoints(retsp, interval="months")
+endp <- HighFreq::calc_endpoints(length=NROW(retsp), step=20)
+npts <- NROW(endp)
+
+# Calculate the daily volatilities in the intervals between end points
+volats <- sapply(2:npts, function(np) {
+  retsp <- retsp[(endp[np-1]+1):endp[np], ]
+  c(retsp=sum(retsp), stdev=sd(retsp))
+})  # end sapply
+volats <- t(volats)
+
+# Calculate the Hurst exponent
+(log(sd(volats[, "retsp"])) - log(sd(retsp)))/log(20)
+
+# Select the intervals with higher volatility
+indic <- (volats[, "stdev"] > 0.015)
+# indic <- c(FALSE, indic)
+sum(indic)
+
+# Select the intervals with higher volatility
+retsh <- lapply(endp[(2:npts)[indic]], function(ep) {
+  retsp[(ep-19):ep, ]
+})  # end lapply
+retsh <- do.call(rbind, retsh)
+sd(retsh)
+
+# Select the intervals with lower volatility
+retsl <- lapply(endp[(2:npts)[!indic]], function(ep) {
+  retsp[(ep-19):ep, ]
+})  # end lapply
+retsl <- do.call(rbind, retsl)
+sd(retsl)
+
+# Calculate the Hurst for the higher volatility intervals
+hursth <- (log(sd(volats[indic, "retsp"])) - log(sd(retsh)))/log(20)
+# Calculate the Hurst for the lower volatility intervals
+hurstl <- (log(sd(volats[!indic, "retsp"])) - log(sd(retsl)))/log(20)
+
+
+
+######
+# Determine if intervals with higher volatility have larger Hurst exponents
+# Conclusion: they don't
+# Version using the rescaled range.
+
+closep <- cumsum(retsp)
+# Calculate rescaled ranges
+rrange <- sapply(2:npts, function(np) {
+  indeks <- (endp[np-1]+1):endp[np]
+  stdev <- sd(retsp[indeks])
+  c(rrange=diff(range(closep[indeks]))/stdev, stdev=stdev)
+})  # end sapply
+rrange <- t(rrange)
+mean(rrange[, "rrange"])
+
+# Calculate the Hurst exponent
+log(mean(rrange[, "rrange"]))/log(20)
+
+# Select the intervals with higher volatility
+indic <- (rrange[, "stdev"] > 0.015)
+# indic <- c(FALSE, indic)
+sum(indic)
+
+# Select the intervals with higher volatility
+retsh <- lapply(endp[(2:npts)[indic]], function(ep) {
+  retsp[(ep-19):ep, ]
+})  # end lapply
+retsh <- do.call(rbind, retsh)
+sd(retsh)
+
+# Select the intervals with lower volatility
+retsl <- lapply(endp[(2:npts)[!indic]], function(ep) {
+  retsp[(ep-19):ep, ]
+})  # end lapply
+retsl <- do.call(rbind, retsl)
+sd(retsl)
+
+# Calculate the Hurst for the higher volatility intervals
+hursth <- log(mean(rrange[indic, "rrange"]))/log(20)
+# Calculate the Hurst for the lower volatility intervals
+hurstl <- log(mean(rrange[!indic, "rrange"]))/log(20)
 
 
 
 
-
+######
 # RcppParallel is slower for vectors of size < 100,000 and faster for size > 100,000
 
 vec1 <- as.numeric(c(1:1000000))
@@ -21,12 +102,12 @@ summary(microbenchmark(
 
 
 
-## Read Polygon data from CSV file
+## Load Polygon data from CSV file
 
 # Set option to display fractional seconds
 options(digits.secs=6)
 
-# Read a data table from CSV file
+# Load a data table from CSV file
 dtable <- data.table::fread("/Users/jerzy/Develop/data/spy_ticks.csv")
 colnames(dtable) <- c("microseconds", "price", "size", "delim", "exchange", "date")
 dtable[, date := as.POSIXct(microseconds/1e6, origin="1970-01-01", tz="America/New_York")]
@@ -49,7 +130,7 @@ dygraph(spyticks$price["2022-06-08"])
 
 
 
-# Read a data table from CSV file
+# Load a data table from CSV file
 dtable <- data.table::fread("/Users/jerzy/Develop/data/spy_001.csv")
 dtable <- dtable[order(unixtime)]
 # class(dtable); dim(dtable)
@@ -1917,19 +1998,19 @@ sum_pacf <- function(weightv) {
 # Calculate end points
 interval <- 21
 nrows <- NROW(rets_scaled)
-num_agg <- nrows %/% interval
-endp <- c(0, nrows - num_agg*interval + (0:num_agg)*interval)
+nagg <- nrows %/% interval
+endp <- c(0, nrows - nagg*interval + (0:nagg)*interval)
 
 # Calculate Hurst
 hurstfun <- function(weightv) {
   retsport <- rets_scaled %*% weightv
   prices <- cumsum(retsport)
-  r_s <- sapply(2:NROW(endp), function(ep) {
+  rrange <- sapply(2:NROW(endp), function(ep) {
     indeks <- endp[ep-1]:endp[ep]
     diff(range(prices[indeks]))/sd(retsport[indeks])
   })  # end sapply
   # Calculate Hurst from single data point
-  -log(mean(r_s))/log(interval) - sum(retsport) + (1-sum(weightv^2))^2
+  -log(mean(rrange))/log(interval) - sum(retsport) + (1-sum(weightv^2))^2
 }  # end sum_pacf
 
 optimd <- optim(par=c(0.1, 0.1, 0.1), 
@@ -2061,12 +2142,12 @@ predictor <- cbind(rep(1, nrows), predictor)
 colnames(predictor)[1] <- "unit"
 
 # Calculate in-sample fitted coefficients
-max_eigen <- 4
-invmat <- MASS::ginv(predictor[insample, 1:max_eigen])
+dimax <- 4
+invmat <- MASS::ginv(predictor[insample, 1:dimax])
 coeff <- drop(invmat %*% response[insample])
 # Calculate out-of-sample forecasts of returns
 # forecasts <- drop(predictor[outsample, 1:3] %*% coeff[1:3])
-forecasts <- drop(predictor[outsample, 1:max_eigen] %*% coeff)
+forecasts <- drop(predictor[outsample, 1:dimax] %*% coeff)
 mean((returns[outsample, ] - forecasts)^2)
 drop(cor(returns[outsample, ], forecasts))
 
@@ -2824,7 +2905,7 @@ sum(abs(rutils::diffit(positions))) / NROW(positions)
 # Load packages
 library(rutils)
 
-load("C:/Develop/lecture_slides/data/sp500_returns.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 returns100[1, ] <- 0
 returns100 <- zoo::na.locf(returns100, na.rm=FALSE)
 indeks <- cumsum(rowMeans(returns100))
@@ -2913,7 +2994,7 @@ dygraphs::dygraph(wealth, main="Momentum S&P500 Mean Reverting Strategy") %>%
 # Load packages
 library(rutils)
 
-load("C:/Develop/lecture_slides/data/sp500.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 startd <- "2000-01-01"
 lagg <- 25
@@ -2983,45 +3064,45 @@ pnls <- xts(cumsum(sign(forecasts)*returns[out_of_sample]), index(prices[out_of_
 ### Variance ratios
 
 # Find stocks with largest variance ratios
-load("C:/Develop/lecture_slides/data/sp500_returns.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 symbolv <- colnames(returns)
 nweightv <- NROW(symbolv)
 lagg <- 25
-vr_s <- sapply(returns, function(return) {
+varatios <- sapply(returns, function(return) {
   return <- na.omit(return)
   if (NROW(return) > 500)
     calc_var(return, lagg)/calc_var(return)/lagg
   else NULL
 })  # end sapply
-vr_s <- sort(unlist(vr_s), decreasing=TRUE)
+varatios <- sort(unlist(varatios), decreasing=TRUE)
 
 # Find ETFs with largest variance ratios
 returns <- rutils::etfenv$returns
 symbolv <- colnames(returns)
 symbolv <- symbolv[!(symbolv %in% c("VXX", "SVXY", "MTUM", "IEF"))]
 returns <- returns[, symbolv]
-vr_s <- sapply(returns, function(return) {
+varatios <- sapply(returns, function(return) {
   return <- na.omit(return)
   if (NROW(return) > 100)
     calc_var(return, lagg)/calc_var(return)/lagg
   else NULL
 })  # end sapply
-vr_s <- sort(unlist(vr_s), decreasing=TRUE)
-# symbolv <- names(vr_s)
+varatios <- sort(unlist(varatios), decreasing=TRUE)
+# symbolv <- names(varatios)
 
 # Find PCAs with largest variance ratios
 returns[1, is.na(returns[1, ])] <- 0
 returns <- zoo::na.locf(returns, na.rm=FALSE)
 pcad <- prcomp(returns, scale=TRUE)
 pcarets <- xts(pcad$x/100, order.by=index(returns))
-vr_s <- sapply(pcarets, function(return) {
+varatios <- sapply(pcarets, function(return) {
   return <- na.omit(return)
   if (NROW(return) > 100)
     calc_var(return, lagg)/calc_var(return)/lagg
   else NULL
 })  # end sapply
-vr_s <- sort(unlist(vr_s), decreasing=TRUE)
-pcarets <- pcarets[, names(vr_s)]
+varatios <- sort(unlist(varatios), decreasing=TRUE)
+pcarets <- pcarets[, names(varatios)]
 save(pcarets, file="/Volumes/external/Develop/data/pcarets.RData")
 x11()
 dygraphs::dygraph(cumsum(pcarets[, "PC2"]))
@@ -3034,13 +3115,13 @@ retsc <- retsc[endp, ]
 retsc <- rutils::diffit(retsc)
 pcad <- prcomp(retsc, scale=TRUE)
 pcarets <- xts(pcad$x/100, order.by=index(retsc))
-vr_s <- sapply(pcarets, function(return) {
+varatios <- sapply(pcarets, function(return) {
   return <- na.omit(return)
   if (NROW(return) > 100)
     calc_var(return, lagg)/calc_var(return)/lagg
   else NULL
 })  # end sapply
-vr_s <- sort(unlist(vr_s), decreasing=TRUE)
+varatios <- sort(unlist(varatios), decreasing=TRUE)
 
 
 ## optim
@@ -3108,8 +3189,8 @@ hurstv <- sapply(rutils::etfenv$symbolv, function(symbol) {
 })  # end eapply
 hurstv <- sort(hurstv, decreasing=TRUE)
 
-plot(hurstv, vr_s)
-text(x=hurstv, y=vr_s, labels=names(vr_s))
+plot(hurstv, varatios)
+text(x=hurstv, y=varatios, labels=names(varatios))
 
 
 # Calculate Hurst from returns
@@ -3118,7 +3199,7 @@ hurstv <- sapply(returns, calc_hurst_rets, endp)
 hurstv <- sort(hurstv, decreasing=TRUE)
 
 # Find stocks with largest Hurst
-load("C:/Develop/lecture_slides/data/sp500.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 startd <- "2000-01-01"
 hurstv <- eapply(sp500env, function(ohlc) {
   # ohlc <- get(symbol, rutils::etfenv)
@@ -3133,9 +3214,9 @@ hurstv <- eapply(sp500env, function(ohlc) {
 })  # end eapply
 hurstv <- sort(unlist(hurstv), decreasing=TRUE)
 symbolv <- names(hurstv[1:100])
-load("C:/Develop/lecture_slides/data/sp500_returns.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 returns <- returns[, symbolv]
-save(returns, file="C:/Develop/lecture_slides/data/sp100_rets_hurst.RData")
+save(returns, file="/Users/jerzy/Develop/lecture_slides/data/sp100_rets_hurst.RData")
 
 
 
@@ -3325,18 +3406,18 @@ datav <- exp(cumsum(rnorm(1e7)/100))
 dates <- seq.POSIXt(from=Sys.time(), by="sec", length.out=NROW(datav))
 datav <- xts(datav, dates)
 
-interval_s <- seq.int(from=1e2, to=1e3, by=1e2)
-vol_s <- sapply(interval_s, function(interval) {
+aggv <- seq.int(from=1e2, to=1e3, by=1e2)
+volv <- sapply(aggv, function(interval) {
   # spy_agg <- rutils::to_period(ohlc=datav, k=interval)
   # HighFreq::calc_var_ohlc(spy_agg)
   endp <- rutils::calc_endpoints(datav, interval=interval)
   sd(rutils::diffit(log(datav[endp])))
 })  # end sapply
 
-interval_s <- c("seconds", "minutes", "hours", "days")
-inter_log <- log(c(1, 60, 3600, 6.5*3600))
-inter_log <- log(c(1, 60, 3600, 24*3600))
-vol_s <- sapply(interval_s, function(interval) {
+aggv <- c("seconds", "minutes", "hours", "days")
+agglog <- log(c(1, 60, 3600, 6.5*3600))
+agglog <- log(c(1, 60, 3600, 24*3600))
+volv <- sapply(aggv, function(interval) {
   spy_agg <- rutils::to_period(ohlc=HighFreq::SPY, k=interval)
   # spy_agg <- rutils::to_period(ohlc=HighFreq::SPY, period=interval)
   # HighFreq::calc_var_ohlc(spy_agg)
@@ -3345,15 +3426,15 @@ vol_s <- sapply(interval_s, function(interval) {
 })  # end sapply
 
 
-names(vol_s) <- paste0("agg_", interval_s)
-vol_log <- log(vol_s)
-inter_log <- log(interval_s)
-inter_log <- inter_log - mean(inter_log)
-vol_log <- vol_log - mean(vol_log)
-model <- lm(vol_log ~ inter_log)
-hurst_lm <- summary(model)$coeff[2, 1]
-hurstfun <- sum(vol_log*inter_log)/sum(inter_log^2)
-all.equal(hurst_lm, hurstfun)
+names(volv) <- paste0("agg_", aggv)
+volog <- log(volv)
+agglog <- log(aggv)
+agglog <- agglog - mean(agglog)
+volog <- volog - mean(volog)
+model <- lm(volog ~ agglog)
+hurstlm <- summary(model)$coeff[2, 1]
+hurstfun <- sum(volog*agglog)/sum(agglog^2)
+all.equal(hurstlm, hurstfun)
 
 
 
@@ -3718,11 +3799,11 @@ dygraphs::dygraph(datav[60*(1:(NROW(datav) %/% 60))], main="SPY Prices") %>%
 
 # Define a single aggregation interval.
 interval <- 35^2
-inter_log <- log(interval)
+agglog <- log(interval)
 # Calculate index of end points spaced apart by interval.
 nrows <- NROW(prices)
-num_agg <- nrows %/% interval
-endp <- c(0, nrows - num_agg*interval + (0:num_agg)*interval)
+nagg <- nrows %/% interval
+endp <- c(0, nrows - nagg*interval + (0:nagg)*interval)
 
 # Calculate Hurst from single data point
 calc_hurst <- function(returns, endp) {
@@ -3731,7 +3812,7 @@ calc_hurst <- function(returns, endp) {
     indeks <- endp[ep-1]:endp[ep]
     diff(range(prices[indeks]))/sd(returns[indeks])
   })  # end sapply
-  log(mean(r_s))/inter_log
+  log(mean(r_s))/agglog
 }  # end calc_hurst
 
 calc_hurst(returns, endp)
@@ -4067,7 +4148,7 @@ pacf(foo[, 1])
 library(HighFreq)
 
 # Load S&P500 constituent stock prices
-load("C:/Develop/lecture_slides/data/sp500.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 ohlc <- log(sp500env$SIG)
 quantmod::chart_Series(Cl(ohlc))
@@ -4142,7 +4223,7 @@ hurst_prof <- lapply(hurst_prof, function(volat_hurst) {
   zoo::na.locf(volat_hurst, fromLast=TRUE)
 })  # end lapply
 
-save(hurst_prof, file="C:/Develop/lecture_slides/data/sp500_perf.RData")
+save(hurst_prof, file="/Users/jerzy/Develop/lecture_slides/data/sp500_perf.RData")
 
 bar <- sapply(hurst_prof, function(x) sum(is.na(x) | is.infinite(x)))
 max(bar)
@@ -4182,7 +4263,7 @@ bar <- sapply(hurst_prof, function(x) {
 })  # end sapply
 returns <- prices[, names(tail(bar, 100))]
 returns <- rutils::diffit(log(returns))
-save(returns, file="C:/Develop/lecture_slides/data/sp100_rets.RData")
+save(returns, file="/Users/jerzy/Develop/lecture_slides/data/sp100_rets.RData")
 
 colnamev <- colnames(hurst_prof$AAPL)
 bar <- lapply(hurst_prof, function(x) {
@@ -4275,60 +4356,62 @@ all.equal(rank(drop(coredata(datav))), drop(calc_ranks(datav)))
 
 ## Load S&P500 stock returns
 # returns <- na.omit(rutils::etfenv$returns[, 1:9])
-load(file="C:/Develop/lecture_slides/data/sp500_returns.RData")
-ret_s <- returns100["2000/"]
-ret_s[1, is.na(ret_s[1, ])] <- 0
-ret_s <- zoo::na.locf(ret_s, na.rm=FALSE)
-nrows <- NROW(ret_s)
-ncols <- NCOL(ret_s)
+load(file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
+retsp <- returns100["2000/"]
+retsp[1, is.na(retsp[1, ])] <- 0
+retsp <- zoo::na.locf(retsp, na.rm=FALSE)
+nrows <- NROW(retsp)
+ncols <- NCOL(retsp)
 
 
 ## Tests for HighFreq::calc_weights()
 
 ## Calculate ranksharpe weights using R
-weights_r <- sapply(ret_s, function(x) mean(x)/sd(x))
-weights_r <- rank(weights_r)
-weights_r <- (weights_r - mean(weights_r))
+weightsr <- sapply(retsp, function(x) mean(x)/sd(x))
+weightsr <- rank(weightsr)
+weightsr <- (weightsr - mean(weightsr))
 
-# weights_r <- 0.01*weightv/stddev(returns*weightv)
+# weightsr <- 0.01*weightv/stddev(returns*weightv)
 
 ## Calculate weights using RcppArmadillo
-weightv <- drop(calc_weights(ret_s, model_type="ranksharpe", scale=FALSE))
-all.equal(weightv, weights_r, check.attributes=FALSE)
+weightv <- drop(calc_weights(retsp, model_type="ranksharpe", scale=FALSE))
+all.equal(weightv, weightsr, check.attributes=FALSE)
 
 
 ## Calculate max_sharpe weights using R
 
 # Calculate covariance matrix of ETF returns
-# ret_s <- na.omit(rutils::etfenv$returns[, 1:16])
-eigend <- eigen(cov(ret_s))
+# retsp <- na.omit(rutils::etfenv$returns[, 1:16])
+eigend <- eigen(cov(retsp))
 # Calculate regularized inverse of covariance matrix
-max_eigen <- 3
-eigenvec <- eigend$vectors[, 1:max_eigen]
-eigen_val <- eigend$values[1:max_eigen]
+dimax <- 3
+eigenvec <- eigend$vectors[, 1:dimax]
+eigen_val <- eigend$values[1:dimax]
 invmat <- eigenvec %*% (t(eigenvec) / eigen_val)
 # Define shrinkage intensity and apply shrinkage to the mean returns
 alpha <- 0.5
-col_means <- colMeans(ret_s)
-col_means <- ((1-alpha)*col_means + alpha*mean(col_means))
+colmeans <- colMeans(retsp)
+colmeans <- ((1-alpha)*colmeans + alpha*mean(colmeans))
 
-weights_r <- invmat %*% col_means
-n_col <- NCOL(ret_s)
-weights_r <- weights_r*sd(ret_s %*% rep(1/n_col, n_col))/sd(ret_s %*% weightv_r)
+# Calculate the portfolio weights
+weightsr <- invmat %*% colmeans
+ncols <- NCOL(retsp)
+# Scale the weights so portfolio is equal to equal weight portfolio
+weightsr <- weightsr*sd(retsp %*% rep(1/ncols, ncols))/sd(retsp %*% weightsr)
 
 ## Calculate weights using RcppArmadillo
-weightv <- drop(calc_weights(ret_s, model_type="max_sharpe", alpha=alpha, max_eigen=3, scale=FALSE))
-all.equal(weightv, drop(weights_r), check.attributes=FALSE)
+weightv <- drop(calc_weights(retsp, model_type="max_sharpe", alpha=alpha, dimax=3, scale=FALSE))
+all.equal(weightv, drop(weightsr), check.attributes=FALSE)
 
 
 
 ## Calculate returns on equal weight portfolio
-indeks <- rowMeans(ret_s)
+indeks <- rowMeans(retsp)
 stdev <- sd(indeks[indeks<0])
-indeks <- xts(indeks, index(ret_s))
+indeks <- xts(indeks, index(retsp))
 
-foo <- weight_returns(ret_s, weightv)
-bar <- ret_s %*% weightv
+foo <- weight_returns(retsp, weightv)
+bar <- retsp %*% weightv
 all.equal(foo, bar)
 
 
@@ -4352,7 +4435,7 @@ calc_weightv <- function(returns) {
   # weightv <- ordern[ordern]
 
 } # end calc_weights
-weightv <- calc_weights(ret_sub)
+weightv <- calc_weights(retspub)
 
 
 foo <- drop(calc_weights(returns[((nrows-500):nrows)], typev="rankrob", alpha=0, scale=FALSE))
@@ -4400,7 +4483,7 @@ ohlc_data <- coredata(ohlc)
 nrows <- NROW(ohlc_data)
 
 ohlc_lag <- rutils::lagit(ohlc_data)
-prices <- ohlc_data[, 4]
+closep <- ohlc_data[, 4]
 
 buy_spread <- 0.25
 sell_spread <- 0.25
@@ -4422,7 +4505,7 @@ sell_s <- numeric(nrows)
 sell_s[sell_ind] <- sell_price[sell_ind]
 sell_s <- cumsum(sell_s)
 
-pnls <- ((sell_s-buy_s) - prices*(n_sell-n_buy))
+pnls <- ((sell_s-buy_s) - closep*(n_sell-n_buy))
 
 
 # Loop version
@@ -4445,7 +4528,7 @@ for (it in 2:nrows) {
   n_sell[it] <- n_sell[it-1] + sell_ind
   buy_s[it] <- buy_s[it-1] + buy_ind*buy_price[it]
   sell_s[it] <- sell_s[it-1] + sell_ind*sell_price[it]
-  pnls[it] <- ((sell_s[it] - buy_s[it]) - prices[it]*(n_sell[it] - n_buy[it]))
+  pnls[it] <- ((sell_s[it] - buy_s[it]) - closep[it]*(n_sell[it] - n_buy[it]))
 }  # end for
 
 
@@ -5478,7 +5561,7 @@ summary(mo_del)
 coef(summary(mo_del))
 betas <- -coef(summary(mo_del))[-1, 1]
 
-max_eigen <- 2
+dimax <- 2
 covmat <- cov(excess)
 
 # Calculate eigen decomposition
@@ -5499,7 +5582,7 @@ eigen_invmat <- eigenvec[, notzero] %*%
 eigend <- eigen(covmat)
 eigenvec <- eigend$vectors
 # Calculate regularized inverse
-invmat <- eigenvec[, 1:max_eigen] %*% (t(eigenvec[, 1:max_eigen]) / eigend$values[1:max_eigen])
+invmat <- eigenvec[, 1:dimax] %*% (t(eigenvec[, 1:dimax]) / eigend$values[1:dimax])
 # Calculate the maximum Sharpe ratio portfolio weights
 # weightv <- invmat %*% colMeans(excess)
 # weightv <- rep(mean(colMeans(excess)), NCOL(excess))
@@ -5635,7 +5718,7 @@ startp <- c(rep_len(1, look_back-1), endp[1:(nrows-look_back+1)])
 
 # Define the shrinkage intensity
 alpha <- 0.5
-max_eigen <- 3
+dimax <- 3
 
 # Simulate a monthly rolling portfolio optimization strategy
 strat_rets <- lapply(2:NROW(endp),
@@ -5644,15 +5727,15 @@ strat_rets <- lapply(2:NROW(endp),
                        excess <- excess[startp[i-1]:endp[i-1], ]
                        eigend <- eigen(cov(excess))
                        # Calculate regularized inverse of covariance matrix
-                       max_eigen <- 3
-                       eigenvec <- eigend$vectors[, 1:max_eigen]
-                       eigen_val <- eigend$values[1:max_eigen]
+                       dimax <- 3
+                       eigenvec <- eigend$vectors[, 1:dimax]
+                       eigen_val <- eigend$values[1:dimax]
                        invmat <- eigenvec %*% (t(eigenvec) / eigen_val)
                        # Apply shrinkage to the mean returns
-                       col_means <- colMeans(excess)
-                       col_means <- ((1-alpha)*col_means + alpha*mean(col_means))
+                       colmeans <- colMeans(excess)
+                       colmeans <- ((1-alpha)*colmeans + alpha*mean(colmeans))
                        # Calculate weights using R
-                       weightv <- invmat %*% col_means
+                       weightv <- invmat %*% colmeans
                        weightv <- weightv/sum(weightv)
                        # Subset the returns to out-of-sample returns
                        returns <- returns[(endp[i-1]+1):endp[i], ]
@@ -5672,7 +5755,7 @@ strat_rets <- lapply(2:NROW(endp),
                        # Subset the excess returns
                        excess <- excess[startp[i-1]:endp[i-1], ]
                        # Apply regularized inverse to mean of excess
-                       weightv <- HighFreq::calc_weights(excess, max_eigen, alpha)
+                       weightv <- HighFreq::calc_weights(excess, dimax, alpha)
                        # Subset the returns to out-of-sample returns
                        returns <- returns[(endp[i-1]+1):endp[i], ]
                        # Calculate the out-of-sample portfolio returns
@@ -5683,7 +5766,7 @@ strat_rets <- lapply(2:NROW(endp),
 strat_rets <- rutils::do_call(rbind, strat_rets)
 colnames(strat_rets) <- "strat_rets"
 
-indicator_s <- HighFreq::roll_portf(excess, returns, startp-1, endp-1, max_eigen, alpha)
+indicator_s <- HighFreq::roll_portf(excess, returns, startp-1, endp-1, dimax, alpha)
 indicator_s <- xts(indicator_s, index(returns))
 colnames(indicator_s) <- "strat_rets"
 
@@ -5833,7 +5916,7 @@ summary(microbenchmark(
 library(rutils)
 
 # load new data
-load("C:/Develop/lecture_slides/data/sp5002018.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp5002018.RData")
 # verify that the Close and Adjusted price columns are equal for all symbols
 sum(!unlist(eapply(sp500env, function(x) {
   x <- unname(coredata(x))
@@ -5846,7 +5929,7 @@ sp500env_new <- sp500env
 
 
 # load old data
-load("C:/Develop/lecture_slides/data/sp5002017.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp5002017.RData")
 # verify that the Close and Adjusted price columns are equal for all symbols
 sum(!unlist(eapply(sp500env, function(x) {
   x <- unname(coredata(x))
@@ -5917,7 +6000,7 @@ sum(!unlist(eapply(sp500env, function(x) {
   all.equal(x[, 4], x[, 6])
 })))
 
-save(sp500env, file="C:/Develop/lecture_slides/data/sp500.RData")
+save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
 
@@ -6224,12 +6307,12 @@ p2 <- (0.5*num_managers - (probv - 0.5)) / num_managers
 mean_s <- c(2*p1-1, rep(2*p2-1, num_managers-1))
 
 # length of Brownian motion
-n_row <- 5000
+nrows <- 5000
 
 # Simulate Brownian motion
 volat <- 0.01
 set.seed(1121)  # reset random number generator
-returns <- sapply(mean_s, rnorm, n=n_row, sd=volat)
+returns <- sapply(mean_s, rnorm, n=nrows, sd=volat)
 returns <- apply(returns, 2, cumsum)
 # apply(returns, 2, mean)
 # plot.zoo(returns, plot.type="single")
@@ -6237,33 +6320,33 @@ returns <- apply(returns, 2, cumsum)
 # length of lookback window
 look_back <- 100
 # define endp with beginning stub
-num_agg <- n_row %/% look_back
-endp <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
+nagg <- nrows %/% look_back
+endp <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
 nrows <- NROW(endp)
 # startp are single-period lag of endp
 startp <- endp[c(1, 1:(nrows-1))] + 1
 fix_points <- (startp > endp)
 startp[fix_points] <- endp[fix_points]
 
-# total returns aggregated over non-overlapping windows
-agg_rets <- apply(returns, 2, function(x) (x[endp]-x[startp]))
+# Returns aggregated over non-overlapping windows
+retsagg <- apply(returns, 2, function(x) (x[endp]-x[startp]))
 
 
 # Switch to best manager with biggest total returns
-be_st <- apply(agg_rets, 1, which.max)
-be_st <- rutils::lagit(be_st)
-be_st[1] <- 1
-# be_st <- c(rep(1, NROW(endp)-NROW(be_st)), be_st)
-pnls <- agg_rets[cbind(1:NROW(agg_rets), be_st)]
+bestm <- apply(retsagg, 1, which.max)
+bestm <- rutils::lagit(bestm)
+bestm[1] <- 1
+# bestm <- c(rep(1, NROW(endp)-NROW(bestm)), bestm)
+pnls <- retsagg[cbind(1:NROW(retsagg), bestm)]
 # pnls <- lapply(seq_along(endp), function(dates) {
-#   returns[startp[dates]:endp[dates], be_st[dates]]
+#   returns[startp[dates]:endp[dates], bestm[dates]]
 # })  # end lapply
 # pnls <- rutils::do_call(c, pnls)
 plot.zoo(cumsum(pnls))
 
 
 ## cum_pnl for multi-manager strategy
-cum_pnl <- function(sharpe_ratio, returns=NULL, mean_s=NULL, num_managers, n_row, look_back, volat=0.01) {
+cum_pnl <- function(sharpe_ratio, returns=NULL, mean_s=NULL, num_managers, nrows, look_back, volat=0.01) {
   # Simulate Brownian motion
   if(is.null(returns)) {
     probv <- (sharpe_ratio/sqrt(250)+1)/2
@@ -6272,16 +6355,16 @@ cum_pnl <- function(sharpe_ratio, returns=NULL, mean_s=NULL, num_managers, n_row
     p2 <- (0.5*num_managers - (probv - 0.5)) / num_managers
     mean_s <- c(2*p1-1, rep(2*p2-1, num_managers-1))
     set.seed(1121)  # reset random number generator
-    returns <- sapply(mean_s, rnorm, n=n_row, sd=volat)
+    returns <- sapply(mean_s, rnorm, n=nrows, sd=volat)
     returns <- apply(returns, 2, cumsum)
   } else {
     num_managers <- NCOL(returns)
-    n_row <- NROW(returns)
+    nrows <- NROW(returns)
   }  # end if
 
   # define endp with beginning stub
-  num_agg <- n_row %/% look_back
-  endp <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
+  nagg <- nrows %/% look_back
+  endp <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
   nrows <- NROW(endp)
   # startp are single-period lag of endp
   startp <- endp[c(1, 1:(nrows-1))] + 1
@@ -6289,15 +6372,15 @@ cum_pnl <- function(sharpe_ratio, returns=NULL, mean_s=NULL, num_managers, n_row
   startp[fix_points] <- endp[fix_points]
 
   # total returns over non-overlapping windows
-  agg_rets <- apply(returns, 2, function(x) (x[endp]-x[startp]))
+  retsagg <- apply(returns, 2, function(x) (x[endp]-x[startp]))
 
   # Switch to best manager with biggest total returns
-  be_st <- apply(agg_rets, 1, which.max)
-  be_st <- rutils::lagit(be_st)
-  be_st[1] <- 1
-  be_st <- c(rep(1, NROW(endp)-NROW(be_st)), be_st)
+  bestm <- apply(retsagg, 1, which.max)
+  bestm <- rutils::lagit(bestm)
+  bestm[1] <- 1
+  bestm <- c(rep(1, NROW(endp)-NROW(bestm)), bestm)
   pnls <- lapply(seq_along(endp), function(dates) {
-    returns[startp[dates]:endp[dates], be_st[dates]]
+    returns[startp[dates]:endp[dates], bestm[dates]]
   })  # end lapply
   # return total expected pnl
   pnls <- rutils::do_call(c, pnls)
@@ -6306,12 +6389,12 @@ cum_pnl <- function(sharpe_ratio, returns=NULL, mean_s=NULL, num_managers, n_row
 
 cum_pnl(returns=returns, look_back=100)
 
-cum_pnl(sharpe_ratio=0.4, num_managers=11, look_back=100, n_row=5000)
+cum_pnl(sharpe_ratio=0.4, num_managers=11, look_back=100, nrows=5000)
 
 
 
 ## cum_pnl for multi-manager strategy (simpler version)
-cum_pnl <- function(look_back, n_row=NULL, sharpe_ratio=NULL, returns=NULL, mean_s=NULL, num_managers=NULL, volat=0.01) {
+cum_pnl <- function(look_back, nrows=NULL, sharpe_ratio=NULL, returns=NULL, mean_s=NULL, num_managers=NULL, volat=0.01) {
   # Calculate drifts
   if(is.null(mean_s)) {
     probv <- (sharpe_ratio/sqrt(250)+1)/2
@@ -6325,26 +6408,26 @@ cum_pnl <- function(look_back, n_row=NULL, sharpe_ratio=NULL, returns=NULL, mean
   # Simulate Brownian motion
   if(is.null(returns)) {
     # set.seed(1121)  # reset random number generator
-    num_agg <- n_row %/% look_back
-    returns <- sapply(mean_s, rnorm, n=num_agg, sd=sqrt(look_back)*volat)
+    nagg <- nrows %/% look_back
+    returns <- sapply(mean_s, rnorm, n=nagg, sd=sqrt(look_back)*volat)
   } else {
     num_managers <- NCOL(returns)
-    n_row <- NROW(returns)
+    nrows <- NROW(returns)
   }  # end if
 
   # Switch to best manager with biggest total returns
-  be_st <- apply(returns, 1, which.max)
-  be_st <- rutils::lagit(be_st)
-  be_st[1] <- 1
+  bestm <- apply(returns, 1, which.max)
+  bestm <- rutils::lagit(bestm)
+  bestm[1] <- 1
   # return total expected pnl
-  # pnls <- returns[cbind(1:NROW(returns), be_st)]
-  sum(returns[cbind(1:NROW(returns), be_st)])
+  # pnls <- returns[cbind(1:NROW(returns), bestm)]
+  sum(returns[cbind(1:NROW(returns), bestm)])
 }  # end cum_pnl
 
 
 
 ## cum_pnl for multi-manager strategy (simplest version)
-cum_pnl <- function(look_back, n_row, sharpe_ratio=NULL, returns=NULL, mean_s=NULL, num_managers=NULL, volat=0.01) {
+cum_pnl <- function(look_back, nrows, sharpe_ratio=NULL, returns=NULL, mean_s=NULL, num_managers=NULL, volat=0.01) {
   # Calculate drifts
   if(is.null(mean_s)) {
     probv <- (sharpe_ratio/sqrt(250)+1)/2
@@ -6362,25 +6445,25 @@ cum_pnl <- function(look_back, n_row, sharpe_ratio=NULL, returns=NULL, mean_s=NU
             low=-3.0, up=3.0,
             sd=sqrt(look_back)*volat)$value
   # return total expected pnl
-  num_agg <- n_row %/% look_back
-  num_agg*(probv*mean_s[1] + (1-probv)*mean_s[2])
+  nagg <- nrows %/% look_back
+  nagg*(probv*mean_s[1] + (1-probv)*mean_s[2])
 }  # end cum_pnl
 
-cum_pnl(sharpe_ratio=0.4, num_managers=11, mean_s=mean_s, look_back=100, n_row=5000)
-cum_pnl(sharpe_ratio=0.4, num_managers=11, look_back=100, n_row=5000)
-cum_pnl(look_back=100, sharpe_ratio=0.4, num_managers=11, n_row=5000)
+cum_pnl(sharpe_ratio=0.4, num_managers=11, mean_s=mean_s, look_back=100, nrows=5000)
+cum_pnl(sharpe_ratio=0.4, num_managers=11, look_back=100, nrows=5000)
+cum_pnl(look_back=100, sharpe_ratio=0.4, num_managers=11, nrows=5000)
 
 # Calculate average pnl
 foo <- mean(sapply(1:10000, function(x)
-  cum_pnl(mean_s=mean_s, look_back=100, n_row=5000)))
+  cum_pnl(mean_s=mean_s, look_back=100, nrows=5000)))
 
 foo <- mean(sapply(1:10000, function(x)
-  cum_pnl(look_back=100, sharpe_ratio=0.4, num_managers=11, n_row=500000)))
+  cum_pnl(look_back=100, sharpe_ratio=0.4, num_managers=11, nrows=500000)))
 
 # perform loop over lookback windows
 look_backs <- 100*(1:20)
 foo <- sapply(look_backs, cum_pnl,
-              sharpe_ratio=0.4, num_managers=11, n_row=50000)
+              sharpe_ratio=0.4, num_managers=11, nrows=50000)
 foo <- cbind(look_backs, foo)
 plot(foo, t="l")
 plot(cumsum(pnls), t="l")
@@ -6388,7 +6471,7 @@ plot(cumsum(pnls), t="l")
 # perform loop over number of managers
 num_managers <- 2*(1:50)
 foo <- sapply(num_managers, cum_pnl,
-              returns=NULL, sharpe_ratio=0.4, look_back=100, n_row=50000, mean_s=NULL, volat=0.01)
+              returns=NULL, sharpe_ratio=0.4, look_back=100, nrows=50000, mean_s=NULL, volat=0.01)
 foo <- cbind(num_managers, foo)
 plot(foo, t="l")
 
@@ -6399,7 +6482,7 @@ plot(foo, t="l")
 
 # define daily volatility: daily prices change by volat units
 volat <- 0.01
-n_row <- 50000
+nrows <- 50000
 num_managers <- 3
 # rate of drift (skill) change
 ra_te <- 2*pi
@@ -6411,19 +6494,19 @@ probv <- 0.5 + (probv-0.5)/2
 # define growth rate
 mea_n <- volat*(2*probv-1)
 # time-dependent drift (skill)
-# drift <- 0.01*sin(ra_te*(1:n_row)/n_row)
+# drift <- 0.01*sin(ra_te*(1:nrows)/nrows)
 # drift <- rutils::do_call(c, lapply(1:num_managers, function(x) (drift + 2*pi*x/num_managers)))
 drift <- sapply(1:num_managers, function(x)
-  mea_n*sin(ra_te*(1:n_row)/n_row + 2*pi*x/num_managers))
+  mea_n*sin(ra_te*(1:nrows)/nrows + 2*pi*x/num_managers))
 
 # Simulate multiple price paths
 
-# returns <- xts(volat*rnorm(n_row) + drift - volat^2/2,
-#                 order.by=seq.Date(Sys.Date()-n_row+1, Sys.Date(), by=1))
+# returns <- xts(volat*rnorm(nrows) + drift - volat^2/2,
+#                 order.by=seq.Date(Sys.Date()-nrows+1, Sys.Date(), by=1))
 # chart_Series(x=returns, name="Multiple price paths")
 
 set.seed(1121)  # reset random number generator
-returns <- matrix(volat*rnorm(num_managers*n_row) - volat^2/2, nc=num_managers) + drift
+returns <- matrix(volat*rnorm(num_managers*nrows) - volat^2/2, nc=num_managers) + drift
 # returns <- exp(matrixStats::colCumsums(returns))
 # Create zoo time series
 # returns <- xts(returns, order.by=seq.Date(Sys.Date()-NROW(returns)+1, Sys.Date(), by=1))
@@ -6447,8 +6530,8 @@ pnls <- apply(returns, 2, cumsum)
 # length of lookback window
 look_back <- 100
 # define endp with beginning stub
-num_agg <- n_row %/% look_back
-endp <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
+nagg <- nrows %/% look_back
+endp <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
 nrows <- NROW(endp)
 # startp are single-period lag of endp
 startp <- endp[c(1, 1:(nrows-1))] + 1
@@ -6456,23 +6539,23 @@ fix_points <- (startp > endp)
 startp[fix_points] <- endp[fix_points]
 
 # total returns aggregated over non-overlapping windows
-agg_rets <- apply(pnls, 2, function(x) (x[endp]-x[startp]))
+retsagg <- apply(pnls, 2, function(x) (x[endp]-x[startp]))
 
 # Switch to best manager with biggest total returns
-be_st <- apply(agg_rets, 1, which.max)
-be_st <- rutils::lagit(be_st)
-be_st[1] <- 1
-# be_st <- c(rep(1, NROW(endp)-NROW(be_st)), be_st)
-pnls <- agg_rets[cbind(1:NROW(agg_rets), be_st)]
+bestm <- apply(retsagg, 1, which.max)
+bestm <- rutils::lagit(bestm)
+bestm[1] <- 1
+# bestm <- c(rep(1, NROW(endp)-NROW(bestm)), bestm)
+pnls <- retsagg[cbind(1:NROW(retsagg), bestm)]
 plot.zoo(cumsum(pnls))
 
 
 ## cum_pnl for multi-manager strategy (simpler version)
 cum_pnl <- function(look_back, returns) {
-  n_row <- NROW(returns)
+  nrows <- NROW(returns)
   # define endp with beginning stub
-  num_agg <- n_row %/% look_back
-  endp <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
+  nagg <- nrows %/% look_back
+  endp <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
   nrows <- NROW(endp)
   # startp are single-period lag of endp
   startp <- endp[c(1, 1:(nrows-1))] + 1
@@ -6481,12 +6564,12 @@ cum_pnl <- function(look_back, returns) {
   # total returns aggregated over non-overlapping windows
   returns <- apply(returns, 2, function(x) (x[endp]-x[startp]))
   # Switch to best manager with biggest total returns
-  be_st <- apply(returns, 1, which.max)
-  be_st <- rutils::lagit(be_st)
-  be_st[1] <- 1
+  bestm <- apply(returns, 1, which.max)
+  bestm <- rutils::lagit(bestm)
+  bestm[1] <- 1
   # return total expected pnl
-  # pnls <- returns[cbind(1:NROW(returns), be_st)]
-  sum(returns[cbind(1:NROW(returns), be_st)])
+  # pnls <- returns[cbind(1:NROW(returns), bestm)]
+  sum(returns[cbind(1:NROW(returns), bestm)])
 }  # end cum_pnl
 
 cum_pnl(look_back=100, returns=pnls)
@@ -6494,16 +6577,16 @@ cum_pnl(look_back=100, returns=pnls)
 
 ## cum_pnl for trend-following multi-manager strategy (without endp)
 cum_pnl <- function(look_back, returns, pnls) {
-  # n_row <- NROW(returns)
+  # nrows <- NROW(returns)
   # total returns aggregated over overlapping windows
-  agg_rets <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  retsagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
   # Switch to best manager with biggest total returns
-  be_st <- apply(agg_rets, 1, which.max)
-  be_st <- rutils::lagit(be_st)
-  be_st[1] <- 1
+  bestm <- apply(retsagg, 1, which.max)
+  bestm <- rutils::lagit(bestm)
+  bestm[1] <- 1
   # return total expected pnl
-  # pnls <- returns[cbind(1:NROW(returns), be_st)]
-  sum(returns[cbind(1:NROW(returns), be_st)])
+  # pnls <- returns[cbind(1:NROW(returns), bestm)]
+  sum(returns[cbind(1:NROW(returns), bestm)])
 }  # end cum_pnl
 
 # Calculate cumulative returns
@@ -6526,8 +6609,8 @@ plot(pnls, t="l")
 look_backs <- 20*(1:50)
 orderstats <- lapply(look_backs, function(look_back) {
   # total returns aggregated over overlapping windows
-  agg_rets <- apply(pnls, 2, rutils::diffit, lag=look_back)
-  ordern <- t(apply(agg_rets, 1, order))
+  retsagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  ordern <- t(apply(retsagg, 1, order))
   ordern <- rutils::lagit(ordern)
   ordern[1, ] <- 1
   ordern
@@ -6537,23 +6620,23 @@ names(orderstats) <- look_backs
 
 ## cum_pnl for long-short multi-manager strategy (without endp)
 cum_pnl <- function(select_best=NULL, select_worst=NULL, returns, ordern) {
-  n_row <- NROW(returns)
+  nrows <- NROW(returns)
   if(!is.null(select_best)) {
-    n_col <- NCOL(returns)
-    be_st <- ordern[, (n_col-select_best+1):n_col]
-    be_st <- cbind(1:n_row, be_st)
+    ncols <- NCOL(returns)
+    bestm <- ordern[, (ncols-select_best+1):ncols]
+    bestm <- cbind(1:nrows, bestm)
   } else {
-    be_st <- NULL
+    bestm <- NULL
   }  # end if
   if(!is.null(select_worst)) {
-    wor_st <- ordern[, 1:select_worst]
-    wor_st <- cbind(1:n_row, wor_st)
+    worstm <- ordern[, 1:select_worst]
+    worstm <- cbind(1:nrows, worstm)
   } else {
-    wor_st <- NULL
+    worstm <- NULL
   }  # end if
   # return total expected pnl
-  # pnls <- returns[be_st]-returns[wor_st]
-  sum(returns[be_st])/select_best-sum(returns[wor_st])/(if(is.null(select_worst)) 1)
+  # pnls <- returns[bestm]-returns[worstm]
+  sum(returns[bestm])/select_best-sum(returns[worstm])/(if(is.null(select_worst)) 1)
 }  # end cum_pnl
 
 # Calculate pnl for long-short multi-manager strategy
@@ -6569,9 +6652,9 @@ plot(pnls, t="l")
 
 num_managers <- 5
 drift <- sapply(1:num_managers, function(x)
-  mea_n*sin(ra_te*(1:n_row)/n_row + 2*pi*x/num_managers))
+  mea_n*sin(ra_te*(1:nrows)/nrows + 2*pi*x/num_managers))
 set.seed(1121)  # reset random number generator
-returns <- matrix(volat*rnorm(num_managers*n_row) - volat^2/2, nc=num_managers) + drift
+returns <- matrix(volat*rnorm(num_managers*nrows) - volat^2/2, nc=num_managers) + drift
 # Calculate cumulative returns
 pnls <- apply(returns, 2, cumsum)
 
@@ -6579,8 +6662,8 @@ pnls <- apply(returns, 2, cumsum)
 look_backs <- 20*(1:50)
 orderstats <- lapply(look_backs, function(look_back) {
   # total returns aggregated over overlapping windows
-  agg_rets <- apply(pnls, 2, rutils::diffit, lag=look_back)
-  ordern <- t(apply(agg_rets, 1, order))
+  retsagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  ordern <- t(apply(retsagg, 1, order))
   ordern <- rutils::lagit(ordern)
   ordern[1, ] <- 1
   ordern
@@ -6589,23 +6672,23 @@ names(orderstats) <- look_backs
 
 ## cum_pnl for long-short multi-manager strategy (without endp)
 cum_pnl <- function(select_best=NULL, select_worst=NULL, returns, ordern) {
-  n_row <- NROW(returns)
+  nrows <- NROW(returns)
   if(!is.null(select_best)) {
-    n_col <- NCOL(returns)
-    be_st <- ordern[, (n_col-select_best+1):n_col]
-    be_st <- cbind(1:n_row, be_st)
+    ncols <- NCOL(returns)
+    bestm <- ordern[, (ncols-select_best+1):ncols]
+    bestm <- cbind(1:nrows, bestm)
   } else {
-    be_st <- NULL
+    bestm <- NULL
   }  # end if
   if(!is.null(select_worst)) {
-    wor_st <- ordern[, 1:select_worst]
-    wor_st <- cbind(1:n_row, wor_st)
+    worstm <- ordern[, 1:select_worst]
+    worstm <- cbind(1:nrows, worstm)
   } else {
-    wor_st <- NULL
+    worstm <- NULL
   }  # end if
   # return total expected pnl
-  # pnls <- returns[be_st]-returns[wor_st]
-  sum(returns[be_st])-sum(returns[wor_st])
+  # pnls <- returns[bestm]-returns[worstm]
+  sum(returns[bestm])-sum(returns[worstm])
 }  # end cum_pnl
 
 # Calculate pnl for long-short multi-manager strategy
@@ -6620,15 +6703,15 @@ pnls <- cbind(look_backs, pnls)
 
 ## double the drift
 set.seed(1121)  # reset random number generator
-returns <- matrix(volat*rnorm(num_managers*n_row) - volat^2/2, nc=num_managers) + 2*drift
+returns <- matrix(volat*rnorm(num_managers*nrows) - volat^2/2, nc=num_managers) + 2*drift
 # Calculate cumulative returns
 pnls <- apply(returns, 2, cumsum)
 
 ## pre-calculate row order indices for a vector of look_backs
 orderstats2x <- lapply(look_backs, function(look_back) {
   # total returns aggregated over overlapping windows
-  agg_rets <- apply(pnls, 2, rutils::diffit, lag=look_back)
-  ordern <- t(apply(agg_rets, 1, order))
+  retsagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  ordern <- t(apply(retsagg, 1, order))
   ordern <- rutils::lagit(ordern)
   ordern[1, ] <- 1
   ordern
@@ -6654,8 +6737,8 @@ cluster <- makeCluster(num_cores-1)
 
 foo <- sapply(look_backs, function(look_back) {
   # define endp with beginning stub
-  num_agg <- n_row %/% look_back
-  endp <- c(0, n_row-look_back*num_agg+look_back*(0:num_agg))
+  nagg <- nrows %/% look_back
+  endp <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
   nrows <- NROW(endp)
   # startp are single-period lag of endp
   startp <- endp[c(1, 1:(nrows-1))] + 1
@@ -6723,11 +6806,11 @@ names(betas) <- c(paste0(colnames(design), "_long"), paste0(colnames(design), "_
 
 ## cum_pnl vectorized function for contrarian strategy with threshold
 cum_pnl <- function(betas, la_g=15, design=design, returns=returns_running, lambda=0) {
-  n_col <- NCOL(design)
+  ncols <- NCOL(design)
   positions <- rep.int(NA, NROW(design))
   positions[1] <- 0
   # buy signal
-  bu_y <- (design %*% betas[1:n_col] < -1)
+  bu_y <- (design %*% betas[1:ncols] < -1)
   positions[bu_y] <- 1.0
   se_ll <- as.logical(rutils::lagit(bu_y, lag=la_g))
   # Sell signal
@@ -6761,7 +6844,7 @@ optimd$optim$bestval
 cum_pnl(betas, design=design[dates])
 
 
-bu_y <- (design %*% betas[1:n_col] < -1)
+bu_y <- (design %*% betas[1:ncols] < -1)
 
 cum_pnl <- function(interval) {
   positions <- rep.int(NA, NROW(design))
@@ -6782,22 +6865,22 @@ sapply(20*(1:30), cum_pnl)
 
 ###############
 ### Convert correlation matrix into distance object
-dis_tance <- xts::.index(vol_spikes)
+dis_tance <- xts::.index(volvpikes)
 dis_tance <- abs(outer(X=dis_tance, Y=dis_tance, FUN="-"))
-# dis_tance <- rutils::diffit(xts::.index(vol_spikes))
+# dis_tance <- rutils::diffit(xts::.index(volvpikes))
 dis_tance <- as.dist(dis_tance)
 # Perform hierarchical clustering analysis
 cluster <- hclust(dis_tance)
 plot(cluster, ann=FALSE, xlab="", ylab="")
-title("clustering of vol_spikes", line=0.0)
+title("clustering of volvpikes", line=0.0)
 foo <- cutree(cluster, h=2000)
 # foo <- cutree(cluster, k=100)
-NROW(vol_spikes)
+NROW(volvpikes)
 NROW(foo)
 NROW(unique(foo))
 tail(foo)
-tail(vol_spikes)
-bar <- match(index(vol_spikes), index(varv))
+tail(volvpikes)
+bar <- match(index(volvpikes), index(varv))
 tail(bar)
 
 
