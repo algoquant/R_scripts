@@ -409,16 +409,17 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 ## Calculate prices from OHLC data
 prices <- eapply(sp500env, quantmod::Cl)
 prices <- rutils::do_call(cbind, prices)
-# Carry forward and backward non-NA prices - no only forward because backward skews volatility
-sum(is.na(prices))
-prices <- zoo::na.locf(prices, na.rm=FALSE)
-# prices <- zoo::na.locf(prices, fromLast=TRUE)
 # Modify column names
 colnamev <- rutils::get_name(colnames(prices))
 # colnamev <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 colnames(prices) <- colnamev
+# No: Carry forward and backward non-NA prices - no only forward because backward skews volatility
+# Don't carry prices forward because it skews correlations
+sum(is.na(prices))
+# prices <- zoo::na.locf(prices, na.rm=FALSE)
+# prices <- zoo::na.locf(prices, fromLast=TRUE)
 
-## Calculate percentage returns of the S&P500 constituent stocks
+## Calculate log percentage returns of the S&P500 constituent stocks
 returns <- xts::diff.xts(log(prices))
 # Or
 # returns <- lapply(prices, function(x)
@@ -433,6 +434,7 @@ samplev <- sample(NCOL(returns), s=100, replace=FALSE)
 prices100 <- prices[, samplev]
 returns100 <- returns[, samplev]
 
+# Experimental
 ## Calculate scaled returns using price range - experimental
 returns_scaled <- eapply(sp500env, function(ohlc) {
   ohlc <- log(ohlc)
@@ -459,6 +461,8 @@ sum(!is.finite(returns_scaled))
 colnames(returns_scaled) <- colnamev
 
 returns100_scaled <- returns_scaled[, samplev]
+
+# Experimental end
 
 ## Save the data
 save(prices, prices100,
