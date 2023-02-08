@@ -1,3 +1,120 @@
+## Load ETF returns
+retsp <- rutils::etfenv$returns[, c("VTI", "TLT", "DBC", "USO", "XLF", "XLK")]
+retsp <- na.omit(retsp)
+retsp[is.na(retsp)] <- 0
+retsp <- retsp[!(rowSums(retsp) == 0), ]
+datev <- zoo::index(retsp) # dates
+nrows <- NROW(retsp) # number of rows
+nzeros <- colSums(retsp == 0)
+# Remove stocks with very little data
+retsp <- retsp[, nzeros < nrows/2]
+nstocks <- NCOL(retsp) # number of stocks
+indeks <- rowMeans(retsp)
+indeks <- xts::xts(indeks, order.by=datev)
+colnames(indeks) <- "Index"
+indeksd <- sd(indeks)
+
+# Rerun the model
+datav <- run_portf(retsp, 2, 0.932, 0.993)
+bar <- run_portf(retsp, 2, 0.932, 0.993)
+
+# Plot the pnls
+pnls <- indeksd*datav[, 1]/sd(datav[, 1])
+pnls <- cbind(indeks, pnls)
+colnames(pnls) <- c("Index", "Strategy")
+colnamev <- colnames(pnls)
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 4)
+captiont <- paste0(c("Index SR=", "Strategy SR="), sharper, collapse=" / ")
+endp <- rutils::calc_endpoints(pnls, interval="weeks")
+dygraphs::dygraph(cumsum(pnls)[endp], main=captiont) %>%
+dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+dyLegend(width=300)
+
+
+# Plot the PCs
+colnames(datav) <- c("pnls", "eval1", paste0("PC1_", c("VTI", "TLT", "DBC", "USO", "XLF", "XLK")), 
+                     "eval2", paste0("PC2_", c("VTI", "TLT", "DBC", "USO", "XLF", "XLK")))
+
+pc1 <- datav[, paste0("PC1_", c("VTI", "TLT", "DBC", "USO", "XLF", "XLK"))]
+colnames(pc1) <- c("VTI", "TLT", "DBC", "USO", "XLF", "XLK")
+
+prevrow <- pc1[1, ]
+foo <- lapply(2:NROW(pc1), function(rown) {
+  if (sum((pc1[rown, ]-prevrow)^2) > 2.0) {
+    prevrow <<- (-pc1[rown, ])
+    return(prevrow)
+  } else {
+    prevrow <<- (pc1[rown, ])
+    return(prevrow)
+  }
+})
+foo <- do.call(rbind, foo)
+foo <- rbind(pc1[1, ], foo)
+pc1 <- foo
+
+foo <- sapply(2:NROW(pc1), function(rown) {
+  sum((pc1[rown, ]-pc1[rown-1, ])^2)
+})
+dev.new(width=6, height=4, noRStudioGD=TRUE)
+plot(foo, t="l")
+
+
+rowmaxs <- matrixStats::rowMaxs(pc1)
+rowmins <- matrixStats::rowMins(pc1)
+foo <- ifelse(abs(rowmins) > rowmaxs, -1, 1)
+# foo <- sign(pc1[, 1])
+pc1 <- foo*pc1
+pc1 <- xts::xts(pc1, order.by=datev)
+
+
+pc2 <- datav[, paste0("PC2_", c("VTI", "TLT", "DBC", "USO", "XLF", "XLK"))]
+colnames(pc2) <- c("VTI", "TLT", "DBC", "USO", "XLF", "XLK")
+# rowmaxs <- matrixStats::rowMaxs(pc2)
+# rowmins <- matrixStats::rowMins(pc2)
+# foo <- ifelse(abs(rowmins) > rowmaxs, -1, 1)
+foo <- sign(pc2[, "XLF"])
+pc2 <- foo*pc2
+pc2 <- xts::xts(pc2, order.by=datev)
+
+colorv <- rainbow(NCOL(pc1))
+dygraphs::dygraph(pc1[endp], main="PC1 Weights") %>%
+  dyOptions(colors=colorv, strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
+
+foo <- log(quantmod::Cl(rutils::etfenv$XLF))
+endp <- rutils::calc_endpoints(foo, interval="weeks")
+dygraphs::dygraph(foo[endp], main="XLF")
+
+## Setup data
+retsp <- na.omit(rutils::etfenv$returns[, c("IEF", "VTI", "DBC")])
+datev <- zoo::index(retsp) # dates
+nrows <- NROW(retsp)
+retss <- retsp[-nrows]
+meanv <- colMeans(retss)
+covmat <- cov(retss)
+eigenret <- numeric(NCOL(retsp))
+eigend <- eigen(covmat)
+eigenval <- eigend$values
+eigenvec <- eigend$vectors
+
+push_covar(retsp[nrows], covmat, meanv, 0.9)
+
+push_eigen(retsp[nrows], covmat, eigenval, eigenvec, eigenret, meanv, 0.9)
+
+
+foo <- run_pca(retsp, 0.9)
+foo <- xts::xts(foo, order.by=datev)
+endp <- rutils::calc_endpoints(retsp, interval="months")
+dygraphs::dygraph(cumsum(foo)[endp], main="PCA Returns") %>%
+  dyOptions(colors=c("blue", "red", "green"), strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
+
+dygraphs::dygraph(cumsum(foo)[endp], main="PCA Returns") %>%
+  dyOptions(colors=c("blue"), strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
+
+
 ##############
 # online PCA
 
@@ -40,14 +157,24 @@ apply(vecm, 2, sd)
 pcav <- list(values=rep(1, ncols), vectors=vecm)
 # pcav <- list(values=matrix(rep(1, ncols)), vectors=vecm)
 
-meanv <- numeric(ncols)
-meanv <- rep(0.1, ncols)
-volv <- rep(0, ncols)
+# meanv <- numeric(ncols)
+meanv <- retsp[1, ]
+volv <- retsp[1, ]
+eigenret <- numeric(ncols)
+
+covmat <- cov(retss)
+eigend <- HighFreq::calc_eigen(covmat)
+volv <- sapply(retss, var)
+meanv <- colMeans(retss)
+eigenret <- numeric(ncols)
+
+push_sga(newdata=retsp[i, ], evals=pcav$values, evecs=pcav$vectors, eigenret=eigenret, meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
+
 
 # Update the PCA recursively
 for (i in 2:nrows) {
   meanv <- onlinePCA::updateMean(meanv, retsp[i, ], n=10)
-  run_sga(pcav$values, pcav$vectors, retsp[i, ], meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
+  push_sga(newdata=retsp[i, ], evals=pcav$values, evecs=pcav$vectors, eigenret=eigenret, meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
   sgapca_exCn(pcav$values, pcav$vectors, retsp[i, ], meanv=meanv, n=10, gamma=0.9)
   # pcav <- onlinePCA::ghapca(lambda=pcav$values, U=pcav$vectors, x=retsp[i, ], gamma=0.9, center=meanv)
   # pcav <- sgapca(lambda=pcav$values, U=pcav$vectors, x=retsp[i, ], gamma=0.9, center=meanv)
@@ -96,8 +223,7 @@ pnls <- xts::xts(pnls, datev)
 tail(pnls)
 
 colorv <- colorRampPalette(c("blue", "red"))(NCOL(pnls))
-dygraphs::dygraph(cumsum(pnls)[endd], 
-                  main="Daily Stock Momentum Strategies") %>%
+dygraphs::dygraph(cumsum(pnls)[endd], main="Daily Stock Momentum Strategies") %>%
   dyOptions(colors=colorv, strokeWidth=2) %>%
   dyLegend(show="always", width=500)
 
