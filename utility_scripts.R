@@ -4,9 +4,9 @@
 
 ###############
 # Get all file names with *.Rnw in the lecture_slides directory
-file_names <- Sys.glob("/Users/jerzy/Develop/lecture_slides/*.Rnw")
+filen <- Sys.glob("/Users/jerzy/Develop/lecture_slides/*.Rnw")
 # Get all *.Rnw files in the lecture_slides directory, except those that contain "FRE"
-file_names <- file_names[-grep("FRE", file_names)]
+filen <- filen[-grep("FRE", filen)]
 
 
 
@@ -18,19 +18,19 @@ knitr::knit2pdf("/Users/jerzy/Develop/lecture_slides/data_management.Rnw", bib_e
 # Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
 setwd("/Users/jerzy/Develop/lecture_slides")
 # Render files without using error handler.
-sapply(file_names, knitr::knit2pdf, bib_engine="biber")
+sapply(filen, knitr::knit2pdf, bib_engine="biber")
 
 ## Render files using error handler.
 # Create a Boolean vector of names already processed.
-processed_names <- NULL
-isprocessed <- file_names %in% processed_names
-# Loop over the file_names and render them into *.pdf files.
-sapply(file_names[!isprocessed], function(file_name) {
+nameproc <- NULL
+isproc <- filen %in% nameproc
+# Loop over the filen and render them into *.pdf files.
+sapply(filen[!isproc], function(file_name) {
   tryCatch(  # With error handler
     {
       cat("Processing: ", file_name, "\n")
       knitr::knit2pdf(file_name, bib_engine="biber", quiet=TRUE)
-      processed_names <<- c(processed_names, file_name)
+      nameproc <<- c(nameproc, file_name)
     },
     # Error handler captures error condition
     error=function(error_cond) {
@@ -42,8 +42,8 @@ sapply(file_names[!isprocessed], function(file_name) {
   )  # end tryCatch
 })  # end sapply
 # See files that have not been processed
-isprocessed <- file_names %in% processed_names
-file_names[!isprocessed]
+isproc <- filen %in% nameproc
+filen[!isproc]
 
 
 ###############
@@ -51,7 +51,7 @@ file_names[!isprocessed]
 knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture_1.Rnw", documentation=0, quiet=TRUE)
 
 # Extract R chunks from all *.Rnw files, except those that contain "FRE".
-sapply(file_names, knitr::purl, documentation=0, quiet=TRUE)
+sapply(filen, knitr::purl, documentation=0, quiet=TRUE)
 
 
 
@@ -68,41 +68,41 @@ sapply(Sys.glob("*.Rmd"),
 # Read the RData file sp500.RData, and write all the time series into 
 # separate CSV files using function data.table::fwrite()
 
-dir_name <- "/Users/jerzy/Develop/lecture_slides/data/SP500/"
+dirn <- "/Users/jerzy/Develop/lecture_slides/data/SP500/"
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
-dir_name <- "/Users/jerzy/Develop/data/"
+dirn <- "/Users/jerzy/Develop/data/"
 # Using lapply() and zoo::write.zoo()
-file_names <- lapply(ls(etfenv), function(symbol) {
+filen <- lapply(ls(etfenv), function(symbol) {
   xtes <- get(symbol, envir=etfenv)
-  zoo::write.zoo(xtes, file=paste0(dir_name, symbol, ".csv"))
+  zoo::write.zoo(xtes, file=paste0(dirn, symbol, ".csv"))
   symbol
 })  # end lapply
-unlist(file_names)
+unlist(filen)
 
 # Or using lapply() and data.table::fwrite()
-file_names <- lapply(ls(sp500env), function(symbol) {
+filen <- lapply(ls(sp500env), function(symbol) {
   xtes <- get(symbol, envir=sp500env)
-  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dir_name, symbol, ".csv"))
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, symbol, ".csv"))
   symbol
 })  # end eapply
-names(file_names)
+names(filen)
 
 # Or using eapply() and data.table::fwrite()
-file_names <- eapply(sp500env, function(xtes) {
+filen <- eapply(sp500env, function(xtes) {
   file_name <- rutils::get_name(colnames(xtes)[1])
-  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dir_name, file_name, ".csv"))
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, file_name, ".csv"))
   file_name
 })  # end eapply
-names(file_names)
+names(filen)
 
 # Or
-file_names <- lapply(as.list(sp500env), function(xtes) {
+filen <- lapply(as.list(sp500env), function(xtes) {
   file_name <- rutils::get_name(colnames(xtes)[1])
-  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dir_name, file_name, ".csv"))
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, file_name, ".csv"))
   file_name
 })  # end lapply
-names(file_names)
+names(filen)
 
 
 
@@ -137,9 +137,9 @@ sapply(seq_along(foo), function(x) {
 ###############
 # Extract futures symbols from file names
 
-file_names <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec2017/raw/*")
+filen <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec2017/raw/*")
 
-namesv <- sapply(file_names, function(x) {
+namesv <- sapply(filen, function(x) {
   foo <- strsplit(x, split='/')
   foo <- strsplit(xts::last(foo[[1]]), split='_')
   foo[[1]][1]
@@ -216,60 +216,60 @@ hist(num_na_s)
 # Read binary data files
 
 # Create a connection object to read the file in binary mode using "rb".
-si_ze <- file.info("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin")$size
-connect_ion <- file("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin", open="rb")
+filez <- file.info("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin")$size
+connp <- file("/Users/jerzy/Users/Jerzy/Downloads/ESH7.bin", open="rb")
 
 # Reset position of pointer
-seek(connect_ion, where=(si_ze-12), origin="start")
-seek(connect_ion, where=0, origin="start")
+seek(connp, where=(filez-12), origin="start")
+seek(connp, where=0, origin="start")
 
 # First read the column names. n = 3 as we have 3 columns.
-# column.names <- readBin(connect_ion, character(), n = 3)
+# column.names <- readBin(connp, character(), n = 3)
 
 # Read the n, k, and version integer values
-datav <- readBin(connect_ion, what="integer", n=3)
+datav <- readBin(connp, what="integer", n=3)
 
-datav <- readBin(connect_ion, what="double", n=4)
+datav <- readBin(connp, what="double", n=4)
 
 # seek() gives 
-off_set <- seek(connect_ion, origin="end")
-seek(connect_ion, where=12, origin="start")
+off_set <- seek(connp, origin="end")
+seek(connp, where=12, origin="start")
 
-datav <- readBin(connect_ion, what="raw", n=4)
-datav <- readBin(connect_ion, what="double", n=4)
-datav <- readBin(connect_ion, what="double", n=4, size=4)
-datav <- readBin(connect_ion, what="double", n=4, size=4, endian="big")
-datav <- readBin(connect_ion, what="numeric", n=4)
-datav <- readBin(connect_ion, what="numeric", n=4, size=4)
-datav <- readBin(connect_ion, what="numeric", n=4, size=4, endian="big")
+datav <- readBin(connp, what="raw", n=4)
+datav <- readBin(connp, what="double", n=4)
+datav <- readBin(connp, what="double", n=4, size=4)
+datav <- readBin(connp, what="double", n=4, size=4, endian="big")
+datav <- readBin(connp, what="numeric", n=4)
+datav <- readBin(connp, what="numeric", n=4, size=4)
+datav <- readBin(connp, what="numeric", n=4, size=4, endian="big")
 
-close(connect_ion)
+close(connp)
 
 
 # Read compressed files directly
 
-connect_ion <- gzfile("/Users/jerzy/Users/Jerzy/Downloads/ESH820171213.bin.gz", open="rb")
-connect_ion <- gzfile("/Users/jerzy/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
+connp <- gzfile("/Users/jerzy/Users/Jerzy/Downloads/ESH820171213.bin.gz", open="rb")
+connp <- gzfile("/Users/jerzy/Develop/data/hull_data/20160304/ESH7.bin.gz", open="rb")
 
 colnamev <- c("type", "actn", "posn", "cond", "Px", "Sz", "posixt",
                "pB1r", "sB1r", "pA1r", "sA1r", "pB1c", "sB1c", "pA1c",
                "sA1c")
 
 # read header with format info:  941642 x 15, format 1
-head_er <- readBin(connect_ion, 'integer', 3)
-datav <- readBin(connect_ion, 'double', head_er[1]*head_er[2])
-datav <- matrix(datav, nrow=head_er[1], ncol=head_er[2], 
+headr <- readBin(connp, 'integer', 3)
+datav <- readBin(connp, 'double', headr[1]*headr[2])
+datav <- matrix(datav, nrow=headr[1], ncol=headr[2], 
                 byrow=TRUE, dimnames=list(NULL, colnamev))
 
-close(connect_ion)
+close(connp)
 
 
-datav <- readBin(connect_ion, what=integer(), n=3)
-datav <- readBin(connect_ion, what=double(), n=4)
+datav <- readBin(connp, what=integer(), n=3)
+datav <- readBin(connp, what=double(), n=4)
 
-foo <- seek(connect_ion, origin="end")
+foo <- seek(connp, origin="end")
 
-close(connect_ion)
+close(connp)
 
 
 

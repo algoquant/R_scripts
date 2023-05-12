@@ -133,6 +133,7 @@ prices <- do.call(cbind, prices)
 colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 # Calculate the log returns
 returns <- xts::diff.xts(log(prices))
+returns[1, ] <- 0
 # Copy prices and returns into etfenv
 etfenv$prices <- prices
 etfenv$returns <- returns
@@ -464,6 +465,7 @@ sum(is.na(pricestock))
 
 ## Calculate log percentage returns of the S&P500 constituent stocks
 retstock <- xts::diff.xts(log(pricestock))
+retstock[1, ] <- 0.01
 # Or
 # retstock <- lapply(pricestock, function(x)
 #   xts::diff.xts(x)/rutils::lagit(x))
@@ -487,6 +489,7 @@ returns_scaled <- eapply(sp500env, function(ohlc) {
   closep <- quantmod::Cl(ohlc)
   # Scale returns using price range
   returns <- xts::diff.xts(closep)
+  returns[1, ] <- 0
   ranged <- as.numeric(highp - lowp)
   ranged <- ifelse(ranged == 0, 1, ranged)
   # returns <- ifelse(ranged>0, returns/ranged, 0)
@@ -924,6 +927,7 @@ colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 
 # Calculate the log returns
 returns <- xts::diff.xts(log(prices))
+returns[1, ] <- 0
 # Or
 # returns <- lapply(prices, function(xtes) {
 #   xts::diff.xts(log(xtes))

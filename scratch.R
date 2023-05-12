@@ -1,3 +1,19 @@
+
+# Simulate multiple daily stock momentum strategies
+lambdas <- seq(0.1, 0.9, 0.01)
+pnls <- sapply(lambdas, function(lambda) {
+  retma <- HighFreq::run_mean(retp, lambda=lambda)
+  posv <- rutils::lagit(retma, lagg=1)
+  pnls <- (retp*posv)
+  mean(pnls)/sd(pnls)
+})
+
+# Plot Sharpe ratios of momentum strategies
+plot(x=lambdas, y=pnls, t="l",
+     main="EWMA Trend Strategies",
+     xlab="lambdas", ylab="Sharpe")
+
+
 ##############
 # online PCA
 
@@ -95,10 +111,10 @@ summary(microbenchmark(
 
 lambdav <- seq(from=0.98, to=0.999, by=0.002)
 lambdav <- seq(from=0.99, to=0.999, by=0.001)
-pnls <- sapply(lambdav, btmomrun, retp=retspca[, 1:dimax])
+pnls <- sapply(lambdav, btmomrun, retp=retpca[, 1:dimax])
 
 lambdav <- seq(from=0.6, to=0.9, by=0.1)
-pnls <- sapply(lambdav, btmomrun, trend=(-1), retp=retspca[, (dimax+1):NCOL(retspca)])
+pnls <- sapply(lambdav, btmomrun, trend=(-1), retp=retpca[, (dimax+1):NCOL(retpca)])
 
 pnls <- apply(pnls, MARGIN=2, function(pnl) indeksd*pnl/sd(pnl))
 colnames(pnls) <- paste0("lambda=", lambdav)
