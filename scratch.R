@@ -1,420 +1,21 @@
-##############
-# Contrarian intraday strategy which reverts to the open price: 
-# Sell if current price is above the open price, 
-# and Buy if current price is below the open price.
 
-# Calculate the positions
-sim_revert <- function(pricev, threshz) {
-  nrows <- NROW(pricev)
-  retp <- rutils::diffit(pricev)
-  volv <- sd(retp[1:11])
-  pricev <- as.numeric(pricev)
-  openp <- pricev[1]
-  posv <- numeric(nrows)
-  zscoremax <- 0
-  zscoremin <- 0
-  for (td in 12:nrows) {
-    # cat("td =", td, "\n")
-    pricez <- round((pricev[td] - openp)/volv)
-    if ((pricez > threshz) && (pricez > zscoremax)) {
-      posv[td] <- (-1)
-      zscoremax <- pricez
-    } else if ((pricez < -threshz) && (pricez < zscoremin)) {
-      posv[td] <- 1
-      zscoremin <- pricez
-    } else {
-      posv[td] <- 0
-    } # end if
-  } # end for
-  
-  posv
-  # pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
-  
-} # end sim_revert
 
+###############
+# Load intraday prices
 
-# Calculate the pnls
-sim_revert <- function(pricev, threshz) {
-  nrows <- NROW(pricev)
-  retp <- rutils::diffit(pricev)
-  # volv <- sd(retp["T09:30:00/T09:40:00"])
-  volv <- sd(retp[1:11])
-  # pricev <- pricev["T09:40:00/T16:00:00"]
-  pricev <- as.numeric(pricev)
-  openp <- pricev[1]
-  posv <- numeric(nrows)
-  zscoremax <- 0
-  zscoremin <- 0
-  for (td in 11:nrows) {
-    # cat("td =", td, "\n")
-    pricez <- round((pricev[td] - openp)/volv)
-    if ((pricez > threshz) && (pricez > zscoremax)) {
-      posv[td] <- posv[td-1] - 1
-      zscoremax <- pricez
-    } else if ((pricez < -threshz) && (pricez < zscoremin)) {
-      posv[td] <- posv[td-1] + 1
-      zscoremin <- pricez
-    } else {
-      posv[td] <- posv[td-1]
-    } # end if
-  } # end for
-  
-  cbind(retp, retp*rutils::lagit(posv))
-  # pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
-  
-} # end sim_revert
+dtable <- data.table::fread("/Users/jerzy/Develop/data/SPY_techindic_20230922.csv")
+datev <- as.POSIXct(dtable$timest/1e3, origin="1970-01-01", tz="America/New_York")
+dtable <- dtable[, -1]
+techindic <- xts::xts(dtable, order.by=datev)
+# techindic <- techindic["T09:30:00/T16:00:00"]
+datev <- index(techindic)
+retp <- rutils::diffit(as.numeric(techindic$pricelast))
+retp <- xts::xts(retp, order.by=datev)
+pricez <- techindic$zscore
 
-load("/Users/jerzy/Develop/data/SPY_minute_2023.RData")
-pricev <- pricev[, 1]
-pricev <- pricev["T09:30:00/T16:00:00"]
-retp <- rutils::diffit(pricev)
-endd <- rutils::calc_endpoints(pricev, interval="days")
-npts <- NROW(endd)
-threshz <- 5
 
-# Calculate the positions
-np <- 2
-posv <- sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
-# Calculate the pnls between the end points
-posv <- lapply(2:npts, function(np) {
-  sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
-})  # end lapply
-posv <- rutils::do_call(c, posv)
-posv <- cumsum(posv)
-pnls <- retp*rutils::lagit(posv)
-pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
 
-#########
-
-# Calculate the pnls
-pnls <- sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
-# Calculate the pnls between the end points
-pnls <- lapply(2:npts, function(np) {
-  sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
-})  # end lapply
-wealthv <- rutils::do_call(rbind, pnls)
-
-# wealthv <- cbind(retp, pnls)
-colnames(wealthv) <- c("VTI", "Strategy")
-sqrt(252)*sapply(wealthv, function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-
-dygraphs::dygraph(cumsum(wealthv), 
-  main="Bollinger Ladder Strategy") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-##############
-# Load daily data
-
-dtable <- data.table::fread("/Users/jerzy/Develop/data/SPY_trades_20230807.csv")
-colnames(dtable)
-nrows <- NROW(dtable)
-sidev <- integer(nrows)
-sidev <- ifelse(dtable$side=="sell", 1, -1)
-sum(sidev*dtable$pricelast)
-sum(sidev*dtable$pricefill)
-
-datev <- as.POSIXct(dtable$timefill, origin="1970-01-01", tz="America/New_York")
-pricelast <- xts::xts(dtable$pricelast, order.by=datev)
-dygraph(pricelast)
-posv <- xts::xts(dtable$posv, order.by=datev)
-datav <- cbind(pricelast, posv)
-colnames(datav) <- c("price", "posv")
-colnamev <- colnames(datav)
-dygraphs::dygraph(datav, main="SPY Prices and Positions") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
-  dyLegend(show="always", width=300)
-
-
-
-##############
-# Bollinger ratchet strategy
-
-# Calculate the positions
-pricet <- sign(pricez)*trunc(abs(pricez))
-priced <- rutils::diffit(pricet)
-posv <- integer(nrows)
-# posv <- rep(NA_integer_, nrows)
-# posv[1] <- 0
-# posv <- zoo::na.locf(posv, na.rm=FALSE)
-buymode <- TRUE # Buy mode
-sellmode <- TRUE # Sell short mode
-
-for (i in 2:nrows) {
-  # cat("i =", i, "\n")
-  # cat("pricet[i] =", pricet[i], "\n")
-  # cat("posv[i-1] =", posv[i-1], "\n")
-  # Compare the current position with the z-score
-  if (pricet[i] > -posv[i-1]) { # Need to short more
-    if (sellmode) {
-      # posv[i] <- -pricet[i] # Sell short
-      posv[i] <- posv[i-1] - 1 # Sell short 1 share
-      buymode <- FALSE
-    } else {
-      sellmode <- TRUE
-      posv[i] <- posv[i-1] # Do nothing
-    }  # end if
-  } else if (pricet[i] < -posv[i-1]) { # Need to buy more
-    if (pricet[i] < -posv[i-1]) {
-      if (buymode) {
-        # posv[i] <- -pricet[i] # Buy
-        posv[i] <- posv[i-1] + 1 # Buy 1 share
-        sellmode <- FALSE
-      } else {
-        buymode <- TRUE
-        posv[i] <- posv[i-1] # Do nothing
-      }  # end if
-    }  # end if
-  } else {
-    posv[i] <- posv[i-1] # Do nothing
-  }  # end if
-}  # end for
-
-
-pnls <- retp*rutils::lagit(posv, lagg=1)
-wealthv <- cbind(retp, pnls)
-colnames(wealthv) <- c("VTI", "Strategy")
-sqrt(252)*sapply(wealthv, function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-
-dygraphs::dygraph(cumsum(wealthv), 
-  main="Autoregressive Strategy With Returns Scaled By Volume") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-##############
-# Load daily OHLC bars
-
-ohlc <- rutils::etfenv$VTI
-openp <- log(quantmod::Op(ohlc))
-# highp <- log(quantmod::Hi(ohlc))
-# lowp <- log(quantmod::Lo(ohlc))
-closep <- log(quantmod::Cl(ohlc))
-retd <- (closep - openp)
-colnames(retd) <- "intraday"
-reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
-colnames(reton) <- "overnight"
-
-pnls <- sign(reton)*retd
-pnls <- pnls*sd(retd[retd<0])/sd(pnls[pnls<0])
-
-pnls <- -reton*sign(rutils::lagit(reton, lagg=1, pad_zeros=FALSE))
-pnls <- pnls*sd(reton[reton<0])/sd(pnls[pnls<0])
-
-# Calculate the Sharpe and Sortino ratios
-wealthv <- cbind(retd, pnls)
-colnames(wealthv) <- c("VTI", "Strategy")
-sqrt(252)*sapply(wealthv, function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-
-dygraphs::dygraph(cumsum(wealthv), 
-  main="Autoregressive Strategy With Returns Scaled By Volume") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-
-##############
-# Perform PCA of the predictor matrix and use it for forecasting.
-# Result: it doesn't improve performance because the lagged returns 
-# are uncorrelated and they have equal volatilities.
-
-# Calculate VTI returns and trading volumes
-ohlc <- rutils::etfenv$VTI
-datev <- zoo::index(ohlc)
-nrows <- NROW(ohlc)
-closep <- quantmod::Cl(ohlc)
-retp <- rutils::diffit(log(closep))
-volumv <- quantmod::Vo(ohlc)
-# Calculate trailing average volume
-volumr <- HighFreq::run_mean(volumv, lambda=0.7)
-# Scale the returns using volume clock to trading time
-retsc <- ifelse(volumv > 0, volumr*retp/volumv, 0)
-
-## Calculate the predictor matrix
-orderm <- 3
-predm <- lapply(1:orderm, rutils::lagit, input=retsc)
-predm <- rutils::do_call(cbind, predm)
-colnames(predm) <- paste0("phi", 1:orderm)
-# Rotate the predictor matrix to an orthogonal basis
-rotmat <- cbind(c(1, 1, 1)/3, c(1, 0, -1), c(1, 2, -1))
-predm <- predm %*% rotmat
-predm <- cbind(rep(1, NROW(predm)), predm)
-colnames(predm) <- c("phi0", paste0("phi", 1:(NCOL(predm)-1)))
-# Calculate the in-sample AR coefficients
-predinv <- MASS::ginv(predm[insample, ])
-coeff <- predinv %*% retsc[insample, ]
-# Calculate the out-of-sample forecasts of VTI
-fcasts <- predm[outsample, ] %*% coeff
-pnls <- retp[outsample, ]*fcasts
-pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
-# Calculate the Sharpe and Sortino ratios
-wealthv <- cbind(retp[outsample, ], pnls)
-colnames(wealthv) <- c("VTI", "Strategy")
-sqrt(252)*sapply(wealthv, function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-
-
-## Calculate the predictor matrix
-orderm <- 10
-predm <- lapply(1:orderm, rutils::lagit, input=retsc)
-predm <- rutils::do_call(cbind, predm)
-colnames(predm) <- paste0("phi", 1:orderm)
-cormat <- cor(predm)
-round(cormat, 4)
-# Calculate the PCA
-pcad <- prcomp(predm, center=FALSE, scale=FALSE)
-round(pcad$rotation, 4)
-predpca <- pcad$x[, 1:2]
-predpca <- cbind(rep(1, NROW(predpca)), predpca)
-colnames(predpca) <- c("phi0", paste0("phi", 1:(NCOL(predpca)-1)))
-# Calculate the in-sample AR coefficients
-# predinv <- MASS::ginv(predpca)
-predinv <- MASS::ginv(predpca[insample, ])
-# coeff <- predinv %*% retsc
-coeff <- predinv %*% retsc[insample, ]
-# Calculate the out-of-sample forecasts of VTI
-# fcasts <- predpca %*% coeff
-fcasts <- predpca[outsample, ] %*% coeff
-# pnls <- retp*fcasts
-pnls <- retp[outsample, ]*fcasts
-pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
-# Calculate the Sharpe and Sortino ratios
-# wealthv <- cbind(retp, pnls)
-wealthv <- cbind(retp[outsample, ], pnls)
-colnames(wealthv) <- c("VTI", "Strategy")
-sqrt(252)*sapply(wealthv, function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-# Plot dygraph of autoregressive strategy
-endd <- rutils::calc_endpoints(wealthv, interval="weeks")
-dygraphs::dygraph(cumsum(wealthv)[endd], 
-  main="Autoregressive Strategy With Returns Scaled By Volume") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-
-##############
-# online PCA
-
-# Setup data
-ncols <- 9
-nrows <- 1e3
-# Simulate random uncorrelated returns
-# retp <- matrix(rnorm(nrows*ncols), nrows, ncols)
-# retp <- retp %*% diag(sqrt(1:ncols))
-
-# Calculate random covariance matrix
-covmat <- matrix(runif(ncols^2), nc=ncols)
-covmat <- t(covmat) %*% covmat
-# Calculate the Cholesky matrix
-cholmat <- chol(covmat)
-# Simulate random uncorrelated returns
-retp <- matrix(rnorm(ncols*nrows), nc=ncols)
-# Calculate correlated returns by applying Cholesky
-retp <- retp %*% cholmat
-
-# Calculate the PCA
-pcaf <- prcomp(retp)
-
-# Warmup period
-startp <- nrows/10
-pcav <- prcomp(retp[1:startp, ])
-meanv <- pcav$center
-pcav <- list(values=pcav$sdev[1:ncols]^2, vectors=pcav$rotation[, 1:ncols])
-
-# Unit initial guess
-pcav <- list(values=rep(1, ncols), vectors=diag(ncols))
-pcav <- list(values=matrix(rep(1, ncols)), vectors=diag(ncols))
-
-set.seed(1121)
-vecm <- sapply(1:ncols, function(x) {
-  x <- rnorm(ncols)
-  x/sd(x)
-})
-apply(vecm, 2, sd)
-pcav <- list(values=rep(1, ncols), vectors=vecm)
-# pcav <- list(values=matrix(rep(1, ncols)), vectors=vecm)
-
-# meanv <- numeric(ncols)
-meanv <- retp[1, ]
-volv <- retp[1, ]
-eigenret <- numeric(ncols)
-
-covmat <- cov(rets)
-eigend <- HighFreq::calc_eigen(covmat)
-volv <- sapply(rets, var)
-meanv <- colMeans(rets)
-eigenret <- numeric(ncols)
-
-push_sga(newdata=retp[i, ], evals=pcav$values, evecs=pcav$vectors, eigenret=eigenret, meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
-
-
-# Update the PCA recursively
-for (i in 2:nrows) {
-  meanv <- onlinePCA::updateMean(meanv, retp[i, ], n=10)
-  push_sga(newdata=retp[i, ], evals=pcav$values, evecs=pcav$vectors, eigenret=eigenret, meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
-  sgapca_exCn(pcav$values, pcav$vectors, retp[i, ], meanv=meanv, n=10, gamma=0.9)
-  # pcav <- onlinePCA::ghapca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], gamma=0.9, center=meanv)
-  # pcav <- sgapca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], gamma=0.9, center=meanv)
-  # pcav <- onlinePCA::sgapca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], gamma=0.9, center=meanv)
-  # pcav <- onlinePCA::ccipca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], n=(i-1), l=2, center=meanv)
-}  # end for
-
-# Compare PCA methods
-pcaf$sdev^2
-drop(pcav$values)
-
-
-
-##############
-# btmomrun PCA Momentum Strategies
-
-retscaled <- lapply(retp[insample], function(x) x/sd(x))
-retscaled <- do.call(cbind, retscaled)
-
-pcad <- prcomp(retscaled, center=FALSE, scale=FALSE)
-pcad <- eigen((t(retscaled) %*% retscaled)/(NROW(retscaled)-1))
-sqrt(foo$values[1:7])
-pcad$sdev[1:7]
-foo$vectors[1:7, 1:7]
-pcad$rotation[1:7, 1:7]
-all.equal(abs(foo$vectors), abs(pcad$rotation), check.attributes=FALSE)
-
-library(microbenchmark)
-summary(microbenchmark(
-  prcomp=prcomp(retscaled, center=FALSE, scale=FALSE),
-  eigen=eigen((t(retscaled) %*% retscaled)/(NROW(retscaled)-1)),
-  times=10))[, c(1, 4, 5)]
-
-
-
-lambdav <- seq(from=0.98, to=0.999, by=0.002)
-lambdav <- seq(from=0.99, to=0.999, by=0.001)
-pnls <- sapply(lambdav, btmomrun, retp=retpca[, 1:dimax])
-
-lambdav <- seq(from=0.6, to=0.9, by=0.1)
-pnls <- sapply(lambdav, btmomrun, trend=(-1), retp=retpca[, (dimax+1):NCOL(retpca)])
-
-pnls <- apply(pnls, MARGIN=2, function(pnl) indeksd*pnl/sd(pnl))
-colnames(pnls) <- paste0("lambda=", lambdav)
-pnls <- xts::xts(pnls, datev)
-tail(pnls)
-
-colorv <- colorRampPalette(c("blue", "red"))(NCOL(pnls))
-dygraphs::dygraph(cumsum(pnls)[endd], main="Daily Stock Momentum Strategies") %>%
-  dyOptions(colors=colorv, strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-
-############## test
+############### test
 # Summary: Rank the stocks according to their alpha.
 
 ## Run all the setup code below.
@@ -595,6 +196,423 @@ endd <- rutils::calc_endpoints(wealthv, interval="months")
 dygraphs::dygraph(cumsum(wealthv)[endd], main="Low Beta Strategy") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
   dyLegend(show="always", width=300)
+
+
+
+###############
+# Contrarian intraday strategy which reverts to the open price: 
+# Sell if current price is above the open price, 
+# and Buy if current price is below the open price.
+
+# Calculate the positions
+sim_revert <- function(pricev, threshz) {
+  nrows <- NROW(pricev)
+  retp <- rutils::diffit(pricev)
+  volv <- sd(retp[1:11])
+  pricev <- as.numeric(pricev)
+  openp <- pricev[1]
+  posv <- numeric(nrows)
+  zscoremax <- 0
+  zscoremin <- 0
+  for (td in 12:nrows) {
+    # cat("td =", td, "\n")
+    pricez <- round((pricev[td] - openp)/volv)
+    if ((pricez > threshz) && (pricez > zscoremax)) {
+      posv[td] <- (-1)
+      zscoremax <- pricez
+    } else if ((pricez < -threshz) && (pricez < zscoremin)) {
+      posv[td] <- 1
+      zscoremin <- pricez
+    } else {
+      posv[td] <- 0
+    } # end if
+  } # end for
+  
+  posv
+  # pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
+  
+} # end sim_revert
+
+
+# Calculate the pnls
+sim_revert <- function(pricev, threshz) {
+  nrows <- NROW(pricev)
+  retp <- rutils::diffit(pricev)
+  # volv <- sd(retp["T09:30:00/T09:40:00"])
+  volv <- sd(retp[1:11])
+  # pricev <- pricev["T09:40:00/T16:00:00"]
+  pricev <- as.numeric(pricev)
+  openp <- pricev[1]
+  posv <- numeric(nrows)
+  zscoremax <- 0
+  zscoremin <- 0
+  for (td in 11:nrows) {
+    # cat("td =", td, "\n")
+    pricez <- round((pricev[td] - openp)/volv)
+    if ((pricez > threshz) && (pricez > zscoremax)) {
+      posv[td] <- posv[td-1] - 1
+      zscoremax <- pricez
+    } else if ((pricez < -threshz) && (pricez < zscoremin)) {
+      posv[td] <- posv[td-1] + 1
+      zscoremin <- pricez
+    } else {
+      posv[td] <- posv[td-1]
+    } # end if
+  } # end for
+  
+  cbind(retp, retp*rutils::lagit(posv))
+  # pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
+  
+} # end sim_revert
+
+load("/Users/jerzy/Develop/data/SPY_minute_2023.RData")
+pricev <- pricev[, 1]
+pricev <- pricev["T09:30:00/T16:00:00"]
+retp <- rutils::diffit(pricev)
+endd <- rutils::calc_endpoints(pricev, interval="days")
+npts <- NROW(endd)
+threshz <- 5
+
+# Calculate the positions
+np <- 2
+posv <- sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
+# Calculate the pnls between the end points
+posv <- lapply(2:npts, function(np) {
+  sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
+})  # end lapply
+posv <- rutils::do_call(c, posv)
+posv <- cumsum(posv)
+pnls <- retp*rutils::lagit(posv)
+pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
+
+#########
+
+# Calculate the pnls
+pnls <- sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
+# Calculate the pnls between the end points
+pnls <- lapply(2:npts, function(np) {
+  sim_revert(pricev[(endd[np-1]+1):endd[np], ], threshz)
+})  # end lapply
+wealthv <- rutils::do_call(rbind, pnls)
+
+# wealthv <- cbind(retp, pnls)
+colnames(wealthv) <- c("VTI", "Strategy")
+sqrt(252)*sapply(wealthv, function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+
+dygraphs::dygraph(cumsum(wealthv), 
+  main="Bollinger Ladder Strategy") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+
+###############
+# Load daily data
+
+dtable <- data.table::fread("/Users/jerzy/Develop/data/SPY_trades_20230807.csv")
+colnames(dtable)
+nrows <- NROW(dtable)
+sidev <- integer(nrows)
+sidev <- ifelse(dtable$side=="sell", 1, -1)
+sum(sidev*dtable$pricelast)
+sum(sidev*dtable$pricefill)
+
+datev <- as.POSIXct(dtable$timefill, origin="1970-01-01", tz="America/New_York")
+pricelast <- xts::xts(dtable$pricelast, order.by=datev)
+dygraph(pricelast)
+posv <- xts::xts(dtable$posv, order.by=datev)
+datav <- cbind(pricelast, posv)
+colnames(datav) <- c("price", "posv")
+colnamev <- colnames(datav)
+dygraphs::dygraph(datav, main="SPY Prices and Positions") %>%
+  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
+  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
+  dyLegend(show="always", width=300)
+
+
+
+###############
+# Bollinger ratchet strategy
+
+# Calculate the positions
+pricet <- sign(pricez)*trunc(abs(pricez))
+priced <- rutils::diffit(pricet)
+posv <- integer(nrows)
+# posv <- rep(NA_integer_, nrows)
+# posv[1] <- 0
+# posv <- zoo::na.locf(posv, na.rm=FALSE)
+buymode <- TRUE # Buy mode
+sellmode <- TRUE # Sell short mode
+
+for (i in 2:nrows) {
+  # cat("i =", i, "\n")
+  # cat("pricet[i] =", pricet[i], "\n")
+  # cat("posv[i-1] =", posv[i-1], "\n")
+  # Compare the current position with the z-score
+  if (pricet[i] > -posv[i-1]) { # Need to short more
+    if (sellmode) {
+      # posv[i] <- -pricet[i] # Sell short
+      posv[i] <- posv[i-1] - 1 # Sell short 1 share
+      buymode <- FALSE
+    } else {
+      sellmode <- TRUE
+      posv[i] <- posv[i-1] # Do nothing
+    }  # end if
+  } else if (pricet[i] < -posv[i-1]) { # Need to buy more
+    if (pricet[i] < -posv[i-1]) {
+      if (buymode) {
+        # posv[i] <- -pricet[i] # Buy
+        posv[i] <- posv[i-1] + 1 # Buy 1 share
+        sellmode <- FALSE
+      } else {
+        buymode <- TRUE
+        posv[i] <- posv[i-1] # Do nothing
+      }  # end if
+    }  # end if
+  } else {
+    posv[i] <- posv[i-1] # Do nothing
+  }  # end if
+}  # end for
+
+
+pnls <- retp*rutils::lagit(posv, lagg=1)
+wealthv <- cbind(retp, pnls)
+colnames(wealthv) <- c("VTI", "Strategy")
+sqrt(252)*sapply(wealthv, function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+
+dygraphs::dygraph(cumsum(wealthv), 
+  main="Autoregressive Strategy With Returns Scaled By Volume") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+
+###############
+# Load daily OHLC bars
+
+ohlc <- rutils::etfenv$VTI
+openp <- log(quantmod::Op(ohlc))
+# highp <- log(quantmod::Hi(ohlc))
+# lowp <- log(quantmod::Lo(ohlc))
+closep <- log(quantmod::Cl(ohlc))
+retd <- (closep - openp)
+colnames(retd) <- "intraday"
+reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
+colnames(reton) <- "overnight"
+
+pnls <- sign(reton)*retd
+pnls <- pnls*sd(retd[retd<0])/sd(pnls[pnls<0])
+
+pnls <- -reton*sign(rutils::lagit(reton, lagg=1, pad_zeros=FALSE))
+pnls <- pnls*sd(reton[reton<0])/sd(pnls[pnls<0])
+
+# Calculate the Sharpe and Sortino ratios
+wealthv <- cbind(retd, pnls)
+colnames(wealthv) <- c("VTI", "Strategy")
+sqrt(252)*sapply(wealthv, function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+
+dygraphs::dygraph(cumsum(wealthv), 
+  main="Autoregressive Strategy With Returns Scaled By Volume") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+
+
+###############
+# Perform PCA of the predictor matrix and use it for forecasting.
+# Result: it doesn't improve performance because the lagged returns 
+# are uncorrelated and they have equal volatilities.
+
+# Calculate VTI returns and trading volumes
+ohlc <- rutils::etfenv$VTI
+datev <- zoo::index(ohlc)
+nrows <- NROW(ohlc)
+closep <- quantmod::Cl(ohlc)
+retp <- rutils::diffit(log(closep))
+volumv <- quantmod::Vo(ohlc)
+# Calculate trailing average volume
+volumr <- HighFreq::run_mean(volumv, lambda=0.7)
+# Scale the returns using volume clock to trading time
+retsc <- ifelse(volumv > 0, volumr*retp/volumv, 0)
+
+## Calculate the predictor matrix
+orderm <- 3
+predm <- lapply(1:orderm, rutils::lagit, input=retsc)
+predm <- rutils::do_call(cbind, predm)
+colnames(predm) <- paste0("phi", 1:orderm)
+# Rotate the predictor matrix to an orthogonal basis
+rotmat <- cbind(c(1, 1, 1)/3, c(1, 0, -1), c(1, 2, -1))
+predm <- predm %*% rotmat
+predm <- cbind(rep(1, NROW(predm)), predm)
+colnames(predm) <- c("phi0", paste0("phi", 1:(NCOL(predm)-1)))
+# Calculate the in-sample AR coefficients
+predinv <- MASS::ginv(predm[insample, ])
+coeff <- predinv %*% retsc[insample, ]
+# Calculate the out-of-sample forecasts of VTI
+fcasts <- predm[outsample, ] %*% coeff
+pnls <- retp[outsample, ]*fcasts
+pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
+# Calculate the Sharpe and Sortino ratios
+wealthv <- cbind(retp[outsample, ], pnls)
+colnames(wealthv) <- c("VTI", "Strategy")
+sqrt(252)*sapply(wealthv, function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+
+
+## Calculate the predictor matrix
+orderm <- 10
+predm <- lapply(1:orderm, rutils::lagit, input=retsc)
+predm <- rutils::do_call(cbind, predm)
+colnames(predm) <- paste0("phi", 1:orderm)
+cormat <- cor(predm)
+round(cormat, 4)
+# Calculate the PCA
+pcad <- prcomp(predm, center=FALSE, scale=FALSE)
+round(pcad$rotation, 4)
+predpca <- pcad$x[, 1:2]
+predpca <- cbind(rep(1, NROW(predpca)), predpca)
+colnames(predpca) <- c("phi0", paste0("phi", 1:(NCOL(predpca)-1)))
+# Calculate the in-sample AR coefficients
+# predinv <- MASS::ginv(predpca)
+predinv <- MASS::ginv(predpca[insample, ])
+# coeff <- predinv %*% retsc
+coeff <- predinv %*% retsc[insample, ]
+# Calculate the out-of-sample forecasts of VTI
+# fcasts <- predpca %*% coeff
+fcasts <- predpca[outsample, ] %*% coeff
+# pnls <- retp*fcasts
+pnls <- retp[outsample, ]*fcasts
+pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
+# Calculate the Sharpe and Sortino ratios
+# wealthv <- cbind(retp, pnls)
+wealthv <- cbind(retp[outsample, ], pnls)
+colnames(wealthv) <- c("VTI", "Strategy")
+sqrt(252)*sapply(wealthv, function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+# Plot dygraph of autoregressive strategy
+endd <- rutils::calc_endpoints(wealthv, interval="weeks")
+dygraphs::dygraph(cumsum(wealthv)[endd], 
+  main="Autoregressive Strategy With Returns Scaled By Volume") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+
+
+###############
+# online PCA
+
+# Setup data
+ncols <- 9
+nrows <- 1e3
+# Simulate random uncorrelated returns
+# retp <- matrix(rnorm(nrows*ncols), nrows, ncols)
+# retp <- retp %*% diag(sqrt(1:ncols))
+
+# Calculate random covariance matrix
+covmat <- matrix(runif(ncols^2), nc=ncols)
+covmat <- t(covmat) %*% covmat
+# Calculate the Cholesky matrix
+cholmat <- chol(covmat)
+# Simulate random uncorrelated returns
+retp <- matrix(rnorm(ncols*nrows), nc=ncols)
+# Calculate correlated returns by applying Cholesky
+retp <- retp %*% cholmat
+
+# Calculate the PCA
+pcaf <- prcomp(retp)
+
+# Warmup period
+startp <- nrows/10
+pcav <- prcomp(retp[1:startp, ])
+meanv <- pcav$center
+pcav <- list(values=pcav$sdev[1:ncols]^2, vectors=pcav$rotation[, 1:ncols])
+
+# Unit initial guess
+pcav <- list(values=rep(1, ncols), vectors=diag(ncols))
+pcav <- list(values=matrix(rep(1, ncols)), vectors=diag(ncols))
+
+set.seed(1121)
+vecm <- sapply(1:ncols, function(x) {
+  x <- rnorm(ncols)
+  x/sd(x)
+})
+apply(vecm, 2, sd)
+pcav <- list(values=rep(1, ncols), vectors=vecm)
+# pcav <- list(values=matrix(rep(1, ncols)), vectors=vecm)
+
+# meanv <- numeric(ncols)
+meanv <- retp[1, ]
+volv <- retp[1, ]
+eigenret <- numeric(ncols)
+
+covmat <- cov(rets)
+eigend <- HighFreq::calc_eigen(covmat)
+volv <- sapply(rets, var)
+meanv <- colMeans(rets)
+eigenret <- numeric(ncols)
+
+push_sga(newdata=retp[i, ], evals=pcav$values, evecs=pcav$vectors, eigenret=eigenret, meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
+
+
+# Update the PCA recursively
+for (i in 2:nrows) {
+  meanv <- onlinePCA::updateMean(meanv, retp[i, ], n=10)
+  push_sga(newdata=retp[i, ], evals=pcav$values, evecs=pcav$vectors, eigenret=eigenret, meanv=meanv, volv=volv, lambda=0.9090909, gamma=0.9)
+  sgapca_exCn(pcav$values, pcav$vectors, retp[i, ], meanv=meanv, n=10, gamma=0.9)
+  # pcav <- onlinePCA::ghapca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], gamma=0.9, center=meanv)
+  # pcav <- sgapca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], gamma=0.9, center=meanv)
+  # pcav <- onlinePCA::sgapca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], gamma=0.9, center=meanv)
+  # pcav <- onlinePCA::ccipca(lambda=pcav$values, U=pcav$vectors, x=retp[i, ], n=(i-1), l=2, center=meanv)
+}  # end for
+
+# Compare PCA methods
+pcaf$sdev^2
+drop(pcav$values)
+
+
+
+###############
+# btmomrun PCA Momentum Strategies
+
+retscaled <- lapply(retp[insample], function(x) x/sd(x))
+retscaled <- do.call(cbind, retscaled)
+
+pcad <- prcomp(retscaled, center=FALSE, scale=FALSE)
+pcad <- eigen((t(retscaled) %*% retscaled)/(NROW(retscaled)-1))
+sqrt(foo$values[1:7])
+pcad$sdev[1:7]
+foo$vectors[1:7, 1:7]
+pcad$rotation[1:7, 1:7]
+all.equal(abs(foo$vectors), abs(pcad$rotation), check.attributes=FALSE)
+
+library(microbenchmark)
+summary(microbenchmark(
+  prcomp=prcomp(retscaled, center=FALSE, scale=FALSE),
+  eigen=eigen((t(retscaled) %*% retscaled)/(NROW(retscaled)-1)),
+  times=10))[, c(1, 4, 5)]
+
+
+
+lambdav <- seq(from=0.98, to=0.999, by=0.002)
+lambdav <- seq(from=0.99, to=0.999, by=0.001)
+pnls <- sapply(lambdav, btmomrun, retp=retpca[, 1:dimax])
+
+lambdav <- seq(from=0.6, to=0.9, by=0.1)
+pnls <- sapply(lambdav, btmomrun, trend=(-1), retp=retpca[, (dimax+1):NCOL(retpca)])
+
+pnls <- apply(pnls, MARGIN=2, function(pnl) indeksd*pnl/sd(pnl))
+colnames(pnls) <- paste0("lambda=", lambdav)
+pnls <- xts::xts(pnls, datev)
+tail(pnls)
+
+colorv <- colorRampPalette(c("blue", "red"))(NCOL(pnls))
+dygraphs::dygraph(cumsum(pnls)[endd], main="Daily Stock Momentum Strategies") %>%
+  dyOptions(colors=colorv, strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
 
 
 
@@ -2466,7 +2484,7 @@ glm_tops <- glm(respv ~ predm[insample],
                 family=binomial(logit))
 summary(glm_tops)
 
-####################
+###############
 # by hand
 
 coeff <- glm_bottoms$coefficients
@@ -2524,7 +2542,7 @@ unname(glm_tops$coefficients)
 
 
 
-####################
+###############
 
 # Fit in-sample logistic regression for bottoms
 # Nothing is significant!
@@ -4953,7 +4971,7 @@ look_back <- 500
 predm <- cbind(rep(1, look_back), 1:look_back)
 degf <- (look_back - NCOL(predm))
 predinv <- MASS::ginv(predm)
-predm2 <- MASS::ginv(crossprod(predm))
+pred2 <- MASS::ginv(crossprod(predm))
 lagg <- 1
 datax <- cbind(1, look_back + lagg)
 datat <- t(datax)
@@ -4963,12 +4981,12 @@ datat <- t(datax)
 
 # tseries <- ohlc[(look_back+1):(look_back+100), 4]
 # closep <- ohlc[201, 4]
-# calc_zscore(closep, tseries, predm, predinv, predm2, datax, datat, degf)
+# calc_zscore(closep, tseries, predm, predinv, pred2, datax, datat, degf)
 
 zscores <- sapply((look_back+1):nrows, function(x) {
   tseries <- ohlc[(x-look_back):(x-1), 4]
   closep <- ohlc[x, 4]
-  calc_zscore(closep, tseries, predm, predinv, predm2, datax, datat, degf)
+  calc_zscore(closep, tseries, predm, predinv, pred2, datax, datat, degf)
 })  # end sapply
 zscores <- c(rep(0, look_back), zscores)
 
