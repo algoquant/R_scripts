@@ -183,7 +183,7 @@ match_arg <- function(risk=c("sd", "ETL")) {
 ###############
 ### Data loading functions
 
-### Load CDS price and bid-offer ticks for a single symbol
+### Load CDS price and bid-ask ticks for a single symbol
 file.data <- "S:/Data/R_Data/Time_Series.RData"
 
 

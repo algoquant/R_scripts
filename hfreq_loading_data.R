@@ -103,12 +103,12 @@ indeks <- seq(from=as.POSIXct("2015-02-09 09:30:00"), to=as.POSIXct("2015-02-09 
 len_index <- length(indeks)
 # create xts of random prices
 taq_data <- cumsum(rnorm(len_index))
-# create vector of random bid-offer spreads
-bid_offer <- abs(rnorm(len_index))/10
+# create vector of random bid-ask spreads
+bidask <- abs(rnorm(len_index))/10
 # create TAQ data with "Bid.Price", "Ask.Price", "Trade.Price" using cbind
-taq_data <- cbind(taq_data-bid_offer, 
-                  taq_data+bid_offer, 
-                  taq_data+bid_offer*runif(len_index, min=-1, max=1))
+taq_data <- cbind(taq_data-bidask, 
+                  taq_data+bidask, 
+                  taq_data+bidask*runif(len_index, min=-1, max=1))
 # add Volume
 taq_data <- cbind(taq_data, sample(x=10*(2:18), size=len_index, replace=TRUE))
 taq_data <- xts(taq_data, order.by=indeks)

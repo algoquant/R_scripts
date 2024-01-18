@@ -56,7 +56,7 @@ returns_scaled <- ifelse(rangev>0, returns/rangev, 0)
 
 lagg <- 4
 threshold <- 0.8
-bid_offer <- 0.000001
+bidask <- 0.000001
 
 
 # Rerun the model
@@ -76,7 +76,7 @@ turn_over <- abs(rutils::diffit(posit)) / 2
 # Calculate strategy pnls
 pnls <- (posit*returns)
 # Calculate transaction costs
-costs <- bid_offer*turn_over
+costs <- bidask*turn_over
 pnls <- (pnls - costs)
 pnls <- cumsum(pnls)
 

@@ -889,7 +889,7 @@ prices <- (get(symbol)[[6]])["T09:30:00/T16:00:00", ]
 # Extract trade price and volume
 prices <- prices[, c("Trade.Price", "Volume")]
 
-# Calculate mid bid-offer prices and remove NAs
+# Calculate mid bid-ask prices and remove NAs
 mid_prices <- 0.5 * (prices[, "Bid.Price"] + prices[, "Ask.Price"])
 mid_prices <- na.omit(mid_prices)
 colnames(mid_prices) <- "Mid.Price"
@@ -1456,8 +1456,8 @@ chart_Series(
   foo[xts::endpoints(foo, on="days"), ],
   name=paste(symbol, "contrarian skew strategy frequency of trades"))
 # Calculate transaction costs
-bid_offer <- 0.001  # 10 bps for liquid ETFs
-costs <- bid_offer*abs(posit-lag_positions)/2
+bidask <- 0.001  # 10 bps for liquid ETFs
+costs <- bidask*abs(posit-lag_positions)/2
 pnl_xts[, "pnl"] <- pnl_xts[, "pnl"] - costs
 
 

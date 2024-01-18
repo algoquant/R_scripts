@@ -492,14 +492,14 @@ cum_pnl(betas, design=SPY_design[rangev])
 
 
 ### backtest() function for contrarian strategy with threshold
-pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, returns=returns_running[-rangev, ], bid_offer=0.0, lag=1)
+pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, returns=returns_running[-rangev, ], bidask=0.0, lag=1)
 
-pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)
+pnls <- back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bidask=0.0, lag=4)
 
 # loop over threshold_s
 threshold_s <- seq(0.1, 3.0, by=0.1)
 foo <- sapply(threshold_s, function(threshold)
-  last(back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bid_offer=0.0, lag=4)))
+  last(back_test(design=SPY_design[-rangev, ], betas=betas, threshold=threshold, returns=returns_running[-rangev, ], bidask=0.0, lag=4)))
 names(foo) <- threshold_s
 
 
@@ -579,7 +579,7 @@ data.frame(dates=index(back_test), coredata(back_test)) %>%
 
 
 ### back_test function
-back_test <- function(design=NULL, betas=NULL, threshold=NULL, returns=NULL, lag=1, bid_offer=0.0) {
+back_test <- function(design=NULL, betas=NULL, threshold=NULL, returns=NULL, lag=1, bidask=0.0) {
   score <- design %*% betas
   score <- rutils::lagit(score, lag=lag)
   if (lag > 1)
@@ -603,7 +603,7 @@ back_test <- function(design=NULL, betas=NULL, threshold=NULL, returns=NULL, lag
     ratio <- 1
   }
   # calculate transaction costs
-  costs <- ratio*bid_offer*abs(rutils::diffit(posit))
+  costs <- ratio*bidask*abs(rutils::diffit(posit))
   # calculate cumulative PnL
   pnls <- exp(cumsum(pnls - costs))
   colnames(pnls) <- "backtest"

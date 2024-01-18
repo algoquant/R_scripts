@@ -8,7 +8,89 @@ Sys.setenv(TZ=Sys.timezone())
 library(HighFreq)
 
 
-### Load bar data from CSV files, chain it, and save into a binary file
+###############
+# Load intraday prices from CSV files, create a list of time series of prices, 
+# and save it into a binary file.
+
+# Set parameters for directory with CSV files
+dirin <- "/Users/jerzy/Develop/data/"
+# setwd(dir=dirin)
+symboln <- "SPY"
+# Get all CSV file names in the dirin directory
+# datan <- "_minute_"
+# datan <- "_minute_202308"
+# datan <- "_10second_"
+# datan <- "_second_"
+datan <- "_second_202308"
+filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
+# Loop over the file names, load the data from CSV files,
+# and calculate a list of time series of prices.
+pricel <- lapply(filev, function(filen) {
+  cat("file: ", filen, "\n")
+  # Load time series data from CSV file
+  dtable <- data.table::fread(filen)
+  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
+  # Calculate a time series of prices
+  pricen <- xts::xts(dtable[, .(price, volume)], order.by=datev)
+  pricen <- pricen["T09:30:00/T16:00:00"]
+  # pricen <- pricen[, 1]
+  # colnames(pricen)[1] <- symboln
+  colnames(pricen)[1] <- symboln
+  pricen
+}) # end lapply
+
+# Assign names to the list equal to the dates
+# names(pricel) <- substr(filev, 38, 45)
+# namev <- sapply(filev, function(filen) {
+#   charv <- strsplit(filen, "")
+#   charv <- suppressWarnings(as.numeric(unlist(charv)))
+#   charv <- charv[!is.na(charv)]
+#   paste(charv, collapse="")
+# }) # end sapply
+
+# Assign names to the list equal to the dates
+namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
+namev <- unname(namev)
+names(pricel) <- namev
+
+
+filec <- paste0(dirin, symboln, datan, ".RData")
+save(pricel, file=filec)
+
+
+# Calculate a list of returns
+retl <- lapply(pricel, function(pricev) {
+  retv <- rutils::diffit(pricev)
+  # Set very large returns to zero, to eliminate bad data
+  retv[abs(retv) > 0.3] <- 0.0
+  # zoo::na.locf(retv)
+  retv
+}) # end lapply
+sapply(retl, function(retv) {max(abs(retv))})
+
+# Save the lists of prices and returns
+save(pricel, retl, file=paste0(dirin, symboln, datan, format(Sys.Date(), "%Y%m%d"), ".RData"))
+
+
+###############
+# Convert the monthly time series of prices into a list of daily prices called pricel.
+# filec <- "/Users/jerzy/Develop/data/SPY_minute_202307.RData"
+filec <- "/Users/jerzy/Develop/data/SPY_second_202307.RData"
+load(filec)
+endd <- rutils::calc_endpoints(pricev, "days")
+pricel <- lapply(2:NROW(endd), function(it) {
+  pricev[(endd[it-1]+1):endd[it]]
+})
+# Assign names to the list equal to the dates
+namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
+names(pricel) <- namev
+foo <- do.call(rbind, pricel)
+all.equal(foo, pricev)
+save(pricel, file=filec)
+
+
+###############
+# Load the intraday bar data from CSV files, chain it, and save the monthly time series into a binary file.
 
 # Set parameters for directory with CSV files
 dirin <- "/Users/jerzy/Develop/data/"
@@ -16,6 +98,8 @@ setwd(dir=dirin)
 symboln <- "SPY"
 # Load the existing data
 datan <- "_second_"
+# datan <- "_minute_202308"
+# datan <- "_second_202308"
 # datan <- "_minute_2"
 # Load the monthly file
 filec <- Sys.glob(paste0(dirin, symboln, datan, "*8.RData"))
@@ -23,6 +107,8 @@ load(file=filec)
 # pricev <- NULL # If new month
 # Get all CSV file names in the dirin directory
 filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
+
+## Load the intraday bar data from CSV files, chain it, and save the monthly time series into a binary file.
 # Loop over the filev, load the data from CSV files,
 # and save the bar data to a binary file
 countn <- 1
@@ -56,7 +142,8 @@ pricev <- rbind(pricev, pricevo)
 save(pricev, file=paste0("/Users/jerzy/Develop/data/", symboln, datan, "2023.RData"))
 
 
-### Load trades data from CSV files, rbind it, and save into a CSV file
+###############
+# Load trades data from CSV files, rbind it, and save into a CSV file
 
 # Set parameters for directory with CSV files
 symboln <- "SPY"
@@ -96,7 +183,7 @@ dygraphs::dygraph(pricev, main=paste(colnames(pricev), "Ticks")) %>%
 
 
 ###############
-### Download OHLC bars from Polygon
+# Download OHLC bars from Polygon
 # 20 years of data with current MT plan
 
 # Setup code
@@ -163,18 +250,18 @@ dygraphs::dygraph(ohlc[, 4], main=paste(symboln, "Close prices")) %>%
   dyLegend(show="always", width=500)
 
 
+
 ###############
-### Download daily OHLC bars from Polygon for multiple symbols in a loop
+# Download daily OHLC bars from Tiingo for multiple ETF symbols in a loop
+# Polygon doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
+# Polygon has bad QQQ prices - Download from Tiingo
 
 ## Setup code
 startd <- as.Date("1990-01-01")
 # startd <- as.Date("2021-05-01")
 endd <- Sys.Date()
-tspan <- "day"
-apikey <- "UJcr9ctoMBXEBK1Mqu_KQAkUuBxLvEtE"
-
-
-### Download daily OHLC bars from Polygon for multiple ETF symbols in a loop
+# tspan <- "day"
+# apikey <- "UJcr9ctoMBXEBK1Mqu_KQAkUuBxLvEtE"
 
 # Select ETF symbols for asset allocation
 symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
@@ -188,14 +275,16 @@ etfenv <- new.env()
 # Initialize Boolean vector of the symbols that were already downloaded
 isdownloaded <- symbolv %in% ls(etfenv)
 
-# Download data from Polygon using while loop
+# Download data from Tiingo using while loop
 while (sum(!isdownloaded) > 0) {
   for (symboln in symbolv[!isdownloaded]) {
     cat("Processing:", symboln, "\n")
     tryCatch({  # With error handler
       # Download OHLC bars from Polygon
-      ohlc <- rutils::getpoly(symbol=symboln, startd=startd, apikey=apikey)
-      colnames(ohlc) <- paste0(symboln, ".", colnames(ohlc))
+      # ohlc <- rutils::getpoly(symbol=symboln, startd=startd, apikey=apikey)
+      # Download OHLC bars from Tiingo
+      ohlc <- quantmod::getSymbols.tiingo(symboln, adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+      # colnames(ohlc) <- paste0(symboln, ".", colnames(ohlc))
       zoo::index(ohlc) <- as.Date(zoo::index(ohlc))
       # Save to environment
       assign(symboln, ohlc, envir=etfenv)
@@ -209,6 +298,14 @@ while (sum(!isdownloaded) > 0) {
   isdownloaded <- symbolv %in% ls(etfenv)
 }  # end while
 
+# Polygon doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
+# ohlc <- quantmod::getSymbols.tiingo("VTI", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+# etfenv$VTI <- ohlc
+# ohlc <- quantmod::getSymbols.tiingo("VXX", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+# etfenv$VXX <- ohlc
+# ohlc <- quantmod::getSymbols.tiingo("SVXY", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+# etfenv$SVXY <- ohlc
+
 # Save OHLC prices to .RData file
 save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
@@ -221,7 +318,7 @@ prices <- do.call(cbind, prices)
 colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
 # Calculate the log returns
 returns <- xts::diff.xts(log(prices))
-returns[1, ] <- 0
+# returns[1, ] <- 0 # No - this biases the correlations
 # Copy prices and returns into etfenv
 etfenv$prices <- prices
 etfenv$returns <- returns
@@ -234,7 +331,7 @@ riskstats <- as.data.frame(t(riskstats))
 # Add Name column
 riskstats$Name <- rownames(riskstats)
 # Add Sharpe ratio column
-riskstats$"Arithmetic Mean" <- sapply(returns, mean, na.rm=TRUE)
+riskstats$'Arithmetic Mean' <- sapply(returns, mean, na.rm=TRUE)
 riskstats$Sharpe <- sqrt(252)*riskstats$"Arithmetic Mean"/riskstats$Stdev
 # Copy riskstats into etfenv
 etfenv$riskstats <- riskstats
@@ -257,28 +354,36 @@ save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-### Download from Polygon daily OHLC bars for multiple SP500 symbols in a loop
+###############
+# Download daily OHLC bars from Tiingo for multiple S&P500 symbols in a loop
+# Polygon doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
+# Polygon has bad QQQ prices - Download from Tiingo
 
-# Select SP500 symbols
+# Select S&P500 symbols
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
 symbolv <- sp500table$Ticker
-# Create new environment for SP500 data
+# Create new environment for S&P500 data
 sp500env <- new.env()
 
 # Initialize Boolean vector of the symbols that were already downloaded
 isdownloaded <- symbolv %in% ls(sp500env)
 nattempts <- 0
+startd <- as.Date("1990-01-01")
 
-# Download data from Polygon using while loop
+# Download data from Tiingo using while loop
 while ((sum(!isdownloaded) > 0) & (nattempts<10)) {
   nattempts <- nattempts + 1
   for (symboln in symbolv[!isdownloaded]) {
     cat("Processing:", symboln, "\n")
     tryCatch({  # With error handler
       # Download OHLC bars from Polygon
-      ohlc <- rutils::getpoly(symbol=symboln, startd=startd, apikey=apikey)
-      colnames(ohlc) <- paste0(symboln, ".", colnames(ohlc))
-      zoo::index(ohlc) <- as.Date(zoo::index(ohlc))
+      # ohlc <- rutils::getpoly(symbol=symboln, startd=startd, apikey=apikey)
+      # Tiingo uses hyphen not dot
+      symbolg <- gsub("[.]", "-", symboln)
+      # Download OHLC bars from Tiingo
+      ohlc <- quantmod::getSymbols.tiingo(symbolg, adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+      # colnames(ohlc) <- paste0(symboln, ".", colnames(ohlc))
+      # zoo::index(ohlc) <- as.Date(zoo::index(ohlc))
       # Save to environment
       assign(symboln, ohlc, envir=sp500env)
       Sys.sleep(1)
@@ -291,26 +396,51 @@ while ((sum(!isdownloaded) > 0) & (nattempts<10)) {
   isdownloaded <- symbolv %in% ls(sp500env)
 }  # end while
 
+# Calculate the symbols not downloaded
+isdownloaded <- symbolv %in% ls(sp500env)
+sum(!isdownloaded)
+symbolv[!isdownloaded]
+
+# Rename element "LOW" to "LOWES"
+sp500env$LOWES <- sp500env$LOW
+rm(LOW, envir=sp500env)
+colnames(sp500env$LOWES) <- paste("LOVES", rutils::get_name(colnames(sp500env$LOWES), 2), sep=".")
 # Rename element "BRK.B" to "BRKB"
 sp500env$BRKB <- sp500env$BRK.B
 rm(BRK.B, envir=sp500env)
-colnames(sp500env$BRKB) <- paste("BRKB", c("Open", "High", "Low", "Close", "Volume", "VWAP"), sep=".")
-# Rename element "LOW" to "LOWES"
-sp500env$LOWES <- sp500env$LOW
-colnames(sp500env$LOWES) <- paste("LOVES", c("Open", "High", "Low", "Close", "Volume", "VWAP"), sep=".")
-rm(LOW, envir=sp500env)
+colnames(sp500env$BRKB) <- paste("BRKB", rutils::get_name(colnames(sp500env$BRKB), 2), sep=".")
 # Rename element "BF.B" to "BFB"
 sp500env$BFB <- sp500env$BF.B
-colnames(sp500env$BFB) <- paste("BFB", c("Open", "High", "Low", "Close", "Volume", "VWAP"), sep=".")
 rm(BF.B, envir=sp500env)
+colnames(sp500env$BFB) <- paste("BFB", rutils::get_name(colnames(sp500env$BFB), 2), sep=".")
 
 
 # Save OHLC prices to .RData file
 save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
+### Remove the obsolete S&P500 symbols
 
-### Download minute bars for single symbol in a loop
+# Calculate the symbols with less than 1500 days of prices and no recent prices
+endd <- end(sp500env$AAPL)
+symbolb <- unlist(eapply(sp500env, function(pricev) {
+  if ((NROW(pricev) < 1500) & (end(pricev) < endd)) {
+    rutils::get_name(colnames(Cl(pricev)))
+  }
+}))  # end lapply
+
+# Remove the obsolete S&P500 symbols from sp500env
+rm(list=symbolb, envir=sp500env)
+
+# Remove the obsolete S&P500 symbols from sp500_constituents.csv
+sp500old <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
+sp500old <- sp500old[!(sp500old$Ticker %in% symbolb), ]
+write.csv(sp500old, file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", row.names=FALSE)
+
+
+
+###############
+# Download minute bars for single symbol in a loop
 # Has to be performed in batches since data limit=50000
 
 # Setup code
@@ -437,8 +567,9 @@ tickold <- unique(sp500old$Ticker)
 # Load CSV file with current SPY holdings
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/SPY_holdings.csv")
 # Remove some tickers
-sp500table <- sp500table[-which(sp500table$Ticker == "CASH_USD"), ]
-# Switch first two columns
+# sp500table <- sp500table[-which(sp500table$Ticker == "CASH_USD"), ]
+sp500table <- sp500table[-which(sp500table$Name == "US DOLLAR"), ]
+# Switch the first two columns
 sp500table[, 1:2] <- sp500table[, c("Ticker", "Name")]
 colnames(sp500table)[1:2] <- c("Ticker", "Name")
 # Replace dots with hyphens in tickers
@@ -455,7 +586,7 @@ tickold <- tickold[!(tickold %in% newtickers)]
 # sp500old$Identifier <- rep_len(NA, NROW(sp500old))
 # sp500old$SEDOL <- rep_len(NA, NROW(sp500old))
 # Combine the tickers
-sp500table <- rbind(sp500table[, 1:4], sp500old[tickold, ])
+sp500table <- rbind(sp500table[, 1:4], sp500old[sp500old$Ticker %in% tickold, ])
 sp500table <- sp500table[, c("Ticker", "Name", "Identifier", "SEDOL")]
 
 # Save the tickers
@@ -467,9 +598,9 @@ write.csv(sp500table, file="/Users/jerzy/Develop/lecture_slides/data/sp500_const
 # (old) Read CSV file with S&P500 constituents
 
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
-duplicates <- table(sp500table$gvkey)
-duplicates <- duplicates[duplicates > 1]
-duplicates <- sp500table[match(as.numeric(names(duplicates)), sp500table$gvkey), ]
+duplicatv <- table(sp500table$gvkey)
+duplicatv <- duplicatv[duplicatv > 1]
+duplicatv <- sp500table[match(as.numeric(names(duplicatv)), sp500table$gvkey), ]
 # Select unique gvkeys
 sp500gvkeys <- unique(sp500table$gvkey)
 # foo <- sp500table[match(sp500gvkeys, sp500table$gvkey), ]
@@ -484,11 +615,11 @@ which(sp500cusips == "")
 sp500cusips <- sp500cusips[-which(sp500cusips == "")]
 cat(sp500cusips, file="/Users/jerzy/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
 # Find the rows corresponding to the sp500cusips
-rows_cusips <- sp500table[match(sp500cusips, sp500table$co_cusip), ]
+rowv <- sp500table[match(sp500cusips, sp500table$co_cusip), ]
 # Find the rows corresponding to duplicate gvkeys
-duplicates <- table(rows_cusips$gvkey)
-duplicates <- duplicates[duplicates > 1]
-duplicates <- rows_cusips[rows_cusips$gvkey %in% as.numeric(names(duplicates)), ]
+duplicatv <- table(rowv$gvkey)
+duplicatv <- duplicatv[duplicatv > 1]
+duplicatv <- rowv[rowv$gvkey %in% as.numeric(names(duplicatv)), ]
 # Select unique sp500 tickers
 sp500tickers <- unique(sp500table$Ticker)
 
@@ -527,8 +658,6 @@ foo <- eapply(sp500env, function(x) xts::isOrdered(index(x)))
 sum(!unlist(foo))
 # Save OHLC prices to .RData file
 save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
-# Load OHLC prices from .RData file
-load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
 
@@ -536,6 +665,7 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 # Load S&P500 constituent stock prices from .RData file
 # and calculate the daily percentage returns.
 
+# Load OHLC prices from .RData file
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 ## Calculate the stock prices from OHLC data
@@ -547,13 +677,13 @@ colnamev <- rutils::get_name(colnames(pricestock))
 colnames(pricestock) <- colnamev
 # No: Carry forward and backward non-NA prices - no only forward because backward skews volatility
 # Don't carry prices forward because it skews correlations
-sum(is.na(pricestock))
+# sum(is.na(pricestock))
 # pricestock <- zoo::na.locf(pricestock, na.rm=FALSE)
 # pricestock <- zoo::na.locf(pricestock, fromLast=TRUE)
 
 ## Calculate log percentage returns of the S&P500 constituent stocks
 retstock <- xts::diff.xts(log(pricestock))
-retstock[1, ] <- 0.01
+# retstock[1, ] <- 0.01
 # Or
 # retstock <- lapply(pricestock, function(x)
 #   xts::diff.xts(x)/rutils::lagit(x))
@@ -561,11 +691,28 @@ retstock[1, ] <- 0.01
 # Calculate percentage returns by accounting for extra time over weekends
 # retstock <- (24*3600)*xts::diff.xts(pricestock)/rutils::lagit(pricestock)/xts::diff.xts(.index(pricestock))
 
+# Get the symbols with at least 2000 days of prices and a recent price
+symbolg <- unlist(sapply(pricestock, function(pricev) {
+  pricev <- na.omit(pricev)
+  if ((NROW(pricev) > 2000) & (end(pricev) == endd)) {
+    rutils::get_name(colnames(pricev))
+  }
+}))  # end lapply
+
+
 ## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
-samplev <- sample(NCOL(retstock), s=100, replace=FALSE)
-pricestock100 <- pricestock[, samplev]
-retstock100 <- retstock[, samplev]
+samplev <- sample(NROW(symbolg), s=100, replace=FALSE)
+pricestock100 <- mget(symbolg[samplev], sp500env)
+pricestock100 <- lapply(pricestock100, quantmod::Cl)
+pricestock100 <- rutils::do_call(cbind, pricestock100)
+colnamev <- rutils::get_name(colnames(pricestock100))
+colnames(pricestock100) <- colnamev
+retstock100 <- xts::diff.xts(log(pricestock100))
+
+## Save the prices and returns
+save(pricestock, pricestock100, file="/Users/jerzy/Develop/lecture_slides/data/sp500_prices.RData")
+save(retstock, retstock100, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 
 ## Experimental
 ## Calculate scaled returns using price range - experimental
@@ -597,11 +744,6 @@ colnames(returns_scaled) <- colnamev
 returns100_scaled <- returns_scaled[, samplev]
 
 ## Experimental end
-
-## Save the prices
-save(pricestock, pricestock100, file="/Users/jerzy/Develop/lecture_slides/data/sp500_prices.RData")
-## Save the returns
-save(retstock, retstock100, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
 
 
 
@@ -917,23 +1059,23 @@ for (symboln in rev(symbolv)[-1]) {
   # Calculate start date of chaind
   # startd <- start(chaind)
   # cbind overlapping volume data of ohlc and chaind, between startd and endd
-  over_lap <- paste0(startd, "/", endd)
+  overlp <- paste0(startd, "/", endd)
   # volumes <- cbind(Vo(chaind), Vo(ohlc))[paste0(startd, "/", endd)]
   # volumes <- na.omit(volumes)
   # Find date when volume of ohlc first exceeds chaind
-  exceeds <- (Vo(ohlc[over_lap]) < Vo(chaind[over_lap]))
-  if (sum(exceeds) > 0) {
-    indeks <- match(TRUE, exceeds)
-    indeks <- zoo::index(exceeds[indeks])
+  exceedv <- (Vo(ohlc[overlp]) < Vo(chaind[overlp]))
+  if (sum(exceedv) > 0) {
+    indeks <- match(TRUE, exceedv)
+    indeks <- zoo::index(exceedv[indeks])
     # Scale the prices
-    ratio <- as.numeric(quantmod::Cl(chaind[indeks])/quantmod::Cl(ohlc[indeks]))
+    factv <- as.numeric(quantmod::Cl(chaind[indeks])/quantmod::Cl(ohlc[indeks]))
   } else {
-    indeks <- NROW(exceeds)
-    indeks <- zoo::index(exceeds[indeks])
+    indeks <- NROW(exceedv)
+    indeks <- zoo::index(exceedv[indeks])
     # Scale the prices
-    ratio <- 1
+    factv <- 1
   }  # end if
-  ohlc[, 1:4] <- ratio*ohlc[, 1:4]
+  ohlc[, 1:4] <- factv*ohlc[, 1:4]
   # Chain ohlc to chaind
   chaind <- rbind(ohlc[index(ohlc) <= indeks],
                     chaind[index(chaind) > indeks])
@@ -953,7 +1095,7 @@ library(rutils)  # Load package rutils
 symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
-             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV", "AIEQ")
+             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV", "AIEQ", "QQQ")
 
 # Create environment for data
 etfenv <- new.env()
@@ -964,9 +1106,19 @@ etfenv$symbolv <- symbolv
 
 # Boolean vector of symbolv already downloaded
 isdownloaded <- symbolv %in% ls(etfenv)
-# Download data for symbolv using single command - creates pacing error
-getsymbolv.av(symbolv, adjust=TRUE, env=etfenv,
-              output.size="full", api.key="T7JPW54ES8G75310")
+# Download data for symbolv using single command - creates pacing error - not with new key
+getSymbols.av(symbolv, adjust=TRUE, env=etfenv, from="1990-01-01",
+              auto.assign=TRUE, output.size="full", api.key="BDOPARDCGRT7C5JZ")
+
+# Alpha Vantage doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
+ohlc <- quantmod::getSymbols.tiingo("VTI", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+etfenv$VTI <- ohlc
+ohlc <- quantmod::getSymbols.tiingo("VXX", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+etfenv$VXX <- ohlc
+ohlc <- quantmod::getSymbols.tiingo("SVXY", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
+etfenv$SVXY <- ohlc
+
+# Or
 # Download data from Alpha Vantage using while loop
 nattempts <- 0  # number of download attempts
 while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
@@ -976,7 +1128,7 @@ while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
   for (symboln in na.omit(symbolv[!isdownloaded][1:5])) {
     cat("Processing: ", symboln, "\n")
     tryCatch(  # With error handler
-      quantmod::getsymbolv.av(symboln, adjust=TRUE, env=etfenv, auto.assign=TRUE, output.size="full", api.key="T7JPW54ES8G75310"),
+      quantmod::getSymbols.av(symboln, adjust=TRUE, env=etfenv, from="1990-01-01", auto.assign=TRUE, output.size="full", api.key="BDOPARDCGRT7C5JZ"),
       # Error handler captures error condition
       error=function(error_cond) {
         print(paste("error handler: ", error_cond))
@@ -996,9 +1148,9 @@ for (symboln in symbolv) {
   cat("Processing: ", symboln, "\n")
   ohlc <- etfenv[[symboln]]
   # Calculate price adjustment vector
-  ratio <- as.numeric(Ad(ohlc)/Cl(ohlc))
+  factv <- as.numeric(Ad(ohlc)/Cl(ohlc))
   # Adjust OHLC prices
-  ohlc[, 1:4] <- ratio*ohlc[, 1:4]
+  ohlc[, 1:4] <- factv*ohlc[, 1:4]
   assign(symboln, ohlc, etfenv)
 }  # end for
 
