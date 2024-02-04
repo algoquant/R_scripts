@@ -162,7 +162,7 @@ write.table(posit, file="C:/Develop/jp2sig/data/positions.csv", sep=",", row.nam
 # S&P500 scripts
 symbolv <- get("symbolv", sp500env)
 symbol <- "ICE"
-look_back <- 5
+lookb <- 5
 lagg <- 1
 coeff <- 1
 threshold <- 0.0
@@ -174,7 +174,7 @@ load("C:/Develop/jp2sig/data/perf_ewma_trend_lback5.RData")
 # process_ed <- eapply(sp500env, function(ohlc) {
 #   symbol <- rutils::get_name(colnames(ohlc)[1])
 #   assign(x=symbol,
-#          value=backtest_ewma_ts(ohlc, look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff),
+#          value=backtest_ewma_ts(ohlc, lookb=lookb, lagg=lagg, threshold=threshold, coeff=coeff),
 #          envir=perf_env)
 #   symbol
 # })  # end eapply

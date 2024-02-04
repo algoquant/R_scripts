@@ -893,8 +893,8 @@ rollingLmSignals <- function(ts.returns, end.period, look.back, lags, expand.win
 # roll_sum() using RcppRoll::roll_sum()
 # it's actua;;y slower than using cumsum() because reclass() back to xts is slow
 library(RcppRoll)
-roll_sum <- function(xtes, look_back) {
-  roll_sum <- RcppRoll::roll_sum(c(rep(0,look_back-1), coredata(xtes)), n=look_back, align="right")
+roll_sum <- function(xtes, lookb) {
+  roll_sum <- RcppRoll::roll_sum(c(rep(0,lookb-1), coredata(xtes)), n=lookb, align="right")
   roll_sum <- xts(x=roll_sum, order.by=index(xtes))
   colnames(roll_sum) <- colnames(xtes)
   roll_sum
@@ -939,14 +939,14 @@ roll_sum <- function(xtes, look_back) {
 #' # equivalent to:
 #' to.period(x=HighFreq::SPY["2009"], period="days", name=rutils::get_name(colnames(HighFreq::SPY)[1]))
 
-to_period_rolling <- function(xtes, look_back=10) {
-  roll_open <- rutils::lagxts(Op(xtes), k=(look_back-1))
-  roll_hi <- TTR::runMax(Hi(xtes), n=look_back)
-  roll_lo <- -TTR::runMax(-Lo(xtes), n=look_back)
+to_period_rolling <- function(xtes, lookb=10) {
+  roll_open <- rutils::lagxts(Op(xtes), k=(lookb-1))
+  roll_hi <- TTR::runMax(Hi(xtes), n=lookb)
+  roll_lo <- -TTR::runMax(-Lo(xtes), n=lookb)
   roll_close <- Cl(xtes)
-  roll_volume <- rutils::roll_sum(xtes=Vo(xtes), look_back=look_back)
+  roll_volume <- rutils::roll_sum(xtes=Vo(xtes), lookb=lookb)
   output <- cbind(roll_open, roll_hi, roll_lo, roll_close, roll_volume)
-  output[1:(look_back-1), ] <- 1
+  output[1:(lookb-1), ] <- 1
   colnames(output) <- colnames(xtes)
   output
 }  # end to_period_rolling

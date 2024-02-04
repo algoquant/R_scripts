@@ -22,8 +22,8 @@ colnames(returns) <- "returns"
 # returns_adv <- rutils::lagit(returns, lagg=-1)
 # or
 # returns_adv <- 0.5*(returns_adv + rutils::lagit(returns_adv, lagg=-1))
-look_back <- 2
-returns_adv <- rutils::lagit(HighFreq::roll_sum(returns, look_back=look_back), lagg=-look_back)/look_back
+lookb <- 2
+returns_adv <- rutils::lagit(HighFreq::roll_sum(returns, lookb=lookb), lagg=-lookb)/lookb
 returns_adv <- xts(returns_adv, index(ohlc))
 colnames(returns_adv) <- "returns_adv"
 # scale returns using sigmoid
@@ -34,10 +34,10 @@ colnames(returns_adv) <- "returns_adv"
 # Define OHLC technical indicators
 # residuals of the regression of the time series of closep prices
 dates <- xts::.index(ohlc)
-look_back <- 11
+lookb <- 11
 zscores <- HighFreq::roll_zscores(response=closep, 
                                    design=matrix(as.numeric(dates), nc=1), 
-                                   look_back=look_back)
+                                   lookb=lookb)
 colnames(zscores) <- "zscores"
 zscores[1:3] <- 0
 close_open <- (closep-openp)
@@ -59,8 +59,8 @@ colnames(moment_um) <- "moment_um"
 
 indicator_s <- cbind(returns, volat, skew)
 # scale indicator_s using roll_scale()
-look_back <- 60
-indicator_s <- roll::roll_scale(indicator_s, width=look_back, min_obs=1)
+lookb <- 60
+indicator_s <- roll::roll_scale(indicator_s, width=lookb, min_obs=1)
 indicator_s[1, ] <- 0
 indicator_s <- cbind(indicator_s, zscores)
 indicator_s[1:3, ] <- 0

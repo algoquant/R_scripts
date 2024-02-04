@@ -61,31 +61,31 @@ head(SPY_design)
 
 ### Calculate design matrix called SPY_design containing columns of data aggregations
 
-look_back <- 5
+lookb <- 5
 returns_running <- run_returns(xtes=SPY)
-returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, look_back=look_back)
+returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, lookb=lookb)
 colnames(returns_running) <- "returns"
 colnames(returns_rolling) <- "returns.WA5"
 
 var_running <- run_variance(ohlc=SPY)
-var_rolling <- roll_vwap(ohlc=SPY, xtes=var_running, look_back=look_back)
+var_rolling <- roll_vwap(ohlc=SPY, xtes=var_running, lookb=lookb)
 colnames(var_running) <- "variance"
 colnames(var_rolling) <- "variance.WA5"
 
 skew_running <- run_skew(ohlc=SPY)
-skew_rolling <- roll_vwap(ohlc=SPY, xtes=skew_running, look_back=look_back)
+skew_rolling <- roll_vwap(ohlc=SPY, xtes=skew_running, lookb=lookb)
 colnames(skew_running) <- "skew"
 colnames(skew_rolling) <- "skew.WA5"
 
 # sharpe_running <- run_sharpe(ohlc=SPY)
-# sharpe_rolling <- roll_vwap(ohlc=SPY, xtes=sharpe_running, look_back=look_back)
+# sharpe_rolling <- roll_vwap(ohlc=SPY, xtes=sharpe_running, lookb=lookb)
 # colnames(sharpe_running) <- "sharpe_running"
 # colnames(sharpe_rolling) <- "sharpe_running.WA5"
 # 
-# sharpe_rolling <- roll_sharpe(ohlc=SPY, look_back=look_back)
+# sharpe_rolling <- roll_sharpe(ohlc=SPY, lookb=lookb)
 # colnames(sharpe_rolling) <- "sharpe_rolling"
 
-hurst_rolling <- roll_hurst(ohlc=SPY, look_back=look_back)
+hurst_rolling <- roll_hurst(ohlc=SPY, lookb=lookb)
 colnames(hurst_rolling) <- "hurst_rolling"
 
 # select most significant factors plus interaction terms
@@ -122,7 +122,7 @@ betas_running$coefficients[1, ] <- 0
 betas <- sapply(betas_running$coefficients, mean)
 
 # calculate rolling mean beta coefficients over time
-betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, look_back=11)/11
+betas_rolling <- rutils::roll_sum(xtes=betas_running$coefficients, lookb=11)/11
 tail(betas_rolling)
 
 
@@ -198,7 +198,7 @@ run_pcr <- function(ohlc=NULL, design_matrix=NULL, trade_the_close=TRUE, random_
   if (random_ize)
     ohlc <- HighFreq::random_OHLC(ohlc=ohlc)
   if (is.null(design_matrix))
-    design_matrix <- get_design(ohlc, look_back=60)
+    design_matrix <- get_design(ohlc, lookb=60)
   # calculate close to close returns
   returns_running <- run_returns(xtes=ohlc)
   # calculate returns advanced in time
@@ -235,12 +235,12 @@ run_pcr <- function(ohlc=NULL, design_matrix=NULL, trade_the_close=TRUE, random_
 
 
 # create a design matrix from OHLC data
-get_design <- function(ohlc, look_back) {
+get_design <- function(ohlc, lookb) {
   returns_running <- run_returns(xtes=ohlc)
-  returns_rolling <- HighFreq::roll_vwap(ohlc=ohlc, xtes=returns_running, look_back=look_back)
+  returns_rolling <- HighFreq::roll_vwap(ohlc=ohlc, xtes=returns_running, lookb=lookb)
   var_running <- run_variance(ohlc=ohlc)
   skew_running <- run_skew(ohlc=ohlc)
-  hurst_rolling <- roll_hurst(ohlc=ohlc, look_back=look_back)
+  hurst_rolling <- roll_hurst(ohlc=ohlc, lookb=lookb)
   design_matrix <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
   design_matrix <- roll::roll_scale(data=design_matrix, width=60, min_obs=1)
   core_data <- coredata(design_matrix)
@@ -250,7 +250,7 @@ get_design <- function(ohlc, look_back) {
   design_matrix
 }  # end get_design
 
-SPY_design <- get_design(SPY, look_back=60)
+SPY_design <- get_design(SPY, lookb=60)
 
 
 

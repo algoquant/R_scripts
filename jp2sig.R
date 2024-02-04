@@ -14,7 +14,7 @@ load(file="C:/Develop/lecture_slides/data/sp500.RData")
 # Define variables
 symbolv <- get("symbolv", sp500env)
 symbol <- "AAPL"
-look_back <- 5
+lookb <- 5
 lagg <- 1
 coeff <- 1
 threshold <- 0.0
@@ -26,10 +26,10 @@ returns <- rutils::diffit(closep)
 
 
 ## Calculate the strategy performance for a single stock
-pnls <- backtest_ewma_ts(get(symbol, sp500env), look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
+pnls <- backtest_ewma_ts(get(symbol, sp500env), lookb=lookb, lagg=lagg, threshold=threshold, coeff=coeff)
 
 
-## Calculate the strategy performance for a vector of look_back parameters
+## Calculate the strategy performance for a vector of lookb parameters
 perfstats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
 pnls <- lapply(perfstats, function(x) x[, "pnls"])
 pnls <- do.call(cbind, pnls)
@@ -50,7 +50,7 @@ dygraphs::dygraph(datav, main=paste(colnamev[1], "Strategy")) %>%
 
 
 
-## Rank the S&P500 stocks based on strategy returns for a vector of look_back parameters
+## Rank the S&P500 stocks based on strategy returns for a vector of lookb parameters
 perfstats <- eapply(sp500env, function(ohlc) {
   if (start(ohlc) < "2017-01-01") {
     pnls <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc["2010/"], lagg=lagg, threshold=threshold, coeff=coeff)
@@ -74,7 +74,7 @@ process_ed <- eapply(sp500env, function(ohlc) {
   symbol <- rutils::get_name(colnames(ohlc)[1])
   # cat(symbol, "\n")
   assign(x=symbol, 
-         value=backtest_ewma_ts(ohlc, look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff), 
+         value=backtest_ewma_ts(ohlc, lookb=lookb, lagg=lagg, threshold=threshold, coeff=coeff), 
          envir=perf_env)
   symbol
 })  # end eapply
@@ -200,7 +200,7 @@ wo_rst <- lapply(symbolv[(NROW(symbolv)-nums+1):NROW(symbolv)], function(symbol)
 data_env <- rutils::etfenv
 symbolv <- get("symbolv", data_env)
 symbol <- "XLK"
-look_back <- 5
+lookb <- 5
 lagg <- 1
 coeff <- (-1)
 
@@ -208,7 +208,7 @@ ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
 returns <- rutils::diffit(closep)
 
-## Calculate the strategy performance for two vectors of look_back parameters
+## Calculate the strategy performance for two vectors of lookb parameters
 # This model works well more recently
 threshold <- 1.5
 perfstats <- lapply(13:16, backtest_zscores_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
@@ -273,7 +273,7 @@ ohlc <- get(symbol, data_env)
 closep <- log(quantmod::Cl(ohlc))
 returns <- rutils::diffit(closep)
 
-## Calculate the strategy performance for two vectors of look_back parameters
+## Calculate the strategy performance for two vectors of lookb parameters
 perfstats <- lapply(3:5, backtest_ewma_ts, ohlc=ohlc, lagg=lagg, threshold=threshold, coeff=coeff)
 save(perfstats, file="C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
 load("C:/Develop/jp2sig/data/perf_ewma_trend_vxx.RData")
@@ -389,7 +389,7 @@ sp500env <- sp500env
 symbolv <- c("PG", "CDNS", "YUM", "YUMC", "KHC", "SNPS", "ODFL", "CHRW", "AWK", "SO", "EA", "FIS", "DG", "BAX", "HRL", "MSFT", "XOM", "BSX", "JNJ", "CLX", "CL", "MCD", "WMT", "SBUX", "LLY", "ADM", "BIO", "XLNX", "ATVI", "DISH", "K", "SHW", "SIG", "CSCO", "INTU", "VRTX", "FB", "ORCL", "DUK", "KSS", "ROP", "AKAM", "MXIM", "TXN", "NEM", "COST", "EL", "JWN", "ACN", "FISV", "KLAC", "PFE", "TYL", "BIIB", "MCHP", "BBBY", "DRE", "PEP", "LIN", "NKE", "TROW", "LEN", "HOLX", "NVR", "UDR", "WEC", "DHI", "NI")
 
 pnls <- lapply(symbolv, function(symbol) {
-  backtest_ewma_ts(get(symbol, sp500env), look_back=look_back, lagg=lagg, coeff=coeff)[, "pnls"]
+  backtest_ewma_ts(get(symbol, sp500env), lookb=lookb, lagg=lagg, coeff=coeff)[, "pnls"]
 })  # end lapply
 
 pnls <- rutils::do_call(cbind, pnls)
@@ -409,7 +409,7 @@ sp500env <- sp500env
 symbolv <- c("PG", "CDNS", "YUM", "YUMC", "KHC", "SNPS", "ODFL", "CHRW", "AWK", "SO", "EA", "FIS", "DG", "BAX", "HRL", "MSFT", "XOM", "BSX", "JNJ", "CLX", "CL", "MCD", "WMT", "SBUX", "LLY", "ADM", "BIO", "XLNX", "ATVI", "DISH", "K", "SHW", "SIG", "CSCO", "INTU", "VRTX", "FB", "ORCL", "DUK", "KSS", "ROP", "AKAM", "MXIM", "TXN", "NEM", "COST", "EL", "JWN", "ACN", "FISV", "KLAC", "PFE", "TYL", "BIIB", "MCHP", "BBBY", "DRE", "PEP", "LIN", "NKE", "TROW", "LEN", "HOLX", "NVR", "UDR", "WEC", "DHI", "NI")
 
 posit <- lapply(symbolv, function(symbol) {
-  backtest_ewma_ts(get(symbol, sp500env), look_back=look_back, lagg=lagg, coeff=coeff)[, "positions"]
+  backtest_ewma_ts(get(symbol, sp500env), lookb=lookb, lagg=lagg, coeff=coeff)[, "positions"]
 })  # end lapply
 
 posit <- rutils::do_call(cbind, posit)
@@ -434,12 +434,12 @@ source("C:/Develop/R/scripts/backtest_functions.R")
 
 # Load S&P500 prices
 load(file="C:/Develop/lecture_slides/data/sp500.RData")
-look_back <- 10
+lookb <- 10
 lagg <- 1
 coeff <- (-1)
 threshold <- 1
 
-pnls <- backtest_zscores_ts(sp500env$YUM["2010/"], look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
+pnls <- backtest_zscores_ts(sp500env$YUM["2010/"], lookb=lookb, lagg=lagg, threshold=threshold, coeff=coeff)
 pnls <- pnls[, "pnls"]
 posit <-  pnls[, "positions"]
 plot(cumsum(pnls))
@@ -497,7 +497,7 @@ dygraphs::dygraph(pnls, main="Back-test of Reverting Strategies")
 ## Calculate pnls directly
 pnls <- eapply(sp500env, function(ohlc) {
   if (start(ohlc) < "2017-01-01") {
-    pnls <- backtest_zscores_ts(ohlc["2010/"], look_back=look_back, lagg=lagg, threshold=threshold, coeff=coeff)
+    pnls <- backtest_zscores_ts(ohlc["2010/"], lookb=lookb, lagg=lagg, threshold=threshold, coeff=coeff)
     pnls <- pnls[, "pnls"]
     mean(pnls)/sd(pnls)
   } else NULL
@@ -512,7 +512,7 @@ write.csv(pnls, file="C:/Develop/jp2sig/data/backtest_zscores.csv", row.names=TR
 load(file="C:/Develop/lecture_slides/data/sp500.RData")
 symbolv <- names(sp500env)
 symbol <- "AAPL"
-look_back <- 5
+lookb <- 5
 lagg <- 1
 coeff <- (-1)
 threshold <- 1

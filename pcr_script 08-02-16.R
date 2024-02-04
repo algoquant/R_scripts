@@ -61,31 +61,31 @@ tail(cbind(returns_advanced, returns_running))
 
 ### create design matrix called SPY_design containing columns of aggregations
 
-look_back <- 5
+lookb <- 5
 returns_running <- run_returns(xtes=SPY)
-returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, look_back=look_back)
+returns_rolling <- roll_vwap(ohlc=SPY, xtes=returns_running, lookb=lookb)
 colnames(returns_running) <- "returns"
 colnames(returns_rolling) <- "returns.WA5"
 
 var_running <- run_variance(ohlc=SPY)
-var_rolling <- roll_vwap(ohlc=SPY, xtes=var_running, look_back=look_back)
+var_rolling <- roll_vwap(ohlc=SPY, xtes=var_running, lookb=lookb)
 colnames(var_running) <- "variance"
 colnames(var_rolling) <- "variance.WA5"
 
 skew_running <- run_skew(ohlc=SPY)
-skew_rolling <- roll_vwap(ohlc=SPY, xtes=skew_running, look_back=look_back)
+skew_rolling <- roll_vwap(ohlc=SPY, xtes=skew_running, lookb=lookb)
 colnames(skew_running) <- "skew"
 colnames(skew_rolling) <- "skew.WA5"
 
 sharpe_running <- run_sharpe(ohlc=SPY)
-sharpe_rolling <- roll_vwap(ohlc=SPY, xtes=sharpe_running, look_back=look_back)
+sharpe_rolling <- roll_vwap(ohlc=SPY, xtes=sharpe_running, lookb=lookb)
 colnames(sharpe_running) <- "sharpe_running"
 colnames(sharpe_rolling) <- "sharpe_running.WA5"
 
-sharpe_rolling <- roll_sharpe(ohlc=SPY, look_back=look_back)
+sharpe_rolling <- roll_sharpe(ohlc=SPY, lookb=lookb)
 colnames(sharpe_rolling) <- "sharpe_rolling"
 
-hurst_rolling <- roll_hurst(ohlc=SPY, look_back=look_back)
+hurst_rolling <- roll_hurst(ohlc=SPY, lookb=lookb)
 colnames(hurst_rolling) <- "hurst_rolling"
 
 # select most significant factors plus interaction terms
@@ -151,10 +151,10 @@ run_random_pcr <- function(indeks) {
   colnames(ohlc)[ 5] <- "random.volume"
   returns_running <- run_returns(xtes=ohlc)
   returns_advanced <- rutils::lagxts(returns_running, k=-1)
-  returns_rolling <- roll_vwap(ohlc=ohlc, xtes=returns_running, look_back=look_back)
+  returns_rolling <- roll_vwap(ohlc=ohlc, xtes=returns_running, lookb=lookb)
   var_running <- run_variance(ohlc=ohlc)
   skew_running <- run_skew(ohlc=ohlc)
-  hurst_rolling <- roll_hurst(ohlc=ohlc, look_back=look_back)
+  hurst_rolling <- roll_hurst(ohlc=ohlc, lookb=lookb)
   design_matrix <- cbind(returns_running, returns_rolling, var_running, skew_running, hurst_rolling, returns_running*var_running, returns_running*skew_running)
   design_matrix <- roll::roll_scale(data=design_matrix, width=60, min_obs=1)
   core_data <- coredata(design_matrix)

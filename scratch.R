@@ -1,12 +1,12 @@
 
-Rcpp::sourceCpp(file="/Users/jerzy/Develop/Rcpp/btest.cpp")
+Rcpp::sourceCpp(file="/Users/jerzy/Develop/Rcpp/back_test.cpp")
 load("/Users/jerzy/Develop/data/SPY_second_202310.RData")
 NROW(pricel)
 pricev <- pricel[[21]]["T09:30:00/T10:30:00"][, 1]
 retv <- rutils::diffit(pricev)
 datev <- zoo::index(pricev)
 
-lambdav <- 0.99
+lambdaf <- 0.99
 threshz <- 1.0
 threshd <- 5.0
 threshbad <- 5.0
@@ -17,8 +17,8 @@ varin <- 1
 zscores <- lapply(pricel, function(pricev) {
   # cat("file: ", numv, "\n")
   pricev <- pricev["T09:30:00/T16:00:00"][, 1]
-  pricema <- rutils::lagit(drop(HighFreq::run_mean(pricev, lambda=lambdav)))
-  pricevar <- rutils::lagit(drop(HighFreq::run_var(pricev, lambda=lambdav)))
+  pricema <- rutils::lagit(drop(HighFreq::run_mean(pricev, lambda=lambdaf)))
+  pricevar <- rutils::lagit(drop(HighFreq::run_var(pricev, lambda=lambdaf)))
   pricevar <- sqrt(pricevar)
   ifelse(pricevar > 0, (pricev - pricema)/pricevar, 0)
 }) # end lapply
@@ -52,7 +52,7 @@ pnls <- lapply(pricel, function(pricev) {
   # Calculate EWMA prices
   # retv[abs(retv) > 0.1] <- 0
   pricev <- pricev[, 1]["T09:30:00/T16:00:00"]
-  stratm <- revstrat(pricev, lambdav, threshz, threshd, threshbad, varin)
+  stratm <- revstrat(pricev, lambdaf, threshz, threshd, threshbad, varin)
   # Calculate strategy pnls
   # pnls <- posv*retv
   pnls <- stratm[, 1]
@@ -73,7 +73,7 @@ pnls <- do.call(rbind, pnls)
 
 
 
-stratm <- bollinger_strat(pricev, lambdav, threshz, varin)
+stratm <- bollinger_strat(pricev, lambdaf, threshz, varin)
 stratm <- xts(stratm, datev)
 colnames(stratm) <- c("pnls", "pos", "zscores")
 
@@ -1106,15 +1106,15 @@ summary(microbenchmark(
 
 
 
-lambdav <- seq(from=0.98, to=0.999, by=0.002)
-lambdav <- seq(from=0.99, to=0.999, by=0.001)
-pnls <- sapply(lambdav, btmomrun, retp=retpca[, 1:dimax])
+lambdas <- seq(from=0.98, to=0.999, by=0.002)
+lambdas <- seq(from=0.99, to=0.999, by=0.001)
+pnls <- sapply(lambdas, btmomrun, retp=retpca[, 1:dimax])
 
-lambdav <- seq(from=0.6, to=0.9, by=0.1)
-pnls <- sapply(lambdav, btmomrun, trend=(-1), retp=retpca[, (dimax+1):NCOL(retpca)])
+lambdas <- seq(from=0.6, to=0.9, by=0.1)
+pnls <- sapply(lambdas, btmomrun, trend=(-1), retp=retpca[, (dimax+1):NCOL(retpca)])
 
 pnls <- apply(pnls, MARGIN=2, function(pnl) indeksd*pnl/sd(pnl))
-colnames(pnls) <- paste0("lambda=", lambdav)
+colnames(pnls) <- paste0("lambda=", lambdas)
 pnls <- xts::xts(pnls, datev)
 tail(pnls)
 
@@ -1269,10 +1269,10 @@ dygraphs::dygraph(pricev$SPY, main="SPY Big Ticks (>= 100)") %>%
   dyLegend(show="always", width=300)
 
 # Calculate the trailing means and volatility
-lambda <- 0.9
-meanv <- HighFreq::run_mean(pricev, lambda=lambda)
+lambdaf <- 0.9
+meanv <- HighFreq::run_mean(pricev, lambda=lambdaf)
 pricez <- (pricev - meanv)
-volat <- HighFreq::run_var(pricez, lambda=lambda)
+volat <- HighFreq::run_var(pricez, lambda=lambdaf)
 volat <- sqrt(volat)
 pricez <- ifelse(volat > 0, pricez/volat, 0)
 
@@ -1333,7 +1333,7 @@ dtable <- dtable[!is.na(dtable$date)]
 medianv <- roll::roll_median(dtable$price, width=3)
 medianv[1:2] <- dtable$price[1:2]
 medianv <- rutils::lagit(medianv, lagg=-1, pad_zeros=FALSE)
-madv <- HighFreq::roll_var(matrix(dtable$price), look_back=3, method="nonparametric")
+madv <- HighFreq::roll_var(matrix(dtable$price), lookb=3, method="nonparametric")
 madv <- rutils::lagit(madv, lagg=-1, pad_zeros=FALSE)
 # Calculate the Z-scores
 zscores <- ifelse(madv > 0, (dtable$price - medianv)/madv, 0)
@@ -1467,13 +1467,13 @@ curve(cov1, from=(-5), to=5)
 
 btmomweight <- function(retp,
                         objfun=function(retp) (prod(1+retp)/sd(retp)),
-                        look_back=12, rfreq="months", bidask=0.001,
+                        lookb=12, rfreq="months", bidask=0.001,
                         endd=rutils::calc_endpoints(retp, interval=rfreq), ...) {
   # Perform loop over end points
   npts <- NROW(endd)
   pnls <- lapply(1:(npts-1), function(it) {
     # Select the look-back returns
-    startp <- endd[max(1, it-look_back+1)]
+    startp <- endd[max(1, it-lookb+1)]
     retslb <- retp[startp:endd[it], ]
     # Calculate the weights proportional to performance
     perfstat <- sapply(retslb, objfun)
@@ -1529,7 +1529,7 @@ getpos2 <- function(zscores, threshz, coeff, lagg) {
   indic[zscores > threshz] <- coeff
   indic[zscores < (-threshz)] <- (-coeff)
   indic <- zoo::na.locf(indic, na.rm=FALSE)
-  indics <- HighFreq::roll_vec(tseries=matrix(indic), look_back=lagg)
+  indics <- HighFreq::roll_vec(tseries=matrix(indic), lookb=lagg)
   indics[1:lagg] <- 0
   posv <- rep(NA_integer_, nrows)
   posv[1] <- 0
@@ -1585,19 +1585,19 @@ dygraphs::dygraph(residuals)
 
 
 ##########
-zscores <- HighFreq::roll_zscores(respv=closep, predv=predv, look_back=look_back)
+zscores <- HighFreq::roll_zscores(respv=closep, predv=predv, lookb=lookb)
 
-look_backs <- 5*(1:10)
-# zscores <- sapply(look_backs, HighFreq::roll_zscores, respv=closep, predv=predv, startp = 0L, endd = 0L, step = 1L, stub = 0L)
-zscores <- sapply(look_backs, function(look_back) {
-  cat("look_back =", look_back, "\n")
-  zscores <- HighFreq::roll_zscores(respv=closep, predv=predv, look_back=look_back)  
-  zscores[1:look_back] <- 0
+lookbs <- 5*(1:10)
+# zscores <- sapply(lookbs, HighFreq::roll_zscores, respv=closep, predv=predv, startp = 0L, endd = 0L, step = 1L, stub = 0L)
+zscores <- sapply(lookbs, function(lookb) {
+  cat("lookb =", lookb, "\n")
+  zscores <- HighFreq::roll_zscores(respv=closep, predv=predv, lookb=lookb)  
+  zscores[1:lookb] <- 0
   zscores
 })
-colnames(zscores) <- paste0("zscore", look_backs)
+colnames(zscores) <- paste0("zscore", lookbs)
 foo <- apply(zscores, 2, sd)
-foo/sqrt(look_backs)
+foo/sqrt(lookbs)
 
 # Standard deviation of square returns is proxy for kurtosis and stationarity
 
@@ -1605,22 +1605,22 @@ foo/sqrt(look_backs)
 # Calculate the trailing z-scores of SVXY
 predv <- cbind(sqrt(varv), vxx, vti_close)
 respv <- svxy
-rollzscores <- drop(HighFreq::roll_zscores(respv=respv, predv=predv, look_back=look_back))
+rollzscores <- drop(HighFreq::roll_zscores(respv=respv, predv=predv, lookb=lookb))
 rollzscores[is.infinite(rollzscores)] <- 0
 
-rollreg <- HighFreq::roll_reg(respv=respv, predv=predv, intercept=TRUE, look_back=look_back)
+rollreg <- HighFreq::roll_reg(respv=respv, predv=predv, intercept=TRUE, lookb=lookb)
 rollregscores <- rollreg[, NCOL(rollreg), drop=TRUE]
 all.equal(rollregscores, rollzscores)
 
 library(microbenchmark)
 # HighFreq::roll_reg() is faster than roll_zscores()
 summary(microbenchmark(
-  roll_zscores=HighFreq::roll_zscores(respv=respv, predv=predv, look_back=look_back),
-  roll_reg=HighFreq::roll_reg(respv=respv, predv=predv, intercept=TRUE, look_back=look_back),
+  roll_zscores=HighFreq::roll_zscores(respv=respv, predv=predv, lookb=lookb),
+  roll_reg=HighFreq::roll_reg(respv=respv, predv=predv, intercept=TRUE, lookb=lookb),
   times=10))[, c(1, 4, 5)]
 
-runreg <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambda, method="scale")
-runzscores <- HighFreq::run_zscores(respv=respv, predv=predv, lambda=lambda, demean=FALSE)
+runreg <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambdaf, method="scale")
+runzscores <- HighFreq::run_zscores(respv=respv, predv=predv, lambda=lambdaf, demean=FALSE)
 # runzscores <- runreg[, 1, drop=TRUE]
 
 runreg <- rutils::lagit(rutils::diffit(cbind(respv, predv)))
@@ -1669,8 +1669,8 @@ respv <- retp[, 1]
 # Predictor matrix equals VTI and IEF returns
 predv <- retp[, -1]
 # Calculate the rolling regressions
-lambda <- 0.9
-regs <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambda)
+lambdaf <- 0.9
+regs <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambdaf)
 # Plot the rolling alphas
 datav <- cbind(cumsum(respv), regs[, 2])
 colnames(datav) <- c("XLF", "alphas")
@@ -1694,29 +1694,29 @@ alphas <- matrix(rep(0, nrows), nrow=nrows)
 resids <- matrix(rep(0, nrows), nrow=nrows)
 # varz <- matrix(rep(1, nrows), nrow=nrows)
 # meanz <- matrix(rep(0, nrows), nrow=nrows)
-lambda1 <- 1-lambda
+lambda1 <- 1-lambdaf
 
 # Perform loop over rows
 respm[1, ] <- respv[1, ]
 predm[1, ] <- predv[1, ]
 for (it in 2:nrows) {
   # Calculate the mean as the weighted sum
-  respm[it, ] <- lambda1*respv[it, ] + lambda*respm[it-1, ]
-  predm[it, ] <- lambda1*predv[it, ] + lambda*predm[it-1, ]
-  vars[it, ] <- lambda1*(predv[it, ]-predm[it, ])^2 + lambda*vars[it-1, ]
-  covars[it, ] <- lambda1*((respv[it, ]-respm[it, ])*(predv[it, ]-predm[it, ])) + lambda*covars[it-1, ]
-  betas[it, ] <- lambda1*covars[it, ]/vars[it, ] + lambda*betas[it-1, ]
-  alphas[it, ] <- lambda1*(respm[it, drop=FALSE] - betas[it, ] %*% predm[it, ]) + lambda*alphas[it-1, ]
+  respm[it, ] <- lambda1*respv[it, ] + lambdaf*respm[it-1, ]
+  predm[it, ] <- lambda1*predv[it, ] + lambdaf*predm[it-1, ]
+  vars[it, ] <- lambda1*(predv[it, ]-predm[it, ])^2 + lambdaf*vars[it-1, ]
+  covars[it, ] <- lambda1*((respv[it, ]-respm[it, ])*(predv[it, ]-predm[it, ])) + lambdaf*covars[it-1, ]
+  betas[it, ] <- lambda1*covars[it, ]/vars[it, ] + lambdaf*betas[it-1, ]
+  alphas[it, ] <- lambda1*(respm[it, drop=FALSE] - betas[it, ] %*% predm[it, ]) + lambdaf*alphas[it-1, ]
   # Calculate the z-score as the weighted sum of products of returns.
-  resids[it, ] <- lambda1*(respv[it, drop=FALSE] - betas[it, ] %*% predv[it, ]) + lambda*resids[it-1, ]
+  resids[it, ] <- lambda1*(respv[it, drop=FALSE] - betas[it, ] %*% predv[it, ]) + lambdaf*resids[it-1, ]
   # Calculate the mean and variance of the z-scores.
-  # meanz[it, ] <- lambda1*resids[it, ] + lambda*meanz[it-1, ]
-  # varz[it, ] <- lambda1*(resids[it, ] - resids[it-1, ])^2 + lambda*varz[it-1, ]
+  # meanz[it, ] <- lambda1*resids[it, ] + lambdaf*meanz[it-1, ]
+  # varz[it, ] <- lambda1*(resids[it, ] - resids[it-1, ])^2 + lambdaf*varz[it-1, ]
 }  # end for
 
 # regdatar <- cbind(alphas, betas, vars, (resids - meanz)/sqrt(varz))
 regdatar <- cbind(resids, alphas, betas)
-regdata <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambda)
+regdata <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambdaf)
 all.equal(regdatar, regdata, check.attributes=FALSE)
 
 
@@ -1934,7 +1934,7 @@ pnls <- lapply(numaggs, function(numagg) {
   predv <- rutils::lagit(predv)
   pnls <- lapply(51:(NROW(weeks)-1), function(i) {
     # Define in-sample and out-of-sample intervals
-    insample <- (datev > weeks[i-look_back]) & (datev < weeks[i])
+    insample <- (datev > weeks[i-lookb]) & (datev < weeks[i])
     outsample <- (datev > weeks[i]) & (datev < weeks[i+1])
     # Calculate the forecasts and pnls out-of-sample
     invmat <- HighFreq::calc_inv(predv[insample, ], dimax=dimax)
@@ -2023,14 +2023,14 @@ dygraphs::dygraph(cumsum(pnls), main="Cumulative Returns of AR Strategies") %>%
 # Define weekly dates
 weeks <- seq.Date(from=as.Date("2001-05-01"), to=as.Date("2021-04-01"), by="weeks")
 # Perform loop over weekly dates
-look_back <- 9
+lookb <- 9
 dimax <- 2
 # Or
-look_back <- 8
+lookb <- 8
 dimax <- 4
 pnls <- lapply(51:(NROW(weeks)-1), function(i) {
   # Define in-sample and out-of-sample intervals
-  insample <- (datev > weeks[i-look_back]) & (datev < weeks[i])
+  insample <- (datev > weeks[i-lookb]) & (datev < weeks[i])
   outsample <- (datev > weeks[i]) & (datev < weeks[i+1])
   # Calculate the forecasts and pnls out-of-sample
   invmat <- HighFreq::calc_inv(predv[insample, ], dimax=dimax)
@@ -2095,14 +2095,14 @@ foo <- sapply(2:11, function(x) {
 
 # Define backtest functional for daily momentum strategy
 # If trend=(-1) then it backtests a mean reverting strategy
-btmomdaily <- function(retp, look_back=252, hold_period=5, bidask=0.001, trend=1, ...) {
+btmomdaily <- function(retp, lookb=252, hold_period=5, bidask=0.001, trend=1, ...) {
   stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
   # Calculate the rolling variance
-  varv <- roll::roll_var(retp, width=look_back, min_obs=1)
+  varv <- roll::roll_var(retp, width=lookb, min_obs=1)
   varv[1, ] <- 1
   varv[varv <= 0] <- 1
   # Calculate the rolling Sharpe
-  past <- roll::roll_mean(retp, width=look_back, min_obs=1)
+  past <- roll::roll_mean(retp, width=lookb, min_obs=1)
   weightv <- past/sqrt(varv)
   weightv <- weightv/sqrt(rowSums(weightv^2))
   weightv <- rutils::lagit(weightv)
@@ -2114,16 +2114,16 @@ btmomdaily <- function(retp, look_back=252, hold_period=5, bidask=0.001, trend=1
   (pnls - costs)
 }  # end btmomdaily
 
-look_backs <- seq(50, 150, by=10)
-pnls <- sapply(look_backs, btmomdaily, hold_period=9,
+lookbs <- seq(50, 150, by=10)
+pnls <- sapply(lookbs, btmomdaily, hold_period=9,
                   retp=retp, bidask=bidask)
-colnames(pnls) <- paste0("look_back=", look_backs)
+colnames(pnls) <- paste0("lookb=", lookbs)
 pnls <- xts::xts(pnls, index(retp))
 
 hold_periods <- seq(9, 21, by=2)
-pnls <- sapply(hold_periods, btmomdaily, look_back=120,
+pnls <- sapply(hold_periods, btmomdaily, lookb=120,
                   retp=retp, bidask=bidask)
-colnames(pnls) <- paste0("look_back=", hold_periods)
+colnames(pnls) <- paste0("lookb=", hold_periods)
 pnls <- xts::xts(pnls, index(retp))
 
 colors <- colorRampPalette(c("blue", "red"))(NCOL(pnls))
@@ -2166,14 +2166,14 @@ dygraphs::dygraph(bfly, main="IR Butterfly") %>%
 
 
 # Calculate the volatility
-look_back <- 21
+lookb <- 21
 retp <- rutils::diffit(bfly)
-volv <- roll::roll_sd(retp, width=look_back, min_obs=1)
+volv <- roll::roll_sd(retp, width=lookb, min_obs=1)
 volv[1, ] <- 1
 # Calculate the z-scores of prices
-meanv <- roll::roll_mean(bfly, width=look_back, min_obs=1)
+meanv <- roll::roll_mean(bfly, width=lookb, min_obs=1)
 zscores <- ifelse(volv > 0, (bfly - meanv)/volv, 0)
-zscores <- zscores/sqrt(look_back)
+zscores <- zscores/sqrt(lookb)
 sd(zscores)
 hist(zscores)
 
@@ -2205,7 +2205,7 @@ ohlc <- ohlc["T09:00:00/T16:30:00"]
 retp <- rutils::diffit(log(Cl(ohlc)))
 nrows <- NROW(retp)
 
-lambda <- 0.15
+lambdaf <- 0.15
 lagg <- 1
 threshz <- 1.0
 long_back <- 100
@@ -2214,16 +2214,16 @@ refvar <- rep(1, NROW(retp))
 tseries <- cbind(retp, refvar)
 
 # Run the regmod
-calc_sharpe <- function(lambda, threshz) {
-  zscores <- HighFreq::run_zscore(tseries, lambda=lambda)
+calc_sharpe <- function(lambdaf, threshz) {
+  zscores <- HighFreq::run_zscore(tseries, lambda=lambdaf)
   zscores <- zscores[, 1, drop=FALSE]
-  zscores <- HighFreq::roll_scale(zscores, look_back=long_back, use_median=TRUE)
+  zscores <- HighFreq::roll_scale(zscores, lookb=long_back, use_median=TRUE)
   zscores[is.na(zscores) | is.infinite(zscores)] <- 0
   zscores <- HighFreq::lagit(zscores, pad_zeros=TRUE)
   indic <- rep(0, nrows)
   indic <- ifelse(zscores > threshz, -1, indic)
   indic <- ifelse(zscores < (-threshz), 1, indic)
-  indics <- HighFreq::roll_vec(tseries=indic, look_back=lagg)
+  indics <- HighFreq::roll_vec(tseries=indic, lookb=lagg)
   indics[1:lagg] <- 0
   posv <- rep(NA_integer_, nrows)
   posv[1] <- 0
@@ -2245,8 +2245,8 @@ sharpev <- sapply(lambdas, calc_sharpe, threshz=threshz)
 plot(lambdas, sharpev)
 
 threshv <- seq(0.5, 4, 0.2)
-lambda <- 0.25
-sharpev <- sapply(threshv, calc_sharpe, lambda=lambda)
+lambdaf <- 0.25
+sharpev <- sapply(threshv, calc_sharpe, lambdaf=lambdaf)
 plot(threshv, sharpev)
 
 
@@ -2581,7 +2581,7 @@ datev <- zoo::index(svxy)
 vxx <- log(rutils::etfenv$VXX[datev])
 vxx_close <- quantmod::Cl(vxx)
 
-look_back <- 21
+lookb <- 21
 
 # Extract log OHLC prices
 symbol <- "VTI"
@@ -2599,54 +2599,54 @@ respv <- rutils::lagit(respv, lagg=(-numagg+1))
 
 # Calculate the SVXY z-scores
 indeks <- matrix(1:nrows, nc=1)
-svxyz <- drop(HighFreq::roll_zscores(respv=svxy_close, predm=indeks, look_back=look_back))
-svxyz[1:look_back] <- 0
+svxyz <- drop(HighFreq::roll_zscores(respv=svxy_close, predm=indeks, lookb=lookb))
+svxyz[1:lookb] <- 0
 svxyz[is.infinite(svxyz)] <- 0
 svxyz[is.na(svxyz)] <- 0
-svxyz <- svxyz/sqrt(look_back)
-# svxym <- roll::roll_mean(svxy_close, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var_ohlc(svxy, look_back=look_back, scale=FALSE))
+svxyz <- svxyz/sqrt(lookb)
+# svxym <- roll::roll_mean(svxy_close, width=lookb, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(svxy, lookb=lookb, scale=FALSE))
 # svxyz <- (svxy_close - svxym)/var_rolling
 
 # Calculate the VXX z-scores
-vxxz <- drop(HighFreq::roll_zscores(respv=vxx_close, predm=indeks, look_back=look_back))
-vxxz[1:look_back] <- 0
+vxxz <- drop(HighFreq::roll_zscores(respv=vxx_close, predm=indeks, lookb=lookb))
+vxxz[1:lookb] <- 0
 vxxz[is.infinite(vxxz)] <- 0
 vxxz[is.na(vxxz)] <- 0
-vxxz <- vxxz/sqrt(look_back)
-# vxxm <- roll::roll_mean(vxx_close, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var_ohlc(vxx, look_back=look_back, scale=FALSE))
+vxxz <- vxxz/sqrt(lookb)
+# vxxm <- roll::roll_mean(vxx_close, width=lookb, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(vxx, lookb=lookb, scale=FALSE))
 # vxxz <- (vxx_close - vxxm)/var_rolling
 
 # Calculate the price z-scores
-pricez <- drop(HighFreq::roll_zscores(respv=closep, predm=indeks, look_back=look_back))
-pricez[1:look_back] <- 0
+pricez <- drop(HighFreq::roll_zscores(respv=closep, predm=indeks, lookb=lookb))
+pricez[1:lookb] <- 0
 pricez[is.infinite(pricez)] <- 0
 pricez[is.na(pricez)] <- 0
-pricez <- pricez/sqrt(look_back)
-# roll_stock <- roll::roll_mean(closep, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var_ohlc(ohlc, look_back=look_back, scale=FALSE))
+pricez <- pricez/sqrt(lookb)
+# roll_stock <- roll::roll_mean(closep, width=lookb, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var_ohlc(ohlc, lookb=lookb, scale=FALSE))
 # pricez <- (closep - roll_stock)/var_rolling
 
 # Calculate the volatility z-scores
 volv <- log(quantmod::Hi(ohlc))-log(quantmod::Lo(ohlc))
-volatz <- drop(HighFreq::roll_zscores(respv=volv, predm=indeks, look_back=look_back))
-volatz[1:look_back] <- 0
+volatz <- drop(HighFreq::roll_zscores(respv=volv, predm=indeks, lookb=lookb))
+volatz[1:lookb] <- 0
 volatz[is.infinite(volatz)] <- 0
 volatz[is.na(volatz)] <- 0
-volatz <- volatz/sqrt(look_back)
-# volm <- roll::roll_mean(volv, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var(rutils::diffit(volv), look_back=look_back))
+volatz <- volatz/sqrt(lookb)
+# volm <- roll::roll_mean(volv, width=lookb, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var(rutils::diffit(volv), lookb=lookb))
 # volatz <- (volv - volm)/var_rolling
 
 # Calculate the volume z-scores
-volumz <- drop(HighFreq::roll_zscores(respv=volumes, predm=indeks, look_back=look_back))
-volumz[1:look_back] <- 0
+volumz <- drop(HighFreq::roll_zscores(respv=volumes, predm=indeks, lookb=lookb))
+volumz[1:lookb] <- 0
 volumz[is.infinite(volumz)] <- 0
 volumz[is.na(volumz)] <- 0
-volumz <- volumz/sqrt(look_back)
-# volume_mean <- roll::roll_mean(volumes, width=look_back, min_obs=1)
-# var_rolling <- sqrt(HighFreq::roll_var(rutils::diffit(volumes), look_back=look_back))
+volumz <- volumz/sqrt(lookb)
+# volume_mean <- roll::roll_mean(volumes, width=lookb, min_obs=1)
+# var_rolling <- sqrt(HighFreq::roll_var(rutils::diffit(volumes), lookb=lookb))
 # volumz <- (volumes - volume_mean)/var_rolling
 
 # Define predictor matrix
@@ -2834,9 +2834,9 @@ retp <- rutils::diffit(closep)
 nrows <- NROW(ohlc)
 
 # Calculate the centered volatility
-look_back <- 21
-half_back <- look_back %/% 2
-volv <- roll::roll_sd(retp, width=look_back, min_obs=1)
+lookb <- 21
+half_back <- lookb %/% 2
+volv <- roll::roll_sd(retp, width=lookb, min_obs=1)
 volv <- rutils::lagit(volv, lagg=(-half_back))
 
 # Calculate the z-scores of prices
@@ -2902,10 +2902,10 @@ closep <- quantmod::Cl(ohlc)
 retp <- rutils::diffit(closep)
 
 # Calculate the centered volatility
-look_back <- 21
-half_back <- look_back %/% 2
+lookb <- 21
+half_back <- lookb %/% 2
 retp <- rutils::diffit(closep)
-volv <- roll::roll_sd(retp, width=look_back, min_obs=1)
+volv <- roll::roll_sd(retp, width=lookb, min_obs=1)
 volv <- rutils::lagit(volv, lagg=(-half_back))
 # Calculate the z-scores of prices
 pricez <- (2*closep - rutils::lagit(closep, half_back, pad_zeros=FALSE) - 
@@ -2928,47 +2928,47 @@ vxx <- log(quantmod::Cl(rutils::etfenv$VXX))
 vxx <- vxx[datev]
 
 # Calculate the rolling VTI volatility
-volv <- HighFreq::roll_var_ohlc(ohlc=ohlc, look_back=look_back, scale=FALSE)
+volv <- HighFreq::roll_var_ohlc(ohlc=ohlc, lookb=lookb, scale=FALSE)
 volv <- xts::xts(sqrt(volv), zoo::index(ohlc))
 colnames(volv) <- "volv"
 
 # Calculate the trailing z-scores of SVXY
 predm <- cbind(volv[datev], vxx, closep[datev])
 respv <- svxy
-zscores <- drop(HighFreq::roll_zscores(respv=respv, predm=predm, look_back=look_back))
-zscores[1:look_back] <- 0
+zscores <- drop(HighFreq::roll_zscores(respv=respv, predm=predm, lookb=lookb))
+zscores[1:lookb] <- 0
 zscores[is.infinite(zscores)] <- 0
 zscores[is.na(zscores)] <- 0
-# zscores <- zscores/sqrt(look_back)
+# zscores <- zscores/sqrt(lookb)
 
 # Calculate the SVXY medians
-# medianv <- roll::roll_median(svxy, width=look_back, min_obs=1)
+# medianv <- roll::roll_median(svxy, width=lookb, min_obs=1)
 # Calculate the SVXY MAD
-# madv <- HighFreq::roll_var(svxy, look_back=look_back, method="nonparametric")
+# madv <- HighFreq::roll_var(svxy, lookb=lookb, method="nonparametric")
 # Calculate the SVXY Hampel z-scores
 # svxyz <- ifelse(madv > 0, (svxy - medianv)/madv, 0)
-# svxyz[1:look_back, ] <- 0
+# svxyz[1:lookb, ] <- 0
 # Calculate the SVXY z-scores
-svxym <- roll::roll_mean(svxy, width=look_back, min_obs=1)
-svxysd <- roll::roll_sd(rutils::diffit(svxy), width=look_back, min_obs=1)
+svxym <- roll::roll_mean(svxy, width=lookb, min_obs=1)
+svxysd <- roll::roll_sd(rutils::diffit(svxy), width=lookb, min_obs=1)
 svxysd[1] <- 0
 svxyz <- ifelse(svxysd > 0, (svxy - svxym)/svxysd, 0)
 
 # Calculate the VXX z-scores
-vxxm <- roll::roll_mean(vxx, width=look_back, min_obs=1)
-vxxsd <- roll::roll_sd(rutils::diffit(vxx), width=look_back, min_obs=1)
+vxxm <- roll::roll_mean(vxx, width=lookb, min_obs=1)
+vxxsd <- roll::roll_sd(rutils::diffit(vxx), width=lookb, min_obs=1)
 vxxsd[1] <- 0
 vxxz <- ifelse(vxxsd > 0, (vxx - vxxm)/vxxsd, 0)
 
 # Calculate the volatility z-scores
 volv <- log(quantmod::Hi(ohlc))-log(quantmod::Lo(ohlc))
-volm <- roll::roll_mean(volv, width=look_back, min_obs=1)
+volm <- roll::roll_mean(volv, width=lookb, min_obs=1)
 volatz <- (volv - volm)/volm
 
 # Calculate the volume z-scores
 volumes <- quantmod::Vo(ohlc)
-volume_mean <- roll::roll_mean(volumes, width=look_back, min_obs=1)
-volume_sd <- roll::roll_sd(rutils::diffit(volumes), width=look_back, min_obs=1)
+volume_mean <- roll::roll_mean(volumes, width=lookb, min_obs=1)
+volume_sd <- roll::roll_sd(rutils::diffit(volumes), width=lookb, min_obs=1)
 volumz <- (volumes - volume_mean)/volume_sd
 
 # Define predictor matrix
@@ -3129,13 +3129,13 @@ symbolv <- c("VTI", "SVXY", "VXX")
 retp <- na.omit(rutils::etfenv$returns[, symbolv])
 datev <- zoo::index(retp)
 
-look_back <- 11
+lookb <- 11
 # Scale the volume by the rolling average volume
 retc <- lapply(symbolv, function(symbol) {
   ohlc <- get(symbol, rutils::etfenv)
   retp <- rutils::diffit(log(quantmod::Cl(ohlc)))
   volumes <- quantmod::Vo(ohlc)
-  volume_rolling <- roll::roll_mean(volumes, width=look_back)
+  volume_rolling <- roll::roll_mean(volumes, width=lookb)
   volume_rolling <- zoo::na.locf(volume_rolling, fromLast=TRUE)
   volumes <- volumes/volume_rolling
   # Divide  the returns by the volume - use trading time (volume clock)
@@ -3154,7 +3154,7 @@ retc <- lapply(symbolv, function(symbol) {
 retc <- lapply(symbolv, function(symbol) {
   ohlc <- log(get(symbol, rutils::etfenv))
   retp <- rutils::diffit(quantmod::Cl(ohlc))
-  varv <- HighFreq::roll_var_ohlc(ohlc=ohlc, look_back=look_back, scale=FALSE)
+  varv <- HighFreq::roll_var_ohlc(ohlc=ohlc, lookb=lookb, scale=FALSE)
   colnames(varv) <- "variance"
   volv <- sqrt(varv)
   returns/volv
@@ -3253,8 +3253,8 @@ insample <- 1:(nrows %/% 4)
 outsample <- (nrows %/% 4 + 1):nrows
 
 # Scale the volume by the rolling average volume
-look_back <- 11
-volume_rolling <- roll::roll_mean(volumes, width=look_back)
+lookb <- 11
+volume_rolling <- roll::roll_mean(volumes, width=lookb)
 volume_rolling <- zoo::na.locf(volume_rolling, fromLast=TRUE)
 volumes <- volumes/volume_rolling
 
@@ -3265,14 +3265,14 @@ retc <- returns/volumes
 ## Version using only recent returns
 
 # First version
-look_backs <- 2:25
-predm <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(retc, x))
+lookbs <- 2:25
+predm <- lapply(lookbs, function(x) sqrt(x)*roll::roll_mean(retc, x))
 predm <- do.call(cbind, predm)
 predm[1, ] <- 0
 predm <- zoo::na.locf(predm)
 # sum(is.na(predm))
 predm <- cbind(retc, predm)
-max_back <- last(look_backs)
+max_back <- last(lookbs)
 # respv <- rutils::lagit(predm[, max_back], lagg=(-max_back))
 respv <- sqrt(max_back)*roll::roll_mean(retp, max_back)
 respv[1:(max_back-1)] <- 0
@@ -3291,23 +3291,23 @@ respv <- rutils::lagit(predm[, dimax], lagg=(-dimax))
 ###########
 ## Old version
 # Calculate the predictor equal to the rolling means
-look_backs <- c(5, 20, 80, 250)
-# predm <- lapply(look_backs, roll::roll_mean, x=retp)
+lookbs <- c(5, 20, 80, 250)
+# predm <- lapply(lookbs, roll::roll_mean, x=retp)
 # Scale the rolling means so they have similar volatities
-predm <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(retp, x))
-# predm <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(retp, x)/sqrt(roll::roll_var(retp, x)))
+predm <- lapply(lookbs, function(x) sqrt(x)*roll::roll_mean(retp, x))
+# predm <- lapply(lookbs, function(x) sqrt(x)*roll::roll_mean(retp, x)/sqrt(roll::roll_var(retp, x)))
 predm <- do.call(cbind, predm)
 predm[1, ] <- 0
 predm <- zoo::na.locf(predm)
 # sum(is.na(predm))
-colnames(predm) <- paste0("back_", look_backs)
+colnames(predm) <- paste0("back_", lookbs)
 sapply(predm, sd)
 # Standardize (de-mean and scale) the predictor
 # predm <- lapply(predm, function(x) {(x - mean(x))/sd(x)})
 # predm <- rutils::do_call(cbind, predm)
 
 # Define response as a rolling sum and shift it forward out-of-sample
-respv <- rutils::lagit(predm[, 1], lagg=(-look_backs[1]))
+respv <- rutils::lagit(predm[, 1], lagg=(-lookbs[1]))
 
 ###########
 ## End Old version
@@ -3349,7 +3349,7 @@ dygraphs::dygraph(pnls, main="Autoregressive Strategy Performance") %>%
 
 
 ###############
-# Case for look_backs = 2
+# Case for lookbs = 2
 
 # Calculate the ETF returns and volumes
 symbol <- "VTI"
@@ -3365,22 +3365,22 @@ insample <- 1:(nrows %/% 2)
 outsample <- (nrows %/% 2 + 1):nrows
 
 # Scale the volume by the rolling average volume
-look_back <- 11
-volume_rolling <- roll::roll_mean(volumes, width=look_back)
+lookb <- 11
+volume_rolling <- roll::roll_mean(volumes, width=lookb)
 volume_rolling <- zoo::na.locf(volume_rolling, fromLast=TRUE)
 volumes <- volumes/volume_rolling
 # Divide  the returns by the volume - use trading time (volume clock)
 retc <- returns/volumes
 
-look_backs <- 2:5
-predm <- lapply(look_backs, function(x) sqrt(x)*roll::roll_mean(retc, x))
+lookbs <- 2:5
+predm <- lapply(lookbs, function(x) sqrt(x)*roll::roll_mean(retc, x))
 predm <- do.call(cbind, predm)
-# look_backs <- 2
+# lookbs <- 2
 # predm <- sqrt(2)*roll::roll_mean(retc, 2)
 predm[1, ] <- 0
 predm <- zoo::na.locf(predm)
 predm <- cbind(retc, predm)
-max_back <- last(look_backs)
+max_back <- last(lookbs)
 
 respv <- sqrt(max_back)*roll::roll_mean(retp, max_back)
 respv[1:(max_back-1)] <- 0
@@ -3445,37 +3445,37 @@ dygraphs::dygraph(datav, main=captiont) %>%
 # Benchmark the speed of TTR::runMedian()
 ohlc <- HighFreq::SPY["2011"]
 closep <- log(drop(coredata(Cl(ohlc))))
-ro_ll <- roll::roll_median(closep, width=look_back)[-(1:(look_back-1))]
-rcpp_roll <- RcppRoll::roll_median(closep, n=look_back)
-tt_r <- TTR::runMedian(closep, n=look_back)[-(1:(look_back-1))]
+ro_ll <- roll::roll_median(closep, width=lookb)[-(1:(lookb-1))]
+rcpp_roll <- RcppRoll::roll_median(closep, n=lookb)
+tt_r <- TTR::runMedian(closep, n=lookb)[-(1:(lookb-1))]
 all.equal(rcpp_roll, coredata(tt_r), check.attributes=FALSE)
 all.equal(ro_ll, tt_r, check.attributes=FALSE)
 library(microbenchmark)
 # roll::roll_median() is several times faster than the other two
 summary(microbenchmark(
-  ro_ll=roll::roll_median(closep, width=look_back),
-  rcpp_roll=RcppRoll::roll_median(closep, n=look_back),
-  tt_r=TTR::runMedian(closep, n=look_back),
+  ro_ll=roll::roll_median(closep, width=lookb),
+  rcpp_roll=RcppRoll::roll_median(closep, n=lookb),
+  tt_r=TTR::runMedian(closep, n=lookb),
   times=10))[, c(1, 4, 5)]
 
 
 # Benchmark the speed of HighFreq::roll_scale()
 # Use roll and TTR
 retp <- rutils::diffit(closep)
-med_rets <- roll::roll_median(retp, width=look_back)
-mad_rets <- TTR::runMAD(retp, n=look_back)
+med_rets <- roll::roll_median(retp, width=lookb)
+mad_rets <- TTR::runMAD(retp, n=lookb)
 re_scaled <- (retp - med_rets)/mad_rets
 # Use HighFreq::roll_scale()
-re_scaledh <- HighFreq::roll_scale(matrix(retp, ncol=1), look_back=look_back, use_median=TRUE)
+re_scaledh <- HighFreq::roll_scale(matrix(retp, ncol=1), lookb=lookb, use_median=TRUE)
 re_scaledh <- drop(re_scaledh)
 # Same result up to factor of qnorm(0.75)
 tail(re_scaled)/tail(re_scaledh)
 library(microbenchmark)
 # HighFreq::roll_scale() is over twice as fast
 summary(microbenchmark(
-  h_freq=HighFreq::roll_scale(matrix(retp, ncol=1), look_back=look_back, use_median=TRUE),
+  h_freq=HighFreq::roll_scale(matrix(retp, ncol=1), lookb=lookb, use_median=TRUE),
   rcpp_roll={
-    (retp - roll::roll_median(retp, width=look_back))/TTR::runMAD(retp, n=look_back)
+    (retp - roll::roll_median(retp, width=lookb))/TTR::runMAD(retp, n=lookb)
   },
   times=10))[, c(1, 4, 5)]
 
@@ -3579,11 +3579,11 @@ raw_ticks <- rbind(raw_ticks, foo)
 
 ## Apply Hampel filter to remove price jumps
 
-look_back <- 111
-half_window <- look_back %/% 2
-medianv <- TTR::runMedian(raw_ticks$price, n=look_back)
+lookb <- 111
+half_window <- lookb %/% 2
+medianv <- TTR::runMedian(raw_ticks$price, n=lookb)
 medianv <- rutils::lagit(medianv, lagg=-half_window, pad_zeros=FALSE)
-madv <- TTR::runMAD(raw_ticks$price, n=look_back)
+madv <- TTR::runMAD(raw_ticks$price, n=lookb)
 madv <- rutils::lagit(madv, lagg=-half_window, pad_zeros=FALSE)
 madv[1:half_window] <- 1
 madv[madv == 0] <- 1
@@ -3731,13 +3731,13 @@ insample <- 1:(nrows %/% 2)
 out_of_sample <- (nrows %/% 2 + 1):nrows
 
 dimax <- 5  # Define maximum order parameter
-look_back <- 5
+lookb <- 5
 
-predv <- rutils::roll_sum(retp, look_back=look_back)
+predv <- rutils::roll_sum(retp, lookb=lookb)
 # Shift the response forward into out-of-sample
-respv <- rutils::lagit(predv, lagg=(-look_back))
+respv <- rutils::lagit(predv, lagg=(-lookb))
 # Define predictor matrix for forecasting
-predv <- sapply(1+look_back*(0:dimax), rutils::lagit,
+predv <- sapply(1+lookb*(0:dimax), rutils::lagit,
                      input=predv)
 predv <- cbind(rep(1, nrows), predv)
 colnames(predv) <- paste0("pred_", 1:NCOL(predv))
@@ -3765,22 +3765,22 @@ plot.zoo(pnls)
 ## Simple contrarian strategy using Hampel filter - doesn't work too well
 
 # Calculate the a time series of rolling z-scores
-look_back <- 5
+lookb <- 5
 # prices <- big_ticks$price
 retp <- rutils::diffit(big_ticks$price)
-medianv <- TTR::runMedian(retp, n=look_back)
-medianv[1:look_back] <- 1
+medianv <- TTR::runMedian(retp, n=lookb)
+medianv[1:lookb] <- 1
 # sum(is.na(medianv))
-madv <- TTR::runMAD(retp, n=look_back)
-madv[1:look_back] <- 1
+madv <- TTR::runMAD(retp, n=lookb)
+madv[1:lookb] <- 1
 madv[madv < 1e-6] <- 1
 # sum(is.na(madv))
 zscores <- ifelse(madv!=0, (retp-medianv)/madv, 0)
-zscores[1:look_back] <- 0
+zscores[1:lookb] <- 0
 # sum(is.na(zscores))
 # madv <- zoo::na.locf(zscores)
-# madz <- TTR::runMAD(zscores, n=look_back)
-# madz[1:look_back, ] <- 0
+# madz <- TTR::runMAD(zscores, n=lookb)
+# madz[1:lookb, ] <- 0
 
 tail(zscores)
 mad(zscores)
@@ -3859,22 +3859,22 @@ nrows <- NROW(ohlc)
 ohlc <- log(ohlc[, 1:4])
 closep <- Cl(ohlc)
 # Calculate the zscores
-look_back <- 11
-medianv <- TTR::runMedian(closep, n=look_back)
-medianv[1:look_back, ] <- 1
+lookb <- 11
+medianv <- TTR::runMedian(closep, n=lookb)
+medianv[1:lookb, ] <- 1
 zscores <- (closep-medianv)
-zscores[1:look_back, ] <- 0
-madz <- TTR::runMAD(zscores, n=10*look_back)
-madz[1:(10*look_back), ] <- 0
+zscores[1:lookb, ] <- 0
+madz <- TTR::runMAD(zscores, n=10*lookb)
+madz[1:(10*lookb), ] <- 0
 zscores <- ifelse(madz != 0, zscores/madz, 0)
 
 # Calculate the log variance for SPY
 varv <- xts::apply.daily(ohlc, HighFreq::calc_var_ohlc)
 # For VTI
-# varv <- sapply((2*look_back):nrows, function(ro_w) {
-#   HighFreq::calc_var_ohlc(ohlc[(ro_w-look_back+1):ro_w, ], scale=FALSE)
+# varv <- sapply((2*lookb):nrows, function(ro_w) {
+#   HighFreq::calc_var_ohlc(ohlc[(ro_w-lookb+1):ro_w, ], scale=FALSE)
 # })  # end sapply
-# varv <- c(varv[1]+numeric(2*look_back-1), varv)
+# varv <- c(varv[1]+numeric(2*lookb-1), varv)
 # x11(width=6, height=5)
 # plot(varv)
 # Plot the VTI volatility
@@ -3906,13 +3906,13 @@ range(low_scores)
 low_scores <- low_scores[low_scores > quantile(low_scores, 0.05)]
 low_scores <- low_scores[low_scores < quantile(low_scores, 0.95)]
 x11(width=6, height=5)
-hist(low_scores, xlim=c(quantile(low_scores, 0.05), quantile(low_scores, 0.95)), breaks=50, main=paste("low_scores", "look_back =", look_back))
+hist(low_scores, xlim=c(quantile(low_scores, 0.05), quantile(low_scores, 0.95)), breaks=50, main=paste("low_scores", "lookb =", lookb))
 
 range(high_scores)
 high_scores <- high_scores[high_scores > quantile(high_scores, 0.05)]
 high_scores <- high_scores[high_scores < quantile(high_scores, 0.95)]
 x11(width=6, height=5)
-hist(high_scores, xlim=c(quantile(high_scores, 0.05), quantile(high_scores, 0.95)), breaks=50, main=paste("high_scores", "look_back =", look_back))
+hist(high_scores, xlim=c(quantile(high_scores, 0.05), quantile(high_scores, 0.95)), breaks=50, main=paste("high_scores", "lookb =", lookb))
 
 
 
@@ -4019,27 +4019,27 @@ plot(pnls[(1e3*(1:(NROW(retp) %/% 1e3)))], t="l")
 library(HighFreq)
 
 # Calculate the rolling rescaled cumulative returns from OHLC data
-roll_range <- function(ohlc, look_back=11) {
+roll_range <- function(ohlc, lookb=11) {
   retp <- rutils::diffit(ohlc[, 4])
-  rangev <- HighFreq::roll_sum(retp, look_back=look_back)
-  var_rolling <- sqrt(HighFreq::roll_var_ohlc(ohlc, look_back=look_back, scale=FALSE))
-  look_back <- sqrt(look_back)
+  rangev <- HighFreq::roll_sum(retp, lookb=lookb)
+  var_rolling <- sqrt(HighFreq::roll_var_ohlc(ohlc, lookb=lookb, scale=FALSE))
+  lookb <- sqrt(lookb)
   hurst_rolling <- ifelse((var_rolling==0) | (rangev==0),
                           0.0,
-                          rangev/var_rolling/look_back)
+                          rangev/var_rolling/lookb)
   # Colnames(hurst_rolling) <- paste0(rutils::get_name(colnames(ohlc)[1]), ".Hurst")
   rutils::na_locf(hurst_rolling)
 }  # end roll_range
 
 
 # Calculate the rolling rescaled cumulative returns from returns data
-roll_range <- function(retp, cum_returns, look_back=11) {
-  rangev <- HighFreq::roll_sum(retp, look_back=look_back)
-  var_rolling <- sqrt(HighFreq::roll_var(retp, look_back=look_back))
-  look_back <- sqrt(look_back)
+roll_range <- function(retp, cum_returns, lookb=11) {
+  rangev <- HighFreq::roll_sum(retp, lookb=lookb)
+  var_rolling <- sqrt(HighFreq::roll_var(retp, lookb=lookb))
+  lookb <- sqrt(lookb)
   hurst_rolling <- ifelse((var_rolling==0) | (rangev==0),
                           0.0,
-                          rangev/var_rolling/look_back)
+                          rangev/var_rolling/lookb)
   # Colnames(hurst_rolling) <- paste0(rutils::get_name(colnames(ohlc)[1]), ".Hurst")
   rutils::na_locf(hurst_rolling)
 }  # end roll_range
@@ -4053,10 +4053,10 @@ dim(retp) <- c(nrows, 1)
 
 
 # Calculate the rolling Hurst for SPY
-hurst_rolling <- HighFreq::roll_hurst(ohlc=HighFreq::SPY, look_back=7)
+hurst_rolling <- HighFreq::roll_hurst(ohlc=HighFreq::SPY, lookb=7)
 # Calculate the rolling rescaled range
-hurst_rolling <- roll_range(ohlc=HighFreq::SPY, look_back=5)
-hurst_rolling <- roll_range(retp=retp, look_back=5)
+hurst_rolling <- roll_range(ohlc=HighFreq::SPY, lookb=5)
+hurst_rolling <- roll_range(retp=retp, lookb=5)
 # chart_Series(hurst_rolling["2009-03-10/2009-03-12"], name="SPY hurst_rolling")
 
 # threshz <- 0.5
@@ -4096,7 +4096,7 @@ returns100 <- zoo::na.locf(retv100, na.rm=FALSE)
 indeks <- cumsum(rowMeans(retv100))
 
 lagg <- 5
-sum_roll <- rutils::roll_sum(retv100, look_back=lagg)
+sum_roll <- rutils::roll_sum(retv100, lookb=lagg)
 weightv <- matrixStats::rowRanks(sum_roll)
 weightv <- (weights - 50)
 weightv <- rutils::lagit(weightv, lagg=1)
@@ -4126,25 +4126,25 @@ dygraphs::dygraph(wealth, main="S&P500 Mean Reverting Strategy") %>%
 
 # Define backtest functional for daily momentum strategy
 # If tre_nd=(-1) then it backtests a mean reverting strategy
-btmomdaily <- function(retp, look_back=252, bidask=0.001, tre_nd=1, ...) {
+btmomdaily <- function(retp, lookb=252, bidask=0.001, tre_nd=1, ...) {
   stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
   # Calculate the rolling variance
-  varv <- roll::roll_var(retp, width=look_back)
+  varv <- roll::roll_var(retp, width=lookb)
   varv <- zoo::na.locf(varv, na.rm=FALSE)
   # varv[is.na(varv)] <- 1
   varv[varv <= 0] <- 1
   # Calculate the rolling Sharpe
-  past <- roll::roll_mean(retp, width=look_back)
-  past[1:look_back, ] <- 1
+  past <- roll::roll_mean(retp, width=lookb)
+  past[1:lookb, ] <- 1
   weightv <- past/sqrt(varv)
   # weightv <- ifelse(varv > 0, past/sqrt(varv), 0)
   # weightv[varv == 0] <- 0
-  weightv[1:look_back, ] <- 1
+  weightv[1:lookb, ] <- 1
   weightv <- weightv/sqrt(rowSums(weightv^2))
   weightv[is.na(weightv)] <- 0
   weightv <- rutils::lagit(weightv, 2)
   # Calculate the momentum profits and losses
-  future <- rutils::lagit(past, (-look_back))
+  future <- rutils::lagit(past, (-lookb))
   pnls <- tre_nd*rowMeans(weights*future)
   # Calculate the transaction costs
   costs <- 0.5*bidask*rowSums(abs(rutils::diffit(weightv)))
@@ -4152,7 +4152,7 @@ btmomdaily <- function(retp, look_back=252, bidask=0.001, tre_nd=1, ...) {
 }  # end btmomdaily
 
 
-wealth <- btmomdaily(retp=retv100, look_back=5, bidask=0, tre_nd=(-1))
+wealth <- btmomdaily(retp=retv100, lookb=5, bidask=0, tre_nd=(-1))
 
 # Combine index with AAPL
 wealth <- cbind(wealth, indeks)
@@ -4215,7 +4215,7 @@ dygraphs::dygraph(quantmod::Cl(sp500env$TYL))
 
 library(rutils)
 ordern <- 3
-look_back <- 5
+lookb <- 5
 
 back_test <- function(symbol) {
   prices <- log(quantmod::Cl(get(symbol, rutils::etfenv)))
@@ -4224,9 +4224,9 @@ back_test <- function(symbol) {
   nrows <- NROW(retp)
   insample <- 1:(nrows %/% 2)
   out_of_sample <- (nrows %/% 2 + 1):nrows
-  predv <- rutils::roll_sum(retp, look_back=look_back)
-  respv <- rutils::lagit(predv, lagg=(-look_back))
-  predv <- sapply(1+look_back*(0:ordern), rutils::lagit, input=predv)
+  predv <- rutils::roll_sum(retp, lookb=lookb)
+  respv <- rutils::lagit(predv, lagg=(-lookb))
+  predv <- sapply(1+lookb*(0:ordern), rutils::lagit, input=predv)
   predv <- cbind(rep(1, nrows), predv)
   colnames(predv) <- paste0("pred_", 1:NCOL(predv))
   invmat <- MASS::ginv(predv[insample, 1:ordern])
@@ -4627,17 +4627,17 @@ all.equal(hurstlm, hurstfun)
 ### Backtests
 
 # Define backtest functional
-backtest_rolling <- function(retp, look_back=252, bidask=0.001, tre_nd=1, ...) {
+backtest_rolling <- function(retp, lookb=252, bidask=0.001, tre_nd=1, ...) {
   stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
   # Calculate the rolling variance
-  varv <- HighFreq::roll_var(retv_weighted, look_back=look_back)
+  varv <- HighFreq::roll_var(retv_weighted, lookb=lookb)
   varv <- zoo::na.locf(varv, na.rm=FALSE)
   varv[is.na(varv)] <- 0
   # Calculate the rolling Sharpe
-  past <- roll::roll_mean(retp, width=look_back)
+  past <- roll::roll_mean(retp, width=lookb)
   weightv <- past/sqrt(varv)
   weightv[varv == 0] <- 0
-  weightv[1:look_back, ] <- 1
+  weightv[1:lookb, ] <- 1
   weightv <- weightv/sqrt(rowSums(weightv^2))
   weightv[is.na(weightv)] <- 0
   weightv <- rutils::lagit(weightv)
@@ -4651,17 +4651,17 @@ backtest_rolling <- function(retp, look_back=252, bidask=0.001, tre_nd=1, ...) {
 
 # Define backtest functional
 backtest_weighted <- function(retp, returns_weighted,
-                              look_back=252, bidask=0.001, tre_nd=1, ...) {
+                              lookb=252, bidask=0.001, tre_nd=1, ...) {
   stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
   # Calculate the rolling variance
-  varv <- HighFreq::roll_var(retv_weighted, look_back=look_back)
+  varv <- HighFreq::roll_var(retv_weighted, lookb=lookb)
   varv <- zoo::na.locf(varv, na.rm=FALSE)
   varv[is.na(varv)] <- 0
   # Calculate the rolling Sharpe
-  past <- roll::roll_mean(retv_weighted, width=look_back)
+  past <- roll::roll_mean(retv_weighted, width=lookb)
   weightv <- past/sqrt(varv)
   weightv[varv == 0] <- 0
-  weightv[1:look_back, ] <- 1
+  weightv[1:lookb, ] <- 1
   weightv <- weightv/sqrt(rowSums(weightv^2))
   weightv[is.na(weightv)] <- 0
   weightv <- rutils::lagit(weightv)
@@ -4676,20 +4676,20 @@ backtest_weighted <- function(retp, returns_weighted,
 # Define backtest functional
 backtestmomentum <- function(retp, returns_weighted,
                               objfunc=function(retp) (sum(retp)/sd(retp)),
-                              look_back=12, rebalf="months", bidask=0.001,
+                              lookb=12, rebalf="months", bidask=0.001,
                               endd=rutils::calc_endpoints(retp, interval=rebalf),
                               with_weights=FALSE, ...) {
   stopifnot("package:rutils" %in% search() || require("rutils", quietly=TRUE))
   # Define look-back and look-forward intervals
   nrows <- NROW(endd)
-  startp <- c(rep_len(1, look_back-1), endd[1:(nrows-look_back+1)])
+  startp <- c(rep_len(1, lookb-1), endd[1:(nrows-lookb+1)])
   # Calculate the look-back intervals
-  look_backs <- cbind(startp, endd)
+  lookbs <- cbind(startp, endd)
   # Calculate the look-forward intervals
   look_fwds <- cbind(endd + 1, rutils::lagit(endd, -1))
   look_fwds[nrows, 1] <- endd[nrows]
   # Calculate the past performance over look-back intervals
-  past <- t(apply(look_backs, 1, function(ep) sapply(retv_weighted[ep[1]:ep[2]], objfunc)))
+  past <- t(apply(lookbs, 1, function(ep) sapply(retv_weighted[ep[1]:ep[2]], objfunc)))
   past[is.na(past)] <- 0
   # Calculate the future performance
   future <- t(apply(look_fwds, 1, function(ep) sapply(retp[ep[1]:ep[2]], sum)))
@@ -4710,20 +4710,20 @@ backtestmomentum <- function(retp, returns_weighted,
 }  # end backtestmomentum
 
 
-# Perform sapply loop over look_backs
+# Perform sapply loop over lookbs
 endd <- rutils::calc_endpoints(retp, interval="weeks")
-look_backs <- seq(3, 15, by=1)
+lookbs <- seq(3, 15, by=1)
 objfunc <- function(retp) sum(retp)/sd(retp)
-profilevs <- sapply(look_backs, function(look_back) {
+profilevs <- sapply(lookbs, function(lookb) {
   pnls <- backtestmomentum(retp=retp, returns_weighted=retv_weighted,
                              endd=endd,
-                             look_back=look_back, objfunc=objfunc)
+                             lookb=lookb, objfunc=objfunc)
   last(cumprod(1 + pnls))
 })  # end sapply
 x11(width=6, height=4)
-plot(x=look_backs, y=profilevs, t="l",
-     main="Strategy PnL as function of look_back",
-     xlab="look_back (months)", ylab="pnl")
+plot(x=lookbs, y=profilevs, t="l",
+     main="Strategy PnL as function of lookb",
+     xlab="lookb (months)", ylab="pnl")
 
 datev <- index(retp[endd])
 weightsaw <- c(0.30, 0.55, 0.15)
@@ -4731,9 +4731,9 @@ retsaw <- returns %*% weightvaw
 wealthaw <- cumprod(1 + retsaw)
 wealthaw <- xts::xts(wealthaw[endd], datev)
 
-look_back <- look_backs[which.max(profilevs)]
+lookb <- lookbs[which.max(profilevs)]
 pnls <- backtestmomentum(retp=retp, returns_weighted=retv_weighted,
-                           look_back=look_back, endd=endd,
+                           lookb=lookb, endd=endd,
                            objfunc=objfunc, with_weights=TRUE)
 tail(pnls)
 retsmom <- as.numeric(pnls[, 1])
@@ -4750,14 +4750,14 @@ dygraphs::dygraph(datav, main="Momentum Strategy") %>%
 
 
 # Plot multiple wealth curves
-# Perform sapply loop over look_backs
-wealth <- sapply(look_backs, backtestmomentum,
+# Perform sapply loop over lookbs
+wealth <- sapply(lookbs, backtestmomentum,
                   retp=retp,
                   returns_weighted=retv_weighted,
                   endd=endd,
                   objfunc=objfunc)
 wealth <- apply(wealth, 2, function(x) cumprod(1 + x))
-colnames(wealth) <- paste0("look_back=", look_backs)
+colnames(wealth) <- paste0("lookb=", lookbs)
 wealth <- xts(wealth, datev)
 tail(wealth)
 
@@ -4787,8 +4787,8 @@ volumes <- cbind(quantmod::Vo(etfenv$SVXY), quantmod::Vo(etfenv$VXX))
 volumes$VXX.Volume[whichna] <- volumes$SVXY.Volume[whichna]
 volumes <- rowMeans(volumes)
 
-roll_vwap <- rutils::roll_sum(xtsv=retp*volumes, look_back=look_back)
-volume_rolling <- rutils::roll_sum(xtsv=volumes, look_back=look_back)
+roll_vwap <- rutils::roll_sum(xtsv=retp*volumes, lookb=lookb)
+volume_rolling <- rutils::roll_sum(xtsv=volumes, lookb=lookb)
 roll_vwap <- roll_vwap/volume_rolling
 roll_vwap[is.na(roll_vwap)] <- 0
 roll_vwap
@@ -4916,9 +4916,9 @@ retp <- returns/sd(retp)
 prices <- cumsum(retp)
 
 # Scale the volume by the rolling average volume
-look_back <- 111
-volume_rolling <- rutils::roll_sum(xtsv=volumes, look_back=look_back)
-volumes <- look_back*volumes/volume_rolling
+lookb <- 111
+volume_rolling <- rutils::roll_sum(xtsv=volumes, lookb=lookb)
+volumes <- lookb*volumes/volume_rolling
 
 ## wippp
 ## Add to homeworks
@@ -5062,7 +5062,7 @@ abline(foo, lwd=3, col="red")
 
 
 ## Apply Manly transformation to make returns more normal
-lambda <- 1.5
+lambdaf <- 1.5
 
 # Modulus
 # Divide returns by square root of volume (volume clock)
@@ -5175,8 +5175,8 @@ library(rutils)
 # Define a rolling look-back window and a half window:
 # Use the %/% operator.
 
-look_back <- 11
-half_window <- look_back %/% 2
+lookb <- 11
+half_window <- lookb %/% 2
 
 # Calculate the a time series of rolling z-scores
 # (called zscores), using the Hampel filter code
@@ -5185,18 +5185,18 @@ half_window <- look_back %/% 2
 prices <- Cl(HighFreq::SPY)["T09:31:00/T15:59:00"]
 retp <- rutils::diffit(log(prices))
 
-medianv <- TTR::runMedian(prices, n=look_back)
-medianv[1:look_back, ] <- 1
+medianv <- TTR::runMedian(prices, n=lookb)
+medianv[1:lookb, ] <- 1
 sum(is.na(medianv))
-madv <- TTR::runMAD(prices, n=look_back)
-madv[1:look_back, ] <- 1
+madv <- TTR::runMAD(prices, n=lookb)
+madv[1:lookb, ] <- 1
 sum(is.na(madv))
 zscores <- ifelse(madv!=0, (prices-medianv)/madv, 0)
-zscores[1:look_back, ] <- 0
+zscores[1:lookb, ] <- 0
 madv <- zoo::na.locf(zscores)
 sum(is.na(zscores))
-madz <- TTR::runMAD(zscores, n=look_back)
-madz[1:look_back, ] <- 0
+madz <- TTR::runMAD(zscores, n=lookb)
+madz[1:lookb, ] <- 0
 
 # You should get the following output:
 tail(zscores)
@@ -5478,28 +5478,28 @@ load(paste0(data_dir, symbol, "_ohlc.RData"))
 nrows <- NROW(ohlc)
 ohlc <- coredata(ohlc)
 
-look_back <- 500
-predm <- cbind(rep(1, look_back), 1:look_back)
-degf <- (look_back - NCOL(predm))
+lookb <- 500
+predm <- cbind(rep(1, lookb), 1:lookb)
+degf <- (lookb - NCOL(predm))
 predinv <- MASS::ginv(predm)
 pred2 <- MASS::ginv(crossprod(predm))
 lagg <- 1
-datax <- cbind(1, look_back + lagg)
+datax <- cbind(1, lookb + lagg)
 datat <- t(datax)
 
 # influ_ence <- predm %*% predinv
 # fit_ted <- drop(influ_ence %*% tseries)
 
-# tseries <- ohlc[(look_back+1):(look_back+100), 4]
+# tseries <- ohlc[(lookb+1):(lookb+100), 4]
 # closep <- ohlc[201, 4]
 # calc_zscore(closep, tseries, predm, predinv, pred2, datax, datat, degf)
 
-zscores <- sapply((look_back+1):nrows, function(x) {
-  tseries <- ohlc[(x-look_back):(x-1), 4]
+zscores <- sapply((lookb+1):nrows, function(x) {
+  tseries <- ohlc[(x-lookb):(x-1), 4]
   closep <- ohlc[x, 4]
   calc_zscore(closep, tseries, predm, predinv, pred2, datax, datat, degf)
 })  # end sapply
-zscores <- c(rep(0, look_back), zscores)
+zscores <- c(rep(0, lookb), zscores)
 
 hist(zscores, breaks=100, freq=FALSE)
 quantile(zscores, 0.9)
@@ -5794,8 +5794,8 @@ retp <- rutils::diffit(log(com_bo[, paste(symbol, "Close", sep=".")]))
 
 
 # variance <- (highp - lowp)^2
-look_back <- 11
-varv <- HighFreq::roll_var_ohlc(ohlc=ohlc, look_back=look_back, scale=FALSE)
+lookb <- 11
+varv <- HighFreq::roll_var_ohlc(ohlc=ohlc, lookb=lookb, scale=FALSE)
 colnames(varv) <- "variance"
 volv <- sqrt(varv)
 colnames(volv) <- "volv"
@@ -5805,13 +5805,13 @@ colnames(volumes) <- "volume"
 # Define current and future returns
 # retp <- rutils::diffit(closep)
 # trailing average returns
-retp <- rutils::diffit(closep, lagg=look_back)/sqrt(look_back)
+retp <- rutils::diffit(closep, lagg=lookb)/sqrt(lookb)
 colnames(retp) <- "returns"
 # retadv <- rutils::lagit(retp, lagg=-1)
 # or
 # retadv <- 0.5*(retadv + rutils::lagit(retadv, lagg=-1))
-retadv <- rutils::lagit(rutils::diffit(closep, lagg=look_back), lagg=-look_back)/sqrt(look_back)
-# retadv <- rutils::lagit(HighFreq::roll_sum(retp, look_back=look_back), lagg=-look_back)/look_back
+retadv <- rutils::lagit(rutils::diffit(closep, lagg=lookb), lagg=-lookb)/sqrt(lookb)
+# retadv <- rutils::lagit(HighFreq::roll_sum(retp, lookb=lookb), lagg=-lookb)/lookb
 # retadv <- xts(retadv, index(ohlc))
 colnames(retadv) <- "retadv"
 # Scale returns using sigmoid
@@ -5838,22 +5838,22 @@ regmod <- HighFreq::calc_lm(respv=as.numeric(retadv), predm=cbind(retp, varv))
 regmod$coefficients
 
 # old: calculate score as the residual of the regression of the time series of closep prices
-look_back <- 11
-score <- HighFreq::roll_zscores(respv=close_num, predm=predm, look_back=look_back)
+lookb <- 11
+score <- HighFreq::roll_zscores(respv=close_num, predm=predm, lookb=lookb)
 colnames(score) <- "score"
-score[1:look_back] <- 0
+score[1:lookb] <- 0
 # or
-score <- calc_signal(look_back, close_num, predm)
+score <- calc_signal(lookb, close_num, predm)
 hist(score, freq=FALSE)
 # hist(score, xlim=c(-10, 10), freq=FALSE)
 
-# old: perform parallel loop over look_backs
-look_backs <- 15:35
+# old: perform parallel loop over lookbs
+lookbs <- 15:35
 library(parallel)
 num_cores <- detectCores()
 cluster <- makeCluster(num_cores-1)
 # clusterExport(cluster, varlist=c("closep", "predm"))
-signal_s <- parLapply(cluster, X=look_backs, fun=calc_signal, closep=close_num, predm=predm)
+signal_s <- parLapply(cluster, X=lookbs, fun=calc_signal, closep=close_num, predm=predm)
 
 
 # trade entry and exit levels
@@ -5887,7 +5887,7 @@ clusterExport(cluster, varlist=c("calc_revert"))
 pnls <- parLapply(cluster, X=signal_s, fun=run_strategies, retp=retp, enters=enters, exit=exit, return_series=FALSE)
 pnls <- rutils::do_call(rbind, pnls)
 colnames(pnls) <- paste0("enter=", enters)
-rownames(pnls) <- paste0("look_back=", look_backs)
+rownames(pnls) <- paste0("lookb=", lookbs)
 heatmap(pnls, Colv=NA, Rowv=NA, col=c("red", "blue"))
 rgl::persp3d(z=pnls, col="green")
 plot(colSums(pnls), t="l", xlab="")
@@ -5897,7 +5897,7 @@ plot(colSums(pnls), t="l", xlab="")
 pnls <- parLapply(cluster, X=signal_s[1:10], fun=run_strategies, retp=retp, enters=enters, exit=exit, return_series=TRUE)
 pnls <- rutils::do_call(cbind, pnls)
 pnls <- xts(pnls, index(ohlc))
-colnames(pnls) <- paste0("look_back=", look_backs[1:10])
+colnames(pnls) <- paste0("lookb=", lookbs[1:10])
 # plot matrix using plot.zoo()
 colors <- colorRampPalette(c("red", "blue"))(NCOL(pnls))
 plot.zoo(pnls[endpoints(pnls, on="days")], main="pnls", lwd=2,
@@ -5971,17 +5971,17 @@ posv <- rutils::lagit(posv, lagg=1)
 
 # wipp
 # Contrarian strategy using roll_maxmin()
-look_back <- 11
-max_min <- roll_maxmin(close_num, look_back)
+lookb <- 11
+max_min <- roll_maxmin(close_num, lookb)
 close_max <- (close_num == max_min[, 1])
 close_min <- (close_num == max_min[, 2])
-volv <- HighFreq::roll_var_ohlc(ohlc=ohlc_log, look_back=5*look_back, scale=FALSE)
+volv <- HighFreq::roll_var_ohlc(ohlc=ohlc_log, lookb=5*lookb, scale=FALSE)
 volv <- sqrt(volv)
 volv[1] <- volv[2]
 colnames(volv) <- "volv"
-dra_w <- rutils::diffit(close_num, lagg=look_back)
+dra_w <- rutils::diffit(close_num, lagg=lookb)
 dra_w <- as.numeric(dra_w/volv)
-max_min <- roll_maxmin(dra_w, look_back)
+max_min <- roll_maxmin(dra_w, lookb)
 draw_max <- (dra_w == max_min[, 1])
 draw_min <- (dra_w == max_min[, 2])
 
@@ -6083,40 +6083,40 @@ legend(x="left", title=NULL, legend=colnames(datav),
 
 
 # Calculate the rolling maximum and minimum over a vector of data
-roll_maxminr <- function(vectorv, look_back) {
+roll_maxminr <- function(vectorv, lookb) {
   nrows <- NROW(vectorv)
   max_min <- matrix(numeric(2*nrows), nc=2)
   # Startup periods
   max_min[1, 1] <- vectorv[1]
   max_min[1, 2] <- vectorv[1]
-  for (it in 2:(look_back-1)) {
+  for (it in 2:(lookb-1)) {
     subv <- vectorv[1:it]
     max_min[it, 1] <- max(subv)
     max_min[it, 2] <- min(subv)
   }  # end for
   # remaining periods
-  for (it in look_back:nrows) {
-    subv <- vectorv[(it-look_back+1):it]
+  for (it in lookb:nrows) {
+    subv <- vectorv[(it-lookb+1):it]
     max_min[it, 1] <- max(subv)
     max_min[it, 2] <- min(subv)
   }  # end for
   return(max_min)
 }  # end roll_maxminr
 
-max_min <- roll_maxmin(close_num, look_back)
-max_minr <- roll_maxminr(close_num, look_back)
+max_min <- roll_maxmin(close_num, lookb)
+max_minr <- roll_maxminr(close_num, lookb)
 all.equal(max_min, max_minr)
-bar <- TTR::runMax(x=close_num, n=look_back)
-all.equal(max_min[-(1:look_back), 1], bar[-(1:look_back)])
-bar <- TTR::runMin(x=close_num, n=look_back)
-all.equal(max_min[-(1:look_back), 2], bar[-(1:look_back)])
+bar <- TTR::runMax(x=close_num, n=lookb)
+all.equal(max_min[-(1:lookb), 1], bar[-(1:lookb)])
+bar <- TTR::runMin(x=close_num, n=lookb)
+all.equal(max_min[-(1:lookb), 2], bar[-(1:lookb)])
 max_min <- xts(max_min, index(closep["2014-05"]))
 dygraphs::dygraph(max_min[, 1]-closep["2014-05"])
 
 library(microbenchmark)
 summary(microbenchmark(
-  tt_r=TTR::runMax(x=closep["2014-05"], n=look_back),
-  rcpp=roll_maxmin(as.numeric(closep["2014-05"]), look_back),
+  tt_r=TTR::runMax(x=closep["2014-05"], n=lookb),
+  rcpp=roll_maxmin(as.numeric(closep["2014-05"]), lookb),
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
 # end of old stuff
@@ -6135,10 +6135,10 @@ datev <- xts::.index(ohlc)
 # foo <- unique(datev)
 predm <- matrix(datev, nc=1)
 # foo <- MASS::ginv(predm)
-look_back <- 11
+lookb <- 11
 zscores <- HighFreq::roll_zscores(respv=closep,
                                    predm=predm,
-                                   look_back=look_back)
+                                   lookb=lookb)
 colnames(zscores) <- "zscores"
 zscores[1:3] <- 0
 clop <- (closep-openp)
@@ -6173,8 +6173,8 @@ indicm <- cbind(retp, volv, skew)
 colnamev <- colnames(indicm)
 
 # Scale indicm using roll_scale()
-look_back <- 11
-indicm <- roll::roll_scale(data=indicm, width=look_back, min_obs=1)
+lookb <- 11
+indicm <- roll::roll_scale(data=indicm, width=lookb, min_obs=1)
 indicm[1, ] <- 0
 round(cor(indicm), 3)
 indicm <- cbind(indicm, zscores)
@@ -6202,7 +6202,7 @@ pcad$rotation
 # predictor from pcad
 # rolling average
 indicm <- lapply(1:NCOL(indicm), function(colnum) {
-  HighFreq::roll_sum(indicm[, colnum], look_back=look_back)/look_back
+  HighFreq::roll_sum(indicm[, colnum], lookb=lookb)/lookb
 })  # end lapply
 indicm <- rutils::do_call(cbind, indicm)
 colnames(indicm) <- colnamev
@@ -6212,9 +6212,9 @@ colnames(indicm) <- colnamev
 predm <- as.data.frame(cbind(retadv, indicm))
 colnames(predm)[1] <- "retadv"
 # or
-predm <- cbind(HighFreq::roll_sum(retp, look_back=look_back),
-                 HighFreq::roll_sum(momind, look_back=look_back),
-                 HighFreq::roll_sum(skew, look_back=look_back))
+predm <- cbind(HighFreq::roll_sum(retp, lookb=lookb),
+                 HighFreq::roll_sum(momind, lookb=lookb),
+                 HighFreq::roll_sum(skew, lookb=lookb))
 predm <- as.data.frame(cbind(retadv, predm))
 # predm <- cbind(retadv>0, predm)
 colnames(predm) <- c("indic", "returns", "momentum", "skew")
@@ -6233,13 +6233,13 @@ sum(is.na(predm))
 # predm <- cbind(retp, clhi, cllow, rutils::diffit(varv), rutils::diffit(volumes))
 # predictor from pcad
 # define indicators
-look_back <- 5
+lookb <- 5
 indicm <- c("ES1.Close", "TY1.Close", "TU1.Close", "UX1.Close", "UX2.Close")
 dygraphs::dygraph(ohlc[, indicm[2]]-ohlc[, indicm[3]])
 indicm <- lapply(indicm, function(colnum) {
   colnum <- ohlc[, colnum]
-  score <- rutils::diffit(closep, lagg=look_back)/sqrt(look_back)/sqrt(HighFreq::roll_var_ohlc(ohlc=ohlc, look_back=look_back, scale=FALSE))
-  HighFreq::roll_sum(indicm[, colnum], look_back=look_back)/look_back
+  score <- rutils::diffit(closep, lagg=lookb)/sqrt(lookb)/sqrt(HighFreq::roll_var_ohlc(ohlc=ohlc, lookb=lookb, scale=FALSE))
+  HighFreq::roll_sum(indicm[, colnum], lookb=lookb)/lookb
 })  # end lapply
 indicm <- rutils::do_call(cbind, indicm)
 colnames(indicm) <- colnamev
@@ -6249,9 +6249,9 @@ predm <- as.data.frame(cbind(retadv, predm))
 predm <- as.data.frame(cbind(retadv, indicm))
 colnames(predm)[1] <- "retadv"
 # or
-predm <- cbind(HighFreq::roll_sum(retp, look_back=look_back),
-                 HighFreq::roll_sum(momind, look_back=look_back),
-                 HighFreq::roll_sum(skew, look_back=look_back))
+predm <- cbind(HighFreq::roll_sum(retp, lookb=lookb),
+                 HighFreq::roll_sum(momind, lookb=lookb),
+                 HighFreq::roll_sum(skew, lookb=lookb))
 predm <- as.data.frame(cbind(retadv, predm))
 # predm <- cbind(retadv>0, predm)
 colnames(predm) <- c("indic", "returns", "momentum", "skew")
@@ -6293,10 +6293,10 @@ score <- rutils::lagit(score)
 
 # Signal from z-scores (t-values) of trailing slope
 predm <- matrix(xts::.index(ohlc), nc=1)
-look_back <- 3
-score <- HighFreq::roll_zscores(respv=closep, predm=predm, look_back=look_back)
-score <- roll::roll_scale(data=score, width=look_back, min_obs=1)
-score[1:look_back, ] <- 0
+lookb <- 3
+score <- HighFreq::roll_zscores(respv=closep, predm=predm, lookb=lookb)
+score <- roll::roll_scale(data=score, width=lookb, min_obs=1)
+score[1:lookb, ] <- 0
 score[is.infinite(score)] <- NA
 score <- zoo::na.locf(score, na.rm=FALSE)
 sum(is.infinite(score))
@@ -6323,7 +6323,7 @@ par_am <- cbind(8:12, rep((3:12)/10, each=NROW(8:12)))
 posit_mat <- sapply(1:NROW(par_am), function(it) {
   look_short <- par_am[it, 1]
   enter <- par_am[it, 2]
-  score <- HighFreq::roll_zscores(respv=closep, predm=predm, look_back=look_short)
+  score <- HighFreq::roll_zscores(respv=closep, predm=predm, lookb=look_short)
   score[1:look_short, ] <- 0
   # Scale score using roll_scale()
   score <- roll::roll_scale(data=score, width=look_short, min_obs=1)
@@ -6351,17 +6351,17 @@ dygraphs::dygraph(cbind(closep, pnls)[endpoints(closep, on="days")], main="OHLC 
 
 # Scale returns using MAD median
 retn <- as.numeric(retp)
-foo <- sapply((look_back+1):NROW(retn), function(it) {
-  retsub <- retn[(it-look_back+1):it]
+foo <- sapply((lookb+1):NROW(retn), function(it) {
+  retsub <- retn[(it-lookb+1):it]
   (retn[it]-median(retsub))/mad(retsub, constant=1.0)
 })  # end sapply
 tail(foo)
-bar <- HighFreq::roll_scale(matrixv=retp, look_back=look_back, use_median=TRUE)
+bar <- HighFreq::roll_scale(matrixv=retp, lookb=lookb, use_median=TRUE)
 bar[is.infinite(bar), ] <- 0
 tail(drop(bar))
 summary(microbenchmark(
-  roll=roll::roll_scale(data=retn, width=look_back, min_obs=1),
-  rcpp=roll_scale(matrixv=retn, look_back=look_back),
+  roll=roll::roll_scale(data=retn, width=lookb, min_obs=1),
+  rcpp=roll_scale(matrixv=retn, lookb=lookb),
   times=10))[, c(1, 4, 5)]  # end microbenchmark summary
 
 foo <- (retn-median(retn))/mad(retn, constant=1.0)
@@ -6393,36 +6393,36 @@ cllow <- (close_num == low_num)
 indeks <- 1:NROW(ohlc)
 predm <- matrix(indeks, nc=1)
 
-look_back <- 15
-run_signal <- function(look_back, returns) {
-  score <- HighFreq::roll_scale(matrixv=retp, look_back=look_back, use_median=TRUE)
-  score[1:look_back, ] <- 0
+lookb <- 15
+run_signal <- function(lookb, returns) {
+  score <- HighFreq::roll_scale(matrixv=retp, lookb=lookb, use_median=TRUE)
+  score[1:lookb, ] <- 0
   # score[is.infinite(score), ] <- 0
   score[is.infinite(score)] <- NA
   score <- zoo::na.locf(score, na.rm=FALSE)
   rutils::lagit(score, lagg=1)
 }  # end run_signal
-score <- run_signal(look_back, returns)
-run_signal <- function(look_back, closep, predm) {
-  score <- HighFreq::roll_zscores(respv=closep, predm=predm, look_back=look_back)
-  score[1:look_back, ] <- 0
-  # score <- HighFreq::roll_scale(matrixv=score, look_back=look_back, use_median=TRUE)
-  # score[1:look_back, ] <- 0
+score <- run_signal(lookb, returns)
+run_signal <- function(lookb, closep, predm) {
+  score <- HighFreq::roll_zscores(respv=closep, predm=predm, lookb=lookb)
+  score[1:lookb, ] <- 0
+  # score <- HighFreq::roll_scale(matrixv=score, lookb=lookb, use_median=TRUE)
+  # score[1:lookb, ] <- 0
   # score[is.infinite(score), ] <- 0
   score[is.infinite(score)] <- NA
   score <- zoo::na.locf(score, na.rm=FALSE)
   rutils::lagit(score, lagg=1)
 }  # end run_signal
-score <- run_signal(look_back, closep, predm)
+score <- run_signal(lookb, closep, predm)
 hist(score, freq=FALSE)
 hist(score, xlim=c(-10, 10), freq=FALSE)
 
-# perform parallel loop over look_backs under Windows
-look_backs <- 15:35
+# perform parallel loop over lookbs under Windows
+lookbs <- 15:35
 library(parallel)
 cluster <- makeCluster(num_cores-1)
 clusterExport(cluster, varlist=c("closep", "predictor"))
-signal_s <- parLapply(cluster, X=look_backs, fun=run_signal, closep=closep, predm=predm)
+signal_s <- parLapply(cluster, X=lookbs, fun=run_signal, closep=closep, predm=predm)
 
 
 # clhi and cllow are Boolean vectors which are TRUE if the close price is at the high or low price
@@ -6461,7 +6461,7 @@ pnls <- parLapply(cluster, X=signal_s, fun=run_strategies, retp=retp, enters=ent
 stopCluster(cluster)  # Stop R processes over cluster under Windows
 pnls <- rutils::do_call(cbind, pnls)
 rownames(pnls) <- paste0("enter=", enters)
-colnames(pnls) <- paste0("look_back=", look_backs)
+colnames(pnls) <- paste0("lookb=", lookbs)
 heatmap(pnls, Colv=NA, Rowv=NA, col=c("red", "blue"))
 pnls <- rowSums(pnls)
 pnls <- xts(pnls, index(ohlc))
@@ -6474,19 +6474,19 @@ dygraphs::dygraph(cbind(closep, pnls)[endpoints(pnls, on="days")], main="OHLC Te
 
 # trade ensemble of strategies using slope as technical indicator
 # mean-reverting strategies
-foo <- sapply(2:15, function(look_back) {
+foo <- sapply(2:15, function(lookb) {
   score <- HighFreq::roll_zscores(respv=closep,
                           predm=predm,
-                          look_back=look_back)
+                          lookb=lookb)
   score[1:3, ] <- 0
   # score <- rutils::lagit(score)
   -sign(score)
 })  # end sapply
 # trending strategies
-bar <- sapply(10*(10:15), function(look_back) {
+bar <- sapply(10*(10:15), function(lookb) {
   score <- HighFreq::roll_zscores(respv=closep,
                           predm=predm,
-                          look_back=look_back)
+                          lookb=lookb)
   score[1:3, ] <- 0
   # score <- rutils::lagit(score)
   sign(score)
@@ -6507,20 +6507,20 @@ dygraphs::dygraph(cbind(closep, pnls), main="OHLC Technicals Strategy") %>%
 
 # regress retadv versus momind indicator
 # momind <- momind[abs(momind)>0.9]
-foo <- sapply(1:10, function(look_back) {
-  if (look_back>1)
-    retadv <- rutils::lagit(HighFreq::roll_sum(retp, look_back=look_back), lagg=-look_back)/look_back
+foo <- sapply(1:10, function(lookb) {
+  if (lookb>1)
+    retadv <- rutils::lagit(HighFreq::roll_sum(retp, lookb=lookb), lagg=-lookb)/lookb
   else
-    retadv <- rutils::lagit(retp, lagg=-look_back)
+    retadv <- rutils::lagit(retp, lagg=-lookb)
   regmod <- lm(retadv ~ momind)
   regsum <- summary(regmod)
   regsum$coefficients[2, 3]
 })  # end sapply
 
 # use average returns as predictor
-foo <- sapply(1:11, function(look_back) {
-  if (look_back>1)
-    retp <- HighFreq::roll_sum(retp, look_back=look_back)/look_back
+foo <- sapply(1:11, function(lookb) {
+  if (lookb>1)
+    retp <- HighFreq::roll_sum(retp, lookb=lookb)/lookb
   else
     retp <- returns
   regmod <- lm(retadv ~ returns)
@@ -6719,7 +6719,7 @@ endd <- xts::endpoints(predm, "years")
 
 ## Apply rolling centering and scaling to the predictor matrix
 # library(roll)
-predm <- roll::roll_scale(data=predm, width=100*look_back, min_obs=1)
+predm <- roll::roll_scale(data=predm, width=100*lookb, min_obs=1)
 # remove NAs
 predm[is.na(predm)] <- 0
 sum(is.na(predm))
@@ -6898,9 +6898,9 @@ excess <- returns - riskf
 endd <- rutils::calc_endpoints(retp, interval="months")
 endd <- endd[endd>50]
 nrows <- NROW(endd)
-# Define 12-month look_back interval and startp over sliding window
-look_back <- 12
-startp <- c(rep_len(1, look_back-1), endd[1:(nrows-look_back+1)])
+# Define 12-month lookb interval and startp over sliding window
+lookb <- 12
+startp <- c(rep_len(1, lookb-1), endd[1:(nrows-lookb+1)])
 
 # Define the shrinkage intensity
 alpha <- 0.5
@@ -7504,10 +7504,10 @@ retp <- apply(retp, 2, cumsum)
 # plot.zoo(retp, plot.type="single")
 
 # length of lookback window
-look_back <- 100
+lookb <- 100
 # define endd with beginning stub
-nagg <- nrows %/% look_back
-endd <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
+nagg <- nrows %/% lookb
+endd <- c(0, nrows-lookb*nagg+lookb*(0:nagg))
 nrows <- NROW(endd)
 # startp are single-period lag of endd
 startp <- endd[c(1, 1:(nrows-1))] + 1
@@ -7532,7 +7532,7 @@ plot.zoo(cumsum(pnls))
 
 
 ## cum_pnl for multi-manager strategy
-cum_pnl <- function(sharper, retp=NULL, meanv=NULL, nman, nrows, look_back, volv=0.01) {
+cum_pnl <- function(sharper, retp=NULL, meanv=NULL, nman, nrows, lookb, volv=0.01) {
   # Simulate Brownian motion
   if(is.null(retp)) {
     probv <- (sharper/sqrt(250)+1)/2
@@ -7549,8 +7549,8 @@ cum_pnl <- function(sharper, retp=NULL, meanv=NULL, nman, nrows, look_back, volv
   }  # end if
 
   # define endd with beginning stub
-  nagg <- nrows %/% look_back
-  endd <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
+  nagg <- nrows %/% lookb
+  endd <- c(0, nrows-lookb*nagg+lookb*(0:nagg))
   nrows <- NROW(endd)
   # startp are single-period lag of endd
   startp <- endd[c(1, 1:(nrows-1))] + 1
@@ -7573,29 +7573,29 @@ cum_pnl <- function(sharper, retp=NULL, meanv=NULL, nman, nrows, look_back, volv
   sum(pnls)
 }  # end cum_pnl
 
-cum_pnl(retp=retp, look_back=100)
+cum_pnl(retp=retp, lookb=100)
 
-cum_pnl(sharper=0.4, nman=11, look_back=100, nrows=5000)
+cum_pnl(sharper=0.4, nman=11, lookb=100, nrows=5000)
 
 
 
 ## cum_pnl for multi-manager strategy (simpler version)
-cum_pnl <- function(look_back, nrows=NULL, sharper=NULL, retp=NULL, meanv=NULL, nman=NULL, volv=0.01) {
+cum_pnl <- function(lookb, nrows=NULL, sharper=NULL, retp=NULL, meanv=NULL, nman=NULL, volv=0.01) {
   # Calculate the drifts
   if(is.null(meanv)) {
     probv <- (sharper/sqrt(250)+1)/2
     # Adjust probability to account for multiple managers
     p1 <- (0.5*nman + (probv - 0.5)*(nman-1)) / nman
     p2 <- (0.5*nman - (probv - 0.5)) / nman
-    meanv <- volv*look_back*c(2*p1-1, rep(2*p2-1, nman-1))
+    meanv <- volv*lookb*c(2*p1-1, rep(2*p2-1, nman-1))
   } else {
     nman <- NROW(meanv)
   }  # end if
   # Simulate Brownian motion
   if(is.null(retp)) {
     # set.seed(1121)  # reset random number generator
-    nagg <- nrows %/% look_back
-    retp <- sapply(meanv, rnorm, n=nagg, sd=sqrt(look_back)*volv)
+    nagg <- nrows %/% lookb
+    retp <- sapply(meanv, rnorm, n=nagg, sd=sqrt(lookb)*volv)
   } else {
     nman <- NCOL(retp)
     nrows <- NROW(retp)
@@ -7613,14 +7613,14 @@ cum_pnl <- function(look_back, nrows=NULL, sharper=NULL, retp=NULL, meanv=NULL, 
 
 
 ## cum_pnl for multi-manager strategy (simplest version)
-cum_pnl <- function(look_back, nrows, sharper=NULL, retp=NULL, meanv=NULL, nman=NULL, volv=0.01) {
+cum_pnl <- function(lookb, nrows, sharper=NULL, retp=NULL, meanv=NULL, nman=NULL, volv=0.01) {
   # Calculate the drifts
   if(is.null(meanv)) {
     probv <- (sharper/sqrt(250)+1)/2
     # Adjust probability to account for multiple managers
     p1 <- (0.5*nman + (probv - 0.5)*(nman-1)) / nman
     p2 <- (0.5*nman - (probv - 0.5)) / nman
-    meanv <- volv*look_back*c(2*p1-1, rep(2*p2-1, nman-1))
+    meanv <- volv*lookb*c(2*p1-1, rep(2*p2-1, nman-1))
   } else {
     nman <- NROW(meanv)
   }  # end if
@@ -7629,35 +7629,35 @@ cum_pnl <- function(look_back, nrows, sharper=NULL, retp=NULL, meanv=NULL, nman=
   probv <- integrate(function(x, ...)
     dnorm(x, mean=meanv[1], ...)*pnorm(x, mean=meanv[2], ...)^(nman-1),
             low=-3.0, up=3.0,
-            sd=sqrt(look_back)*volv)$value
+            sd=sqrt(lookb)*volv)$value
   # return total expected pnl
-  nagg <- nrows %/% look_back
+  nagg <- nrows %/% lookb
   nagg*(probv*meanv[1] + (1-probv)*meanv[2])
 }  # end cum_pnl
 
-cum_pnl(sharper=0.4, nman=11, meanv=meanv, look_back=100, nrows=5000)
-cum_pnl(sharper=0.4, nman=11, look_back=100, nrows=5000)
-cum_pnl(look_back=100, sharper=0.4, nman=11, nrows=5000)
+cum_pnl(sharper=0.4, nman=11, meanv=meanv, lookb=100, nrows=5000)
+cum_pnl(sharper=0.4, nman=11, lookb=100, nrows=5000)
+cum_pnl(lookb=100, sharper=0.4, nman=11, nrows=5000)
 
 # Calculate the average pnl
 foo <- mean(sapply(1:10000, function(x)
-  cum_pnl(meanv=meanv, look_back=100, nrows=5000)))
+  cum_pnl(meanv=meanv, lookb=100, nrows=5000)))
 
 foo <- mean(sapply(1:10000, function(x)
-  cum_pnl(look_back=100, sharper=0.4, nman=11, nrows=500000)))
+  cum_pnl(lookb=100, sharper=0.4, nman=11, nrows=500000)))
 
 # perform loop over lookback windows
-look_backs <- 100*(1:20)
-foo <- sapply(look_backs, cum_pnl,
+lookbs <- 100*(1:20)
+foo <- sapply(lookbs, cum_pnl,
               sharper=0.4, nman=11, nrows=50000)
-foo <- cbind(look_backs, foo)
+foo <- cbind(lookbs, foo)
 plot(foo, t="l")
 plot(cumsum(pnls), t="l")
 
 # perform loop over number of managers
 nman <- 2*(1:50)
 foo <- sapply(nman, cum_pnl,
-              retp=NULL, sharper=0.4, look_back=100, nrows=50000, meanv=NULL, volv=0.01)
+              retp=NULL, sharper=0.4, lookb=100, nrows=50000, meanv=NULL, volv=0.01)
 foo <- cbind(nman, foo)
 plot(foo, t="l")
 
@@ -7714,10 +7714,10 @@ plot.zoo(apply(retp, 2, cumsum),
 # Calculate the cumulative returns
 pnls <- apply(retp, 2, cumsum)
 # length of lookback window
-look_back <- 100
+lookb <- 100
 # define endd with beginning stub
-nagg <- nrows %/% look_back
-endd <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
+nagg <- nrows %/% lookb
+endd <- c(0, nrows-lookb*nagg+lookb*(0:nagg))
 nrows <- NROW(endd)
 # startp are single-period lag of endd
 startp <- endd[c(1, 1:(nrows-1))] + 1
@@ -7737,11 +7737,11 @@ plot.zoo(cumsum(pnls))
 
 
 ## cum_pnl for multi-manager strategy (simpler version)
-cum_pnl <- function(look_back, returns) {
+cum_pnl <- function(lookb, returns) {
   nrows <- NROW(retp)
   # define endd with beginning stub
-  nagg <- nrows %/% look_back
-  endd <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
+  nagg <- nrows %/% lookb
+  endd <- c(0, nrows-lookb*nagg+lookb*(0:nagg))
   nrows <- NROW(endd)
   # startp are single-period lag of endd
   startp <- endd[c(1, 1:(nrows-1))] + 1
@@ -7758,14 +7758,14 @@ cum_pnl <- function(look_back, returns) {
   sum(retp[cbind(1:NROW(retp), bestm)])
 }  # end cum_pnl
 
-cum_pnl(look_back=100, retp=pnls)
+cum_pnl(lookb=100, retp=pnls)
 
 
 ## cum_pnl for trend-following multi-manager strategy (without endd)
-cum_pnl <- function(look_back, returns, pnls) {
+cum_pnl <- function(lookb, returns, pnls) {
   # nrows <- NROW(retp)
   # total returns aggregated over overlapping windows
-  retagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  retagg <- apply(pnls, 2, rutils::diffit, lag=lookb)
   # Switch to best manager with biggest total returns
   bestm <- apply(retagg, 1, which.max)
   bestm <- rutils::lagit(bestm)
@@ -7777,31 +7777,31 @@ cum_pnl <- function(look_back, returns, pnls) {
 
 # Calculate the cumulative returns
 pnls <- apply(retp, 2, cumsum)
-cum_pnl(look_back=100, retp=retp, pnls=pnls)
+cum_pnl(lookb=100, retp=retp, pnls=pnls)
 
 
 ## perform loop over lookback windows
 # lengths of lookbacks windows
-look_backs <- 20*(1:50)
-pnls <- sapply(look_backs, cum_pnl, subx=1, retp=retp, pnls=pnls)
-pnls <- cbind(look_backs, pnls)
+lookbs <- 20*(1:50)
+pnls <- sapply(lookbs, cum_pnl, subx=1, retp=retp, pnls=pnls)
+pnls <- cbind(lookbs, pnls)
 plot(pnls, t="l")
 # plot(cumsum(pnls), t="l")
 
 
-## pre-calculate row order indices for a vector of look_backs
+## pre-calculate row order indices for a vector of lookbs
 # perform loop over lookback windows
 # lengths of lookbacks windows
-look_backs <- 20*(1:50)
-orderstats <- lapply(look_backs, function(look_back) {
+lookbs <- 20*(1:50)
+orderstats <- lapply(lookbs, function(lookb) {
   # total returns aggregated over overlapping windows
-  retagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  retagg <- apply(pnls, 2, rutils::diffit, lag=lookb)
   ordern <- t(apply(retagg, 1, order))
   ordern <- rutils::lagit(ordern)
   ordern[1, ] <- 1
   ordern
 })  # end lapply
-names(orderstats) <- look_backs
+names(orderstats) <- lookbs
 
 
 ## cum_pnl for long-short multi-manager strategy (without endd)
@@ -7831,7 +7831,7 @@ cum_pnl(select_best=1, select_worst=1, retp=retp, ordern=orderstats[[5]])
 
 ## perform loop over lookback windows
 pnls <- sapply(orderstats, cum_pnl, select_best=1, select_worst=1, retp=retp)
-pnls <- cbind(look_backs, pnls)
+pnls <- cbind(lookbs, pnls)
 plot(pnls, t="l")
 # plot(cumsum(pnls), t="l")
 
@@ -7844,17 +7844,17 @@ retp <- matrix(volv*rnorm(nman*nrows) - volv^2/2, nc=nman) + drift
 # Calculate the cumulative returns
 pnls <- apply(retp, 2, cumsum)
 
-## pre-calculate row order indices for a vector of look_backs
-look_backs <- 20*(1:50)
-orderstats <- lapply(look_backs, function(look_back) {
+## pre-calculate row order indices for a vector of lookbs
+lookbs <- 20*(1:50)
+orderstats <- lapply(lookbs, function(lookb) {
   # total returns aggregated over overlapping windows
-  retagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  retagg <- apply(pnls, 2, rutils::diffit, lag=lookb)
   ordern <- t(apply(retagg, 1, order))
   ordern <- rutils::lagit(ordern)
   ordern[1, ] <- 1
   ordern
 })  # end lapply
-names(orderstats) <- look_backs
+names(orderstats) <- lookbs
 
 ## cum_pnl for long-short multi-manager strategy (without endd)
 cum_pnl <- function(select_best=NULL, select_worst=NULL, returns, ordern) {
@@ -7882,7 +7882,7 @@ cum_pnl <- function(select_best=NULL, select_worst=NULL, returns, ordern) {
 
 # perform loop over lookback windows
 pnls <- sapply(orderstats, cum_pnl, select_best=1, select_worst=NULL, retp=retp)
-pnls <- cbind(look_backs, pnls)
+pnls <- cbind(lookbs, pnls)
 # par(mar=c(1, 1, 1, 1), oma=c(1, 1, 1, 1))
 # plot(pnls, t="l", main="Trend-following PnL, as function of lookback window")
 
@@ -7893,21 +7893,21 @@ retp <- matrix(volv*rnorm(nman*nrows) - volv^2/2, nc=nman) + 2*drift
 # Calculate the cumulative returns
 pnls <- apply(retp, 2, cumsum)
 
-## pre-calculate row order indices for a vector of look_backs
-orderstats2x <- lapply(look_backs, function(look_back) {
+## pre-calculate row order indices for a vector of lookbs
+orderstats2x <- lapply(lookbs, function(lookb) {
   # total returns aggregated over overlapping windows
-  retagg <- apply(pnls, 2, rutils::diffit, lag=look_back)
+  retagg <- apply(pnls, 2, rutils::diffit, lag=lookb)
   ordern <- t(apply(retagg, 1, order))
   ordern <- rutils::lagit(ordern)
   ordern[1, ] <- 1
   ordern
 })  # end lapply
-names(orderstats2x) <- look_backs
+names(orderstats2x) <- lookbs
 
 plot.zoo(cbind(pnls[, 2], pnls2x), main="Long-short Ensemble PnL, as function of lookback window",
          lwd=2, xaxt="n", xlab="lookback windows", ylab="PnL", plot.type="single", col=c("black", "red"))
 # Add x-axis
-axis(1, seq_along(look_backs), look_backs)
+axis(1, seq_along(lookbs), lookbs)
 # Add legend
 legend(x="top", legend=paste0("SR=", c(0.4, 0.8)),
        inset=0.0, cex=0.8, bg="white",
@@ -7921,10 +7921,10 @@ legend(x="top", legend=paste0("SR=", c(0.4, 0.8)),
 library(parallel)
 cluster <- makeCluster(num_cores-1)
 
-foo <- sapply(look_backs, function(look_back) {
+foo <- sapply(lookbs, function(lookb) {
   # define endd with beginning stub
-  nagg <- nrows %/% look_back
-  endd <- c(0, nrows-look_back*nagg+look_back*(0:nagg))
+  nagg <- nrows %/% lookb
+  endd <- c(0, nrows-lookb*nagg+lookb*(0:nagg))
   nrows <- NROW(endd)
   # startp are single-period lag of endd
   startp <- endd[c(1, 1:(nrows-1))] + 1
@@ -7957,7 +7957,7 @@ foo <- sapply(look_backs, function(look_back) {
 foo <- t(foo)
 dim(foo)
 foo
-foo <- cbind(look_backs, foo)
+foo <- cbind(lookbs, foo)
 plot(foo, t="l")
 plot(foo[, 1]/foo[, 2], t="l")
 
@@ -7984,14 +7984,14 @@ optimd <- optim(par=rep(0.5, 2*NCOL(predm)),
                 lower=rep(-2, 2*NCOL(predm)),
                 predm=predm[datev],
                 retp=retp[datev],
-                lambda=lambda)
+                lambdaf=lambdaf)
 
 betas <- optimd$par
 names(betas) <- c(paste0(colnames(predm), "_long"), paste0(colnames(predm), "_short"))
 
 
 ## cum_pnl vectorized function for contrarian strategy with threshold
-cum_pnl <- function(betas, lagg=15, predm=predm, retp=retp, lambda=0) {
+cum_pnl <- function(betas, lagg=15, predm=predm, retp=retp, lambdaf=0) {
   ncols <- NCOL(predm)
   posv <- rep.int(NA, NROW(predm))
   posv[1] <- 0
@@ -8008,7 +8008,7 @@ cum_pnl <- function(betas, lagg=15, predm=predm, retp=retp, lambda=0) {
   # betac <- (sum(pnls*retp) - sum(pnls)*sum(retp)) / (sum(pnls*pnls) - sum(pnls)^2 )
   # -(exp(sum(pnls) - betac*sum(retp)) - 1)
   # -(exp(sum(posv*retp))-1) # / (sum(abs(rutils::diffit(posv))) / 2/ 1e5) / abs(sum(posv>0) - sum(posv<0))
-  -((exp(sum(posv*retp))-1) - lambda*sum(abs(betas)))
+  -((exp(sum(posv*retp))-1) - lambdaf*sum(abs(betas)))
 }  # end cum_pnl
 
 cum_pnl(betas=betas, predm=predm[datev], retp=retp[datev])
@@ -8019,7 +8019,7 @@ optimd <- DEoptim::DEoptim(fn=cum_pnl,
                            lower=rep(-2, NCOL(predm)),
                            predm=predm[datev],
                            retp=retp[datev],
-                           lambda=lambda,
+                           lambdaf=lambdaf,
                            control=list(trace=FALSE, itermax=500, parallelType=1, packages="rutils"))
 
 
@@ -8076,7 +8076,7 @@ plot(hc)
 cutree(hc, k=5)
 cutree(hc, h=50)
 
-retf <- rutils::roll_sum(retp, look_back=5)
+retf <- rutils::roll_sum(retp, lookb=5)
 retf <- rutils::lagxts(retp, lag=-5)
 colnames(retf) <- "retf"
 foo <- lm(retf["2008"] ~ predm["2008"] - 1)
@@ -8173,7 +8173,7 @@ NROW(pnls)
 # which should accept four arguments:
 #  xtsv - an xts series containing one or more columns of data,
 #  endd - integer vector of end points,
-#  look_back - number of intervals in the lookback window,
+#  lookb - number of intervals in the lookback window,
 #  FUN - name of of an aggregation function,
 #  "..." - optional dots arguments to FUN.
 
@@ -8185,10 +8185,10 @@ NROW(pnls)
 # hint: You can adapt code from the slide:
 # Performing Aggregations Over Overlapping Intervals.
 
-roll_agg <- function(xtsv, endd, look_back, FUN, ...) {
+roll_agg <- function(xtsv, endd, lookb, FUN, ...) {
   nrows <- NROW(endd)
   # startp are multi-period lag of endd
-  startp <-  endd[c(rep_len(1, look_back-1), 1:(nrows-look_back+1))]
+  startp <-  endd[c(rep_len(1, lookb-1), 1:(nrows-lookb+1))]
   # perform lapply() loop over length of endd
   aggs <- lapply(2:nrows, function(indeks) {
     FUN(xtsv[startp[indeks]:endd[indeks]], ...)
@@ -8213,9 +8213,9 @@ roll_agg <- function(xtsv, endd, look_back, FUN, ...) {
 # Simulating Multiple EWMA Strategies
 
 agg_regate <- function(ohlc, lambdas, ...) {
-  sapply(lambdas, function(lambda) {
+  sapply(lambdas, function(lambdaf) {
     # Simulate EWMA strategy and calculate Sharpe ratio
-    retp <- simu_ewma(ohlc=ohlc, lambda=lambda, ...)[, "returns"]
+    retp <- simu_ewma(ohlc=ohlc, lambdaf=lambdaf, ...)[, "returns"]
     sqrt(260)*sum(retp)/sd(retp)/NROW(retp)
   })  # end sapply
 }  # end agg_regate
@@ -8226,15 +8226,15 @@ agg_regate <- function(ohlc, lambdas, ...) {
 
 source("C:/Develop/R/scripts/ewma_model.R")
 
-# Define ohlc series, the EWMA look_back, and lambdas.
+# Define ohlc series, the EWMA lookb, and lambdas.
 
 library(HighFreq)
 ohlc <- rutils::etfenv$VTI["/2011"]
-look_back <- 51
+lookb <- 51
 lambdas <- seq(0.001, 0.01, 0.001)
 
 # Call agg_regate() as follows:
-agg_regate(ohlc, lambdas, look_back=look_back)
+agg_regate(ohlc, lambdas, lookb=lookb)
 
 # You should get the following output:
 #  [1] 0.1220623 0.1620571 0.1887122 0.2399056 0.2308350 0.1594881 0.1702486 0.1539695 0.1136539
@@ -8252,28 +8252,28 @@ endd <- xts::endpoints(ohlc, on="months")
 nrows <- NROW(endd)
 
 # Define number of monthly intervals per lookback interval:
-look_back <- 12
+lookb <- 12
 
 # Note that there are two different windows in this simulation.
-# The first window is the EWMA window, called look_back and equal
+# The first window is the EWMA window, called lookb and equal
 # to 51 by default.
-# The second window is the lookback interval, called look_back.
+# The second window is the lookback interval, called lookb.
 # To avoid an error, the endd should be greater than
-# the EWMA look_back, except for the first endd, which
+# the EWMA lookb, except for the first endd, which
 # should be equal to zero.
 # Adjust the endd so that they are greater than the
-# EWMA look_back.
+# EWMA lookb.
 
-endd[(endd > 0) & (endd <= look_back)] <- look_back+1
+endd[(endd > 0) & (endd <= lookb)] <- lookb+1
 
 # Run roll_agg() as follows:
 
 sharper <- roll_agg(xtsv=ohlc,
                           endd=endd,
-                          look_back=look_back,
+                          lookb=lookb,
                           FUN=agg_regate,
                           lambdas=lambdas,
-                          look_back=look_back)
+                          lookb=lookb)
 
 # You should get the following output:
 # > sharper[1:6, 1:5]

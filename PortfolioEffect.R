@@ -64,13 +64,13 @@ util_plot2d(positharpeRatio(port_folio, "AAPL"), title="Sharpe Ratio, daily", Le
 
 
 # create function for moving average over a vector
-mov_avg <- function(x, look_back){
+mov_avg <- function(x, lookb){
   output <- x
   n_row <- NROW(x)
   cumsumv <- cumsum(x)
-  output[(look_back+1):n_row] <- 
-    (cumsumv[-(1:look_back)]-cumsumv[-((n_row-look_back+1):n_row)])/look_back
-  output[1:look_back] <- cumsum(x[1:look_back])/(1:look_back)
+  output[(lookb+1):n_row] <- 
+    (cumsumv[-(1:lookb)]-cumsumv[-((n_row-lookb+1):n_row)])/lookb
+  output[1:lookb] <- cumsum(x[1:lookb])/(1:lookb)
   return(output-0.0000000001)
 }  # end mov_avg
 

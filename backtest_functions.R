@@ -11,22 +11,22 @@ calc_signal <- function(ohlc, closep, predictor, look_short, look_long=look_shor
   if (high_freq) {
     # Calculate the signal as the residual of the rolling time series
     # regressions of the closep prices
-    rollreg <- HighFreq::roll_reg(response=closep, predictor=predictor, look_back=look_short)
+    rollreg <- HighFreq::roll_reg(response=closep, predictor=predictor, lookb=look_short)
     zscores <- rollreg[, NCOL(rollreg), drop=TRUE]
   }
   else {
     # signal equal to trailing average returns
-    # variance <- HighFreq::roll_variance(ohlc=ohlc, look_back=look_long, scalit=FALSE)
+    # variance <- HighFreq::roll_variance(ohlc=ohlc, lookb=look_long, scalit=FALSE)
     # variance[variance==0] <- as.numeric(variance[2])
     # returns <- rutils::diffit(closep, lagg=look_short)/look_short/sqrt(variance)
     # returns <- roll::roll_scale(data=returns, width=look_long, min_obs=1, center=FALSE)
     # variance <- roll::roll_scale(data=variance, width=look_long, min_obs=1, center=FALSE)
     # zscores <- returns + variance
     # signal equal to trailing average returns
-    zscores <- rutils::diffit(closep, lagg=look_short)/sqrt(look_short)/sqrt(HighFreq::roll_variance(ohlc=ohlc, look_back=look_short, scalit=FALSE))
+    zscores <- rutils::diffit(closep, lagg=look_short)/sqrt(look_short)/sqrt(HighFreq::roll_variance(ohlc=ohlc, lookb=look_short, scalit=FALSE))
   }  # end if
   zscores[1:look_short, ] <- 0
-  # zscores <- HighFreq::roll_scale(matrixv=zscores, look_back=look_short, use_median=TRUE)
+  # zscores <- HighFreq::roll_scale(matrixv=zscores, lookb=look_short, use_median=TRUE)
   # zscores[1:look_short, ] <- 0
   zscores[is.infinite(zscores)] <- NA
   zscores <- zoo::na.locf(zscores, na.rm=FALSE)
@@ -38,11 +38,11 @@ calc_signal <- function(ohlc, closep, predictor, look_short, look_long=look_shor
 
 
 ## Calculate the signal as the difference between the price minus the moving average of the price
-calc_ma <- function(ohlc, closep, predictor, look_back, high_freq=TRUE) {
+calc_ma <- function(ohlc, closep, predictor, lookb, high_freq=TRUE) {
   # signal from t-value of trailing slope
-  # sign(closep - HighFreq::roll_vwap(ohlc, look_back=look_back))
-  (closep - HighFreq::roll_vec(closep, look_back=look_back)/look_back)
-  # zscores[1:look_back, ] <- 0
+  # sign(closep - HighFreq::roll_vwap(ohlc, lookb=lookb))
+  (closep - HighFreq::roll_vec(closep, lookb=lookb)/lookb)
+  # zscores[1:lookb, ] <- 0
   # zscores[is.na(zscores), ] <- 0
   # zscores[is.infinite(zscores), ] <- 0
   # zscores
@@ -137,14 +137,14 @@ sim_revert_trending <- function(signal_short, signal_long, returns, enter, exit,
 
 
 ## Define EWMA backtest function
-backtest_ewma <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
+backtest_ewma <- function(ohlc, lookb=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
   volumes <- quantmod::Vo(ohlc)
   # Calculate VWAP indicator
-  vwapv <- HighFreq::roll_sum(tseries=closep*volumes, look_back=look_back)
-  volume_rolling <- HighFreq::roll_sum(tseries=volumes, look_back=look_back)
+  vwapv <- HighFreq::roll_sum(tseries=closep*volumes, lookb=lookb)
+  volume_rolling <- HighFreq::roll_sum(tseries=volumes, lookb=lookb)
   vwapv <- vwapv/volume_rolling
   vwapv[is.na(vwapv)] <- 0
   # Simulate strategy
@@ -170,7 +170,7 @@ backtest_ewma <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
 
 
 ## Define Z-scores backtest function
-backtest_zscores <- function(ohlc, look_back=NULL, lambda=NULL, lagg=2, threshold=0.0, coeff=1) {
+backtest_zscores <- function(ohlc, lookb=NULL, lambda=NULL, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   # rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -178,11 +178,11 @@ backtest_zscores <- function(ohlc, look_back=NULL, lambda=NULL, lagg=2, threshol
   # Simulate strategy
   indeks <- 1:NROW(ohlc)
   predictor <- matrix(indeks, nc=1)
-  if (!is.null(look_back)) {
+  if (!is.null(lookb)) {
     # Perform rolling regressions
-    zscores <- HighFreq::roll_reg(response=closep, predictor=predictor, look_back=look_back)
+    zscores <- HighFreq::roll_reg(response=closep, predictor=predictor, lookb=lookb)
     zscores <- zscores[, NCOL(zscores), drop=FALSE]
-    zscores[1:look_back, ] <- 0
+    zscores[1:lookb, ] <- 0
   }
   else if (!is.null(lambda)) {
     # Perform running regressions
@@ -211,14 +211,14 @@ backtest_zscores <- function(ohlc, look_back=NULL, lambda=NULL, lagg=2, threshol
 
 
 ## Define EWMA backtest function
-backtest_ewmar <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
+backtest_ewmar <- function(ohlc, lookb=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   # rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
   volumes <- quantmod::Vo(ohlc)
   # Simulate strategy
-  vwapv <- HighFreq::roll_sum(tseries=returns*volumes, look_back=look_back)
-  volume_rolling <- HighFreq::roll_sum(tseries=volumes, look_back=look_back)
+  vwapv <- HighFreq::roll_sum(tseries=returns*volumes, lookb=lookb)
+  volume_rolling <- HighFreq::roll_sum(tseries=volumes, lookb=lookb)
   vwapv <- vwapv/volume_rolling
   vwapv[is.na(vwapv)] <- 0
   # Calculate VWAP indicator
@@ -239,14 +239,14 @@ backtest_ewmar <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) 
 
 
 ## Define EWMA backtest function
-backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
+backtest_ewma_ts <- function(ohlc, lookb=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
   volumes <- quantmod::Vo(ohlc)
   # Simulate strategy
-  vwapv <- HighFreq::roll_sum(tseries=closep*volumes, look_back=look_back)
-  volume_rolling <- HighFreq::roll_sum(tseries=volumes, look_back=look_back)
+  vwapv <- HighFreq::roll_sum(tseries=closep*volumes, lookb=lookb)
+  volume_rolling <- HighFreq::roll_sum(tseries=volumes, lookb=lookb)
   vwapv <- vwapv/volume_rolling
   vwapv[is.na(vwapv)] <- 0
   # Calculate VWAP indicator
@@ -254,7 +254,7 @@ backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1
   indic <- integer(NROW(ohlc))
   indic <- ifelse((closep - vwapv) > threshold*rangev, 1, indic)
   indic <- ifelse((closep - vwapv) < (-threshold*rangev), -1, indic)
-  indic_sum <- HighFreq::roll_sum(tseries=indic, look_back=lagg)
+  indic_sum <- HighFreq::roll_sum(tseries=indic, lookb=lagg)
   indic_sum[1:lagg] <- 0
   posit <- rep(NA_integer_, NROW(closep))
   posit[1] <- 0
@@ -272,7 +272,7 @@ backtest_ewma_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1
 
 
 ## Define Z-scores backtest function
-backtest_zscores_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coeff=1) {
+backtest_zscores_ts <- function(ohlc, lookb=252, lagg=2, threshold=0.0, coeff=1) {
   closep <- log(quantmod::Cl(ohlc))
   returns <- rutils::diffit(closep)
   # rangev <- (log(quantmod::Hi(ohlc)) - log(quantmod::Lo(ohlc)))
@@ -280,15 +280,15 @@ backtest_zscores_ts <- function(ohlc, look_back=252, lagg=2, threshold=0.0, coef
   # Simulate strategy
   indeks <- 1:NROW(ohlc)
   predictor <- matrix(indeks, nc=1)
-  rollreg <- HighFreq::roll_reg(response=closep, predictor=predictor, look_back=look_back)
+  rollreg <- HighFreq::roll_reg(response=closep, predictor=predictor, lookb=lookb)
   zscores <- rollreg[, NCOL(rollreg)]
   colnames(zscores) <- "zscores"
-  zscores[1:look_back] <- 0
+  zscores[1:lookb] <- 0
   
   indic <- integer(NROW(ohlc))
   indic <- ifelse(zscores > threshold, 1, indic)
   indic <- ifelse(zscores < (-threshold), -1, indic)
-  indic_sum <- HighFreq::roll_sum(tseries=indic, look_back=lagg)
+  indic_sum <- HighFreq::roll_sum(tseries=indic, lookb=lagg)
   indic_sum[1:lagg] <- 0
   posit <- rep(NA_integer_, NROW(closep))
   posit[1] <- 0

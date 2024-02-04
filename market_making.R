@@ -6,8 +6,8 @@ make_market <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
-  # look_back <- 111
-  # weightv <- exp(-lambda*1:look_back)
+  # lookb <- 111
+  # weightv <- exp(-lambda*1:lookb)
   # weightv <- weightv/sum(weightv)
   ew_ma <- numeric(nrows)
   ew_ma[1] <- ohlc[1, 6]
@@ -105,8 +105,8 @@ make_market_vec <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
-  look_back <- 111
-  weightv <- exp(-lambda*1:look_back)
+  lookb <- 111
+  weightv <- exp(-lambda*1:lookb)
   weightv <- weightv/sum(weightv)
   ew_ma <- HighFreq::roll_wsum(vectorv=rutils::lagit(ohlc)[, 4], weightv=rev(weightv))
   ew_ma <- drop(ew_ma)
@@ -172,23 +172,23 @@ make_market_vec <- function(ohlc, ohlc_lag=rutils::lagit(ohlc),
 
 # trade_median() Function for market making strategy - vectorized version
 trade_median <- function(returns, ohlc, ohlc_lag=rutils::lagit(ohlc),
-                         look_back, threshold, buy_spread, sell_spread, lambda, invent_limit) {
+                         lookb, threshold, buy_spread, sell_spread, lambda, invent_limit) {
   
   nrows <- NROW(ohlc)
   openp <- ohlc[, 1]
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
-  # weightv <- exp(-lambda*1:look_back)
+  # weightv <- exp(-lambda*1:lookb)
   # weightv <- weightv/sum(weightv)
   # ew_ma <- HighFreq::roll_wsum(vectorv=rutils::lagit(ohlc)[, 4], weightv=rev(weightv))
   # ew_ma <- drop(ew_ma)
   # bia_s is the spread for biasing the limit price, depending on the ew_ma
   # bia_s <- ifelse(ohlc_lag[, 4] > ew_ma, 0.25, -0.25)
 
-  mean_roll <- TTR::runMean(x=returns, n=look_back)
-  median_roll <- TTR::runMedian(x=returns, n=look_back)
-  mad_roll <- TTR::runMAD(x=returns, n=look_back)
+  mean_roll <- TTR::runMean(x=returns, n=lookb)
+  median_roll <- TTR::runMedian(x=returns, n=lookb)
+  mad_roll <- TTR::runMAD(x=returns, n=lookb)
   indic <- rutils::lagit((mean_roll - median_roll)/mad_roll)
   indic <- zoo::na.locf(indic, na.rm=FALSE)
   indic <- zoo::na.locf(indic, na.rm=FALSE, fromLast=TRUE)
@@ -263,9 +263,9 @@ trade_median <- function(returns, ohlc, ohlc_lag=rutils::lagit(ohlc),
 make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
                              # stdev,
                              buy_spread, sell_spread, lambda, invent_limit,
-                             look_back=100, warm_up=100) {
-  # look_back <- 111
-  # weightv <- exp(-lambda*1:look_back)
+                             lookb=100, warm_up=100) {
+  # lookb <- 111
+  # weightv <- exp(-lambda*1:lookb)
   # weightv <- weightv/sum(weightv)
   # ew_ma <- HighFreq::roll_wsum(vectorv=ohlc[, 4], weightv=rev(weightv))
   # ew_ma <- drop(ew_ma)
@@ -289,8 +289,8 @@ make_market_ewma <- function(ohlc, ohlc_lag=rutils::lagit(ohlc), lagg,
   highp <- ohlc[, 2]
   lowp <- ohlc[, 3]
   closep <- ohlc[, 4]
-  # look_back <- 111
-  # weightv <- exp(-lambda*1:look_back)
+  # lookb <- 111
+  # weightv <- exp(-lambda*1:lookb)
   # weightv <- weightv/sum(weightv)
   ew_ma <- numeric(nrows)
   ew_ma[1] <- ohlc[1, 6]
