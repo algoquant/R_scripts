@@ -15,13 +15,13 @@ library(HighFreq)
 # Set parameters for directory with CSV files
 dirin <- "/Users/jerzy/Develop/data/"
 # setwd(dir=dirin)
-symboln <- "SPY"
+symboln <- "AAPL"
 # Get all CSV file names in the dirin directory
 # datan <- "_minute_"
 # datan <- "_minute_202308"
 # datan <- "_10second_"
 # datan <- "_second_"
-datan <- "_second_202308"
+datan <- "_second_202402"
 filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
 # Loop over the file names, load the data from CSV files,
 # and calculate a list of time series of prices.
@@ -31,10 +31,9 @@ pricel <- lapply(filev, function(filen) {
   dtable <- data.table::fread(filen)
   datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
   # Calculate a time series of prices
-  pricen <- xts::xts(dtable[, .(price, volume)], order.by=datev)
+  pricen <- xts::xts(dtable[, .(aapl_price, aapl_volume)], order.by=datev)
   pricen <- pricen["T09:30:00/T16:00:00"]
   # pricen <- pricen[, 1]
-  # colnames(pricen)[1] <- symboln
   colnames(pricen)[1] <- symboln
   pricen
 }) # end lapply
@@ -54,8 +53,8 @@ namev <- unname(namev)
 names(pricel) <- namev
 
 
-filec <- paste0(dirin, symboln, datan, ".RData")
-save(pricel, file=filec)
+filen <- paste0(dirin, symboln, datan, ".RData")
+save(pricel, file=filen)
 
 
 # Calculate a list of returns
@@ -74,9 +73,9 @@ save(pricel, retl, file=paste0(dirin, symboln, datan, format(Sys.Date(), "%Y%m%d
 
 ###############
 # Convert the monthly time series of prices into a list of daily prices called pricel.
-# filec <- "/Users/jerzy/Develop/data/SPY_minute_202307.RData"
-filec <- "/Users/jerzy/Develop/data/SPY_second_202307.RData"
-load(filec)
+# filen <- "/Users/jerzy/Develop/data/SPY_minute_202307.RData"
+filen <- "/Users/jerzy/Develop/data/SPY_second_202307.RData"
+load(filen)
 endd <- rutils::calc_endpoints(pricev, "days")
 pricel <- lapply(2:NROW(endd), function(it) {
   pricev[(endd[it-1]+1):endd[it]]
@@ -86,7 +85,7 @@ namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
 names(pricel) <- namev
 foo <- do.call(rbind, pricel)
 all.equal(foo, pricev)
-save(pricel, file=filec)
+save(pricel, file=filen)
 
 
 ###############
@@ -102,8 +101,8 @@ datan <- "_second_"
 # datan <- "_second_202308"
 # datan <- "_minute_2"
 # Load the monthly file
-filec <- Sys.glob(paste0(dirin, symboln, datan, "*8.RData"))
-load(file=filec)
+filen <- Sys.glob(paste0(dirin, symboln, datan, "*8.RData"))
+load(file=filen)
 # pricev <- NULL # If new month
 # Get all CSV file names in the dirin directory
 filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
@@ -130,7 +129,7 @@ dygraphs::dygraph(pricev[, symboln], main=paste(symboln, "Ticks")) %>%
   dyLegend(show="always", width=300)
 
 # Save the monthly file
-save(pricev, file=filec)
+save(pricev, file=filen)
 
 # Combine the monthly files
 load(file=Sys.glob(paste0("/Users/jerzy/Develop/data/", symboln, datan, "*6.RData")))
@@ -273,11 +272,11 @@ etfenv <- new.env()
 
 
 # Initialize Boolean vector of the symbols that were already downloaded
-isdownloaded <- symbolv %in% ls(etfenv)
+isdown <- symbolv %in% ls(etfenv)
 
 # Download data from Tiingo using while loop
-while (sum(!isdownloaded) > 0) {
-  for (symboln in symbolv[!isdownloaded]) {
+while (sum(!isdown) > 0) {
+  for (symboln in symbolv[!isdown]) {
     cat("Processing:", symboln, "\n")
     tryCatch({  # With error handler
       # Download OHLC bars from Polygon
@@ -295,7 +294,7 @@ while (sum(!isdownloaded) > 0) {
     )  # end tryCatch
   }  # end for
   # Update vector of symbolv already downloaded
-  isdownloaded <- symbolv %in% ls(etfenv)
+  isdown <- symbolv %in% ls(etfenv)
 }  # end while
 
 # Polygon doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
@@ -366,14 +365,14 @@ symbolv <- sp500table$Ticker
 sp500env <- new.env()
 
 # Initialize Boolean vector of the symbols that were already downloaded
-isdownloaded <- symbolv %in% ls(sp500env)
+isdown <- symbolv %in% ls(sp500env)
 nattempts <- 0
 startd <- as.Date("1990-01-01")
 
 # Download data from Tiingo using while loop
-while ((sum(!isdownloaded) > 0) & (nattempts<10)) {
+while ((sum(!isdown) > 0) & (nattempts<10)) {
   nattempts <- nattempts + 1
-  for (symboln in symbolv[!isdownloaded]) {
+  for (symboln in symbolv[!isdown]) {
     cat("Processing:", symboln, "\n")
     tryCatch({  # With error handler
       # Download OHLC bars from Polygon
@@ -393,13 +392,13 @@ while ((sum(!isdownloaded) > 0) & (nattempts<10)) {
     )  # end tryCatch
   }  # end for
   # Update vector of symbolv already downloaded
-  isdownloaded <- symbolv %in% ls(sp500env)
+  isdown <- symbolv %in% ls(sp500env)
 }  # end while
 
 # Calculate the symbols not downloaded
-isdownloaded <- symbolv %in% ls(sp500env)
-sum(!isdownloaded)
-symbolv[!isdownloaded]
+isdown <- symbolv %in% ls(sp500env)
+sum(!isdown)
+symbolv[!isdown]
 
 # Rename element "LOW" to "LOWES"
 sp500env$LOWES <- sp500env$LOW
@@ -1105,7 +1104,7 @@ etfenv <- new.env()
 etfenv$symbolv <- symbolv
 
 # Boolean vector of symbolv already downloaded
-isdownloaded <- symbolv %in% ls(etfenv)
+isdown <- symbolv %in% ls(etfenv)
 # Download data for symbolv using single command - creates pacing error - not with new key
 getSymbols.av(symbolv, adjust=TRUE, env=etfenv, from="1990-01-01",
               auto.assign=TRUE, output.size="full", api.key="BDOPARDCGRT7C5JZ")
@@ -1121,11 +1120,11 @@ etfenv$SVXY <- ohlc
 # Or
 # Download data from Alpha Vantage using while loop
 nattempts <- 0  # number of download attempts
-while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
+while (((sum(!isdown)) > 0) & (nattempts<10)) {
   # Download data and copy it into environment
   nattempts <- nattempts + 1
   cat("Download attempt = ", nattempts, "\n")
-  for (symboln in na.omit(symbolv[!isdownloaded][1:5])) {
+  for (symboln in na.omit(symbolv[!isdown][1:5])) {
     cat("Processing: ", symboln, "\n")
     tryCatch(  # With error handler
       quantmod::getSymbols.av(symboln, adjust=TRUE, env=etfenv, from="1990-01-01", auto.assign=TRUE, output.size="full", api.key="BDOPARDCGRT7C5JZ"),
@@ -1137,7 +1136,7 @@ while (((sum(!isdownloaded)) > 0) & (nattempts<10)) {
     )  # end tryCatch
   }  # end for
   # Update vector of symbolv already downloaded
-  isdownloaded <- symbolv %in% ls(etfenv)
+  isdown <- symbolv %in% ls(etfenv)
   cat("Pausing 1 minute to avoid pacing...\n")
   Sys.sleep(65)
 }  # end while
