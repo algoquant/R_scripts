@@ -13,7 +13,8 @@ library(HighFreq)
 # and save it into a binary file.
 
 # Set parameters for directory with CSV files
-dirin <- "/Users/jerzy/Develop/data/"
+dirin <- "/Users/jerzy/Develop/data/raw/"
+dirp <- "/Users/jerzy/Develop/data/"
 # setwd(dir=dirin)
 symboln <- "AAPL"
 # Get all CSV file names in the dirin directory
@@ -29,9 +30,12 @@ pricel <- lapply(filev, function(filen) {
   cat("file: ", filen, "\n")
   # Load time series data from CSV file
   dtable <- data.table::fread(filen)
-  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
   # Calculate a time series of prices
-  pricen <- xts::xts(dtable[, .(aapl_price, aapl_volume)], order.by=datev)
+  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
+  # pricen <- xts::xts(dtable[, .(aapl_price, aapl_volume)], order.by=datev)
+  # strprice <- paste0(tolower(symboln), "_price")
+  # strvol <- paste0(tolower(symboln), "_volumee")
+  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
   pricen <- pricen["T09:30:00/T16:00:00"]
   # pricen <- pricen[, 1]
   colnames(pricen)[1] <- symboln
@@ -53,11 +57,19 @@ namev <- unname(namev)
 names(pricel) <- namev
 
 
-filen <- paste0(dirin, symboln, datan, ".RData")
+filen <- paste0(dirp, symboln, datan, ".RData")
 save(pricel, file=filen)
 
 
-# Calculate a list of returns
+## Calculate minute prices from second prices
+pricel <- lapply(pricel, xts::to.minutes)
+pricel <- lapply(pricel, quantmod::Cl)
+for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
+save(pricel, file=paste0(dirp, symboln, "_minute_202406", ".RData"))
+
+
+
+## Calculate a list of returns
 retl <- lapply(pricel, function(pricev) {
   retv <- rutils::diffit(pricev)
   # Set very large returns to zero, to eliminate bad data
@@ -69,6 +81,9 @@ sapply(retl, function(retv) {max(abs(retv))})
 
 # Save the lists of prices and returns
 save(pricel, retl, file=paste0(dirin, symboln, datan, format(Sys.Date(), "%Y%m%d"), ".RData"))
+
+
+
 
 
 ###############
