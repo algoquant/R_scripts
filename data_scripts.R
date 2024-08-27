@@ -35,6 +35,12 @@ pricel <- lapply(filev, function(filen) {
   # pricen <- xts::xts(dtable[, .(aapl_price, aapl_volume)], order.by=datev)
   # strprice <- paste0(tolower(symboln), "_price")
   # strvol <- paste0(tolower(symboln), "_volumee")
+  # Adjust price for SVXY stock split
+  # indeks <- (dtable[, 2] > 80)
+  # dtable[indeks, 2] <- dtable[indeks, 2]/2
+  # Adjust price for VXX reverse stock split
+  # indeks <- as.logical(dtable[, 2] < 20)
+  # dtable[indeks, 2] <- 4*dtable[indeks, 2]
   pricen <- xts::xts(dtable[, 2:3], order.by=datev)
   pricen <- pricen["T09:30:00/T16:00:00"]
   # pricen <- pricen[, 1]
@@ -65,7 +71,7 @@ save(pricel, file=filen)
 pricel <- lapply(pricel, xts::to.minutes)
 pricel <- lapply(pricel, quantmod::Cl)
 for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
-save(pricel, file=paste0(dirp, symboln, "_minute_202406", ".RData"))
+save(pricel, file=paste0(dirp, symboln, "_minute_202407", ".RData"))
 
 
 

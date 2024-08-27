@@ -1,13 +1,113 @@
 
+captiont <- paste("Trending Portfolio for", paste(paste(symbolv, round(c(1, -weightv), 2), sep="="), collapse=", "))
+
+foo <- log(na.omit(rutils::etfenv$prices[, c("VTI", "VXX")]))
+foo <- rutils::diffit(foo)
+betac <- cov(foo$VXX, foo$VTI)/var(foo$VTI)
+betac <- cov(foo$VXX["2021/"], foo$VTI["2021/"])/var(foo$VTI["2021/"])
+
+
+endd <- rutils::calc_endpoints(priceref, interval=10)
+priceref <- priceref[endd, ]
+pricetarg <- pricetarg[endd, ]
+
+
+## Load the intraday minute prices for SPY and aggregate them to hourly prices
 pricev <- lapply(4:6, function(x) {
-  load(paste0("/Users/jerzy/Develop/data/SPY_minute_20240", x, ".RData"))
-  foo <- lapply(pricel, function(pricev) {
-    quantmod::Cl(xts::to.hourly(pricev))
+  load(paste0("/Users/jerzy/Develop/data/SPY_second_20240", x, ".RData"))
+  pricel <- lapply(pricel, function(x) {
+    quantmod::Cl(to.hourly(x[, 1]))
   }) # end lapply
-  do.call(rbind, foo)
+  do.call(rbind, pricel)
 }) # end lapply
 pricev <- do.call(rbind, pricev)
-dygraph(pricev)
+priceref <- pricev
+colnames(priceref) <- "SPY"
+
+## Load the intraday minute prices for XLK and aggregate them to hourly prices
+pricev <- lapply(4:6, function(x) {
+  load(paste0("/Users/jerzy/Develop/data/XLK_second_20240", x, ".RData"))
+  pricel <- lapply(pricel, function(x) {
+    quantmod::Cl(to.hourly(x[, 1]))
+  }) # end lapply
+  do.call(rbind, pricel)
+}) # end lapply
+pricev <- do.call(rbind, pricev)
+pricetarg <- pricev
+colnames(pricetarg) <- "XLK"
+
+symboltarg <- rutils::get_name(colnames(pricetarg))
+symbolref <- rutils::get_name(colnames(priceref))
+pricev <- pricetarg - 0.68*priceref
+retv <- rutils::diffit(pricev)
+
+
+## Simulate the modified Patient Ratchet strategy
+
+pospnls <- ratchet_patient(pricev, lambdaf=0.43, volf=0.1, zfact=8)
+flipi <- rutils::diffit(pospnls[, 2])
+ntrades <- sum(abs(flipi) > 0)
+posv <- pospnls[, 2]
+datev <- index(pricev)
+posv <- xts(posv, datev)
+colnames(posv) <- "posv"
+dygraph(posv)
+pnls <- pospnls[, 1]
+costs <- 0.5*0.05*abs(flipi)
+pnls <- (pnls - costs)
+pnls <- cbind(retv, pnls)
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+pnls <- cumsum(pnls)
+colnames(pnls) <- c(paste(symbolref, "Returns"), "Strategy")
+captiont <- paste("Strategy for", symbolref, "/ \n",
+                  paste0(c("Index SR=", "Strategy SR="), sharper, collapse=" / "), "/ \n",
+                  "Number of trades=", ntrades)
+dygraphs::dygraph(cbind(pnls[, 2], posv), main=captiont) %>%
+  dyAxis("y", label=colnamev[2], independentTicks=TRUE) %>%
+  dyAxis("y2", label="posv", independentTicks=TRUE) %>%
+  dySeries(name=colnamev[2], axis="y", strokeWidth=1, col="blue") %>%
+  dySeries(name="posv", axis="y2", strokeWidth=1, col="red")
+
+
+## Calculate the overnight interval - the first time the next day
+daton <- xts::.index(pricev)
+daton <- rutils::diffit(daton)
+daton <- which(daton > 1000)
+pricev[daton]
+# Calculate the overnight returns - slightly negative
+reton <- retv[daton]
+dygraph(cumsum(reton))
+sum(reton)
+
+
+
+# Load the intraday minute prices
+pricev <- lapply(4:6, function(x) {
+  load(paste0("/Users/jerzy/Develop/data/SPY_second_20240", x, ".RData"))
+  pricel <- lapply(pricel, function(x) {
+    x <- x[, 1]
+    nrows <- NROW(x) %/% 10
+    x[10*(1:nrows), ]
+  })
+  do.call(rbind, pricel)
+}) # end lapply
+pricev <- do.call(rbind, pricev)
+priceref <- pricev
+colnames(priceref) <- "SPY"
+
+pricev <- lapply(4:6, function(x) {
+  load(paste0("/Users/jerzy/Develop/data/XLK_second_20240", x, ".RData"))
+  pricel <- lapply(pricel, function(x) {
+    x <- x[, 1]
+    nrows <- NROW(x) %/% 10
+    x[10*(1:nrows), ]
+  })
+  do.call(rbind, pricel)
+}) # end lapply
+pricev <- do.call(rbind, pricev)
+pricetarg <- pricev
+colnames(pricetarg) <- "XLK"
 
 
 
@@ -140,8 +240,7 @@ sqrt(252)*sapply(wealthv, function(x)
   c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
 # Plot dygraph of autoregressive strategy
 endd <- rutils::calc_endpoints(wealthv, interval="weeks")
-dygraphs::dygraph(cumsum(wealthv)[endd], 
-                  main="Autoregressive Strategy In-Sample") %>%
+dygraphs::dygraph(cumsum(wealthv)[endd], main="Autoregressive Strategy In-Sample") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
   dyLegend(show="always", width=300)
 
@@ -676,6 +775,109 @@ weightv <- weightl[indeks[1, ]]
 calc_hurst_rets(retp %*% weightv, lagg)
 
 
+
+## Find the portfolio with the smallest aggregated variance
+
+# Calculate the aggregated variance
+calc_agg_var <- function(pricev, lagg) {
+  endp <- rutils::calc_endpoints(pricev, interval=lagg)
+  retp <- rutils::diffit(pricev[endp, ])
+  var(retp)
+}  # end calc_agg_var
+
+# Objective function equal to the aggregated variance
+objfun <- function(weightv, pricev=pricev) {
+  weightv <- weightv/sqrt(sum(weightv^2))
+  pricep <- pricev %*% weightv
+  retp <- rutils::diffit(pricep[endp, ])
+  var(retp)
+}  # end objfun
+
+symbolv <- c("VTI", "VXX")
+pricev <- log(na.omit(rutils::etfenv$prices[, symbolv]))
+datev <- index(pricev)
+endp <- rutils::calc_endpoints(pricev, interval=7)
+objfun(c(1, 1), pricev=pricev)
+
+# Perform portfolio optimization using optim
+ncols <- NCOL(pricev)
+optimd <- optim(par=rep(1, ncols),
+                fn=objfun,
+                pricev=pricev,
+                method="L-BFGS-B",
+                upper=rep(100, ncols),
+                lower=rep(-100, ncols))
+
+# Portfolio weights
+weightv <- optimd$par
+names(weightv) <- symbolv
+pricep <- pricev %*% weightv
+pricep <- xts(pricep, datev)
+dygraph(pricep)
+retp <- rutils::diffit(pricep)
+
+pacfl <- pacf(retp, lag=10)
+pacsum <- sum(pacfl$acf)
+
+retport <- xts(retport, index(retp))
+captiont <- paste("Trending Portfolio for", paste(symbolv, collapse=", "), " / PACSum=", round(pacsum, 3))
+dygraph(cumsum(retport), main=captiont)
+
+
+
+## Find the most trending portfolio
+
+symbolv <- c("VTI", "SVXY", "VXX")
+pricev <- log(na.omit(rutils::etfenv$prices[, symbolv]))
+datev <- index(pricev)
+ncols <- NCOL(retp)
+retp <- rutils::diffit(pricev)
+retvti <- rutils::lagit(retp$VTI, lagg=-1)
+
+# Objective function equal to the sum of the PACF
+objfun <- function(weightv, retp=retp) {
+  retp <- retp %*% weightv
+  pacfl <- pacf(retp, lag=10, plot=FALSE)
+  -sum(pacfl$acf)
+}  # end objfun
+
+# Objective function equal to the sum of PnLs
+objfun <- function(weightv, retp=retp) {
+  retp <- retp %*% weightv
+  retp <- retp/sd(retp)
+  -sum(sign(retvti)*sign(retp))
+}  # end objfun
+
+# Objective function equal to the sum of PnLs
+objfun <- function(weightv, retp=retp) {
+  retp <- (retspy - weightv[1]*retsvxy - weightv[2]*retvxx)
+  -sum(retp)/sd(retp)
+}  # end objfun
+
+# Perform portfolio optimization using optim
+ncols <- NCOL(retp)
+optimd <- optim(par=rep(1, ncols),
+                fn=objfun,
+                retp=retp,
+                method="L-BFGS-B",
+                upper=rep(100, ncols),
+                lower=rep(-100, ncols))
+
+# Portfolio weights
+weightv <- optimd$par
+names(weightv) <- symbolv
+retport <- retp %*% weightv
+pacfl <- pacf(retport, lag=10)
+pacsum <- sum(pacfl$acf)
+retport <- xts(retport, index(retp))
+captiont <- paste("Trending Portfolio for", paste(paste(symbolv, round(-weightv, 2), sep="="), collapse=", "), " / PACSum=", round(pacsum, 3))
+# captiont <- paste("Trending Portfolio for", paste(symbolv, collapse=", "), " / PACSum=", round(pacsum, 3))
+dygraph(-cumsum(retport), main=captiont)
+
+foo <- sign(retp$VTI)*sign(rutils::lagit(retport, lagg=1))
+dygraph(cumsum(foo))
+
+
 ## Find the optimal portfolio of VTI, VXX, and SVXY
 
 symbolv <- c("VTI", "VXX", "SVXY")
@@ -705,7 +907,7 @@ objfun <- function(weightv, retp=retp) {
   # weightv <- c(1, weightv)
   # weightv <- weightv/sqrt(sum(weightv^2))
   retp <- retp %*% weightv
-  calc_hurst_rets(retp, lagg)
+  -calc_hurst_rets(retp, lagg)
 }  # end objfun
 
 calc_hurst_rets(retp %*% weightv, lagg)
@@ -1842,14 +2044,14 @@ tail(foo, 12)
 ###############
 ### Cointegration
 
-symbolstock <- "XLE"
-symboletf <- "XLB"
-ohlc <- get(symbolstock, rutils::etfenv)
+symboltarg <- "XLE"
+symbolref <- "XLB"
+ohlc <- get(symboltarg, rutils::etfenv)
 closep <- log(quantmod::Cl(ohlc))
-ohlc <- get(symboletf, rutils::etfenv)
+ohlc <- get(symbolref, rutils::etfenv)
 closetf <- log(quantmod::Cl(ohlc))
 prices <- na.omit(cbind(closep, closetf))
-colnames(prices) <- c(symbolstock, symboletf)
+colnames(prices) <- c(symboltarg, symbolref)
 closep <- prices[, 1]
 closetf <- prices[, 2]
 
@@ -1863,7 +2065,7 @@ betas <- (1:40)/10
 foo <- sapply(betas, function(betav) {
   alpha <- drop(mean(closep) - betav*mean(closetf))
   residuals <- (closep - alpha - betav*closetf)
-  colnames(residuals) <- paste0(symbolstock, " vs ", symboletf)
+  colnames(residuals) <- paste0(symboltarg, " vs ", symbolref)
   adftest <- tseries::adf.test(residuals, k=3)
   adftest$p.value
 })
@@ -2648,8 +2850,8 @@ eigend <- eigen(cor(ratestdeviff))
 rates_pca <- ratestdeviff %*% eigend$vectors
 
 foo <- apply(rates_pca, 2, function(x) {
-  pacfv <- pacf(x, lag=10, plot=FALSE)
-  sum(pacfv$acf)
+  pacfl <- pacf(x, lag=10, plot=FALSE)
+  sum(pacfl$acf)
 })  # end sapply
 barplot(foo, main="PACF of Interest Rate PCs")
 
@@ -3460,13 +3662,13 @@ pnls <- retc %*% weightv
 
 # PACF of AR(1) process
 x11(width=6, height=5)
-pacfv <- pacf(pnls, lag=10, xlab="", ylab="", main="")
-abs(sum(pacfv$acf))
+pacfl <- pacf(pnls, lag=10, xlab="", ylab="", main="")
+abs(sum(pacfl$acf))
 
 sum_pacf <- function(weightv) {
   pnls <- retc %*% weightv
-  pacfv <- pacf(pnls, lag=10, plot=FALSE)
-  -sum(pacfv$acf) - sum(pnls) + (1-sum(weightv^2))^2
+  pacfl <- pacf(pnls, lag=10, plot=FALSE)
+  -sum(pacfl$acf) - sum(pnls) + (1-sum(weightv^2))^2
 }  # end sum_pacf
 
 
@@ -5216,21 +5418,21 @@ volumes <- lookb*volumes/volume_rolling
 ## Statistics for different volume scaling exponents.
 # Dividing by the square root of the volume works better
 # than dividing by the volume itself.
-statis_tic <- sapply((1:20)/20, function(ex_po) {
-  retc <- ifelse(volumes > 0, returns/(volumes^ex_po), 0)
+statv <- sapply((1:20)/20, function(expov) {
+  retc <- ifelse(volumes > 0, returns/(volumes^expov), 0)
   retc <- retc/sd(retc)
   # Calculate the moments and perform JB normality tests
   # tseries::jarque.bera.test(retc)$statistic
   # moments::moment(retc, order=4)
   # Calculate the autocorrelations from PACF
-  pa_cf <- pacf(as.numeric(retc), lag=10, plot=FALSE)
-  sum(pa_cf$acf)
+  pacfl <- pacf(as.numeric(retc), lag=10, plot=FALSE)
+  sum(pacfl$acf)
   # Standard deviation of square returns is proxy for kurtosis and stationarity
   # sd(retc^2)
   # calc_hurst(retc, endd)
 })  # end sapply
 x11(width=6, height=5)
-plot(statis_tic, t="l")
+plot(statv, t="l")
 
 
 # Divide returns by the volume (volume clock).
@@ -5380,18 +5582,18 @@ hist(retc, breaks=1111, xlim=c(-3, 3), freq=FALSE)
 lines(density(retc, bw=0.2), col='blue', lwd=2)
 
 # JB statistic for different range scaling exponents
-statis_tic <- sapply((1:6)/2, function(ex_po) {
-  retc <- ifelse(rangev>0, returns/(rangev^ex_po), 0)
+statv <- sapply((1:6)/2, function(expov) {
+  retc <- ifelse(rangev>0, returns/(rangev^expov), 0)
   retc <- retc/sd(retc)
   tseries::jarque.bera.test(retc)$statistic
 })  # end sapply
 
 
 # Stationarity statistic for different scaling exponents
-statis_tic <- sapply((1:20)/10, function(ex_po) {
+statv <- sapply((1:20)/10, function(expov) {
   # retc <- ifelse(volumes>0, returns/(volumes^x), 0)
-  retc <- ifelse(rangev>0, returns/(rangev^ex_po), 0)
-  # retc <- returns/(rangev^ex_po)
+  retc <- ifelse(rangev>0, returns/(rangev^expov), 0)
+  # retc <- returns/(rangev^expov)
   # Remove zero returns
   # retc <- retc[!(retc==0)]
   # retc <- retc/sd(retc)
