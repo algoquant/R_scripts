@@ -1,10 +1,205 @@
 
+############## test
+# Summary: Troubleshoot the covariance matrix for stocks.
+# Find the symbols that produce the most NA values in the 
+# covariance matrix for stocks.
+
+covmat <- cov(retp, use="pairwise.complete.obs")
+# Number of NA values in the column of the covariance matrix
+foo <- apply(covmat, 2, function(x) sum(!is.na(x)))
+sort(foo)
+# Which symbols produce the most NA values in the covariance matrix?
+foo <- which(is.na(covmat), arr.ind=TRUE)
+unique(rownames(foo))
+bar <- table(foo[, 2])
+bar[bar>22]
+colv <- colv
+bar[which.max(bar)]
+colv[317]
+
+
+
+
+
+################################################
+# Daily stock low volatility strategies
+
+# VTI returns
+retv <- na.omit(rutils::etfenv$returns$VTI)
+datev <- zoo::index(retv) # Dates vector
+# Load daily S&P500 percentage stock returns
+load(file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
+retp <- retstock[datev]
+nrows <- NROW(retp) # number of rows
+nstocks <- NCOL(retp) # number of stocks
+# To simplify, set NAs to zero
+# retp[is.na(retp)] <- 0
+
+# Calculate the average of all stock returns
+retew <- rowMeans(retp, na.rm=TRUE)
+volew <- sd(retew)
+
+# Define backtest functional for daily low volatility strategy
+# If trend=(-1) then it backtests a mean reverting strategy
+btmomdaily <- function(retp, lambdaf=0.8, varf=2e-5, prob=0.5, trend=1, bidask=0.0, ...) {
+  stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
+  # Calculate the trailing Kelly ratio
+  nstocks <- NCOL(retp)
+  varm <- HighFreq::run_var(retp, lambda=lambdaf)
+  meanm <- varm[, 1:nstocks]
+  vars <- varm[, (nstocks+1):(2*nstocks)]
+  # varmean <- rowMeans(vars, na.rm=TRUE)
+  # meanm[is.na(meanm) | is.nan(meanm)] <- 0
+  # vars[is.na(vars) | is.nan(vars) | vars==0] <- 1
+  # vars[is.na(vars) | is.nan(vars)] <- 1
+  # vars[vars < varf] <- varf
+  # varq <- matrixStats::rowQuantiles(vars, probs=prob, na.rm=TRUE)
+  # Calculate the trailing inverse volatility
+  # weightv <- 1/vars
+  weightv <- ifelse(vars < varf, 1, 0)
+  # weightv <- ifelse(vars < varq, 1/vars, 0)
+  # weightv <- ifelse(vars < varq, meanm/vars, 0)
+  # weightv <- weightv/rowSums(weightv, na.rm=TRUE)
+  # Calculate the trailing Kelly ratio
+  # weightv <- meanm/vars
+  weightv <- weightv/sqrt(rowSums(weightv^2, na.rm=TRUE))
+  weightv <- rutils::lagit(weightv)
+  # Calculate the momentum profits and losses
+  pnls <- trend*rowSums(weightv*retp, na.rm=TRUE)
+  # Calculate the transaction costs
+  # costv <- 0.5*bidask*rowSums(abs(rutils::diffit(weightv)), na.rm=TRUE)
+  costv <- 0
+  return (pnls - costv)
+}  # end btmomdaily
+
+# Simulate multiple daily stock momentum strategies
+lambdav <- seq(0.5, 0.9, 0.1)
+pnls <- sapply(lambdav, btmomdaily, retp=retp, varf=5.4e-5, trend=1)
+
+volv <- 1e-5*seq(2.5, 6.5, 0.5)
+pnls <- sapply(volv, btmomdaily, retp=retp, lambdaf=0.8)
+
+probs <- seq(0.2, 0.9, 0.1)
+pnls <- sapply(probs, btmomdaily, retp=retp, lambdaf=0.8, varf=2e-5)
+
+# pnls[1:100, ] <- 0
+# pnls[is.na(pnls) | is.nan(pnls)] <- 0
+# Scale the momentum volatility to the equal weight index
+# pnls <- apply(pnls, MARGIN=2, function(pnl) volew*pnl/sd(pnl))
+pnls <- xts::xts(pnls, datev)
+# colnames(pnls) <- paste0("lambda=", lambdav)
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+colnames(pnls) <- paste0("lambda=", lambdav, " / sharpe=", sharper)
+# colnames(pnls) <- paste0("volf=", volv, " / sharpe=", sharper)
+# colnames(pnls) <- paste0("prob=", probs, " / sharpe=", sharper)
+# sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+
+# Plot dygraph of daily stock low volatility strategies
+colorv <- colorRampPalette(c("blue", "red"))(NCOL(pnls))
+endd <- rutils::calc_endpoints(retp, interval="weeks")
+dygraphs::dygraph(cumsum(pnls)[endd], 
+  main="Daily Stock Momentum Strategies") %>%
+  dyOptions(colors=colorv, strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
+
+# Combine the low volatility strategy with VTI
+pnlb <- pnls[, which.max(sharper)]
+pnlb <- sd(retv)*pnlb/sd(pnlb)
+combv <- na.omit(cbind(retv, pnlb))
+colnames(combv) <- c("VTI", "LoVol")
+colv <- colnames(combv)
+sharper <- sqrt(252)*sapply(combv, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+captiont <- paste("LoVol Strategy", "/ \n",
+                  paste0(paste0(colv, " SR="), sharper, collapse=" / "))
+dygraphs::dygraph(cumsum(combv)[endd], main=captiont) %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+
+
+################################################
+
+
+pacfv <- sapply(rutils::etfenv$returns, function(x) {
+  pacfl <- pacf(na.omit(x), lag=10, plot=FALSE)
+  sum(pacfl$acf)
+})
+pacfv <- sort(pacfv)
+
+# Calculate the daily open prices at the start of each trading day
+refv <- lapply(4:7, function(x) {
+  load(paste0("/Users/jerzy/Develop/data/USO_minute_20240", x, ".RData"))
+  refp <- lapply(pricel, function(x) {
+    x[] <- x[1]
+    x
+  }) # end lapply
+  do.call(rbind, refp)
+}) # end lapply
+refv <- do.call(rbind, refv)
+
+pricetarg <- refv
+priceref <- refv
+
+
+dygraphs::dygraph(posv, main=captiont) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", strokeWidth=1, col="red") %>%
+  dyLegend(show="always", width=500)
+
+
+## Calculate the average range of daily prices for ETFs, 
+## relative to the volatility of the close-minus-open returns.
+
+# Calculate the range of daily prices for VTI
+ohlc <- log(rutils::etfenv$VTI)
+openp <- quantmod::Op(ohlc)
+closep <- quantmod::Cl(ohlc)
+retd <- (closep - openp)
+highp <- quantmod::Hi(ohlc)
+lowp <- quantmod::Lo(ohlc)
+hilo <- highp - lowp
+# Actual value is:
+mean(hilo)/sd(retd)
+# theoretical range is:
+sqrt(pi/2)
+
+# Calculate the range of daily prices for all the ETFs
+rangev <- sapply(rutils::etfenv$symbolv, function(symboln) {
+  ohlc <- log(get(symboln, rutils::etfenv))
+  ohlc <- ohlc["2021/"]
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  retd <- (closep - openp)
+  highp <- quantmod::Hi(ohlc)
+  lowp <- quantmod::Lo(ohlc)
+  hilo <- highp - lowp
+  mean(hilo)/sd(retd)
+}) # end sapply
+rangev <- sort(rangev)
+
+
+## Simulate the ratchet strategy
+
+pnlv <- 0.5*(highp -lowp) - 0.75*abs(closep-openp)
+dygraph(cumsum(pnlv))
+
+
+
+### Trending Portfolio for VTI and VXX
 captiont <- paste("Trending Portfolio for", paste(paste(symbolv, round(c(1, -weightv), 2), sep="="), collapse=", "))
 
 foo <- log(na.omit(rutils::etfenv$prices[, c("VTI", "VXX")]))
 foo <- rutils::diffit(foo)
-betac <- cov(foo$VXX, foo$VTI)/var(foo$VTI)
-betac <- cov(foo$VXX["2021/"], foo$VTI["2021/"])/var(foo$VTI["2021/"])
+
+foo <- na.omit(rutils::etfenv$returns[, c("VTI", "VXX")])
+
+betac <- drop(cov(foo[, 2], foo[, 1])/var(foo[, 1]))
+betac <- drop(cov(foo["2021/", 2], foo["2021/", 1])/var(foo["2021/", 2]))
+
 
 
 endd <- rutils::calc_endpoints(priceref, interval=10)
@@ -64,9 +259,9 @@ captiont <- paste("Strategy for", symbolref, "/ \n",
                   paste0(c("Index SR=", "Strategy SR="), sharper, collapse=" / "), "/ \n",
                   "Number of trades=", ntrades)
 dygraphs::dygraph(cbind(pnls[, 2], posv), main=captiont) %>%
-  dyAxis("y", label=colnamev[2], independentTicks=TRUE) %>%
+  dyAxis("y", label=colv[2], independentTicks=TRUE) %>%
   dyAxis("y2", label="posv", independentTicks=TRUE) %>%
-  dySeries(name=colnamev[2], axis="y", strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[2], axis="y", strokeWidth=1, col="blue") %>%
   dySeries(name="posv", axis="y2", strokeWidth=1, col="red")
 
 
@@ -137,7 +332,7 @@ costv <- 0.05*abs(rutils::diffit(posv))
 pnls <- (pnls - costv)
 pnls <- cbind(retv, pnls)
 colnames(pnls) <- c("Pair", "Strategy")
-colnamev <- colnames(pnls)
+colv <- colnames(pnls)
 dygraphs::dygraph(cumsum(pnls), main="Simulated Performance of Pair Strategy") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
   dyLegend(show="always", width=300)
@@ -147,13 +342,13 @@ dygraphs::dygraph(cumsum(pnls), main="Simulated Performance of Pair Strategy") %
 # Plot the z-scores
 zscores <- cbind(zscores, rep(1, nrows), rep(-1, nrows))
 colnames(zscores) <- c("Z-Scores", paste("\U03B8 = 1"), paste("\U03B8 = -1"))
-colnamev <- colnames(zscores)
+colv <- colnames(zscores)
 dygraphs::dygraph(zscores, main="Z-Scores For SPY Minute Prices") %>%
   dyOptions(colors=c("blue", "red", "red"), strokeWidth=2) %>%
-  dySeries(name=colnamev[2], strokePattern="dashed", strokeWidth=2) %>%
-  dyAnnotation(x=index(zscores[111]), width=60, height=20, text=colnamev[2]) %>%
-  dySeries(name=colnamev[3], strokePattern="dashed", strokeWidth=2) %>%
-  dyAnnotation(x=index(zscores[211]), width=60, height=20, text=colnamev[3]) %>%
+  dySeries(name=colv[2], strokePattern="dashed", strokeWidth=2) %>%
+  dyAnnotation(x=index(zscores[111]), width=60, height=20, text=colv[2]) %>%
+  dySeries(name=colv[3], strokePattern="dashed", strokeWidth=2) %>%
+  dyAnnotation(x=index(zscores[211]), width=60, height=20, text=colv[3]) %>%
   dyLegend(show="never")
 
 
@@ -235,7 +430,7 @@ pnls <- fcasts*retp
 pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
 wealthv <- cbind(retp, pnls)
 colnames(wealthv) <- c("VTI", "Strategy")
-colnamev <- colnames(wealthv)
+colv <- colnames(wealthv)
 sqrt(252)*sapply(wealthv, function(x) 
   c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
 # Plot dygraph of autoregressive strategy
@@ -284,12 +479,12 @@ pnls <- lapply(pricel, function(pricev) {
 pnls <- do.call(rbind, pnls)
 pnls <- cumsum(pnls)
 colnames(pnls) <- c(symboln, "Strategy")
-colnamev <- colnames(pnls)
+colv <- colnames(pnls)
 dygraphs::dygraph(pnls, main=paste(symboln, "Strategy")) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(axis="y2", label=colv[2], strokeWidth=2, col="red") %>%
   dyLegend(show="always", width=300)
 
 
@@ -342,12 +537,12 @@ dygraph(pricev)
 
 datav <- cbind(pricev, zscores)
 colnames(datav) <- c("price", "zscores")
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav, main="Prices and Z-scores") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(axis="y2", label=colv[2], strokeWidth=2, col="red") %>%
   dyLegend(show="always", width=300)
 
 
@@ -628,7 +823,7 @@ coeffsd <- sqrt(diag(covmat))
 coefft <- drop(coeff/coeffsd)
 coeffn <- paste0("phi", 0:(NROW(coefft)-1))
 barplot(coefft ~ coeffn, xlab="", ylab="t-value", col="grey",
-main="Coefficient t-values of AR Forecasting Model")
+        main="Coefficient t-values of AR Forecasting Model")
 fcastv <- sqrt(HighFreq::run_var(fcasts, lambda=0.2))
 fcastsc <- ifelse(fcastv > 0, fcasts/fcastv, 0)
 # Trade the forecasts
@@ -799,7 +994,7 @@ datev <- index(pricev)
 endp <- rutils::calc_endpoints(pricev, interval=7)
 objfun(c(1, 1), pricev=pricev)
 
-# Perform portfolio optimization using optim
+# # Perform portfolio optimization using the quasi-Newton method
 ncols <- NCOL(pricev)
 optimd <- optim(par=rep(1, ncols),
                 fn=objfun,
@@ -854,7 +1049,7 @@ objfun <- function(weightv, retp=retp) {
   -sum(retp)/sd(retp)
 }  # end objfun
 
-# Perform portfolio optimization using optim
+# # Perform portfolio optimization using the quasi-Newton method
 ncols <- NCOL(retp)
 optimd <- optim(par=rep(1, ncols),
                 fn=objfun,
@@ -923,7 +1118,7 @@ objfun <- function(weightv, retp=retp) {
   -sum(retp)/sd(retp)
 }  # end objfun
 
-# Perform portfolio optimization using optim
+# # Perform portfolio optimization using the quasi-Newton method
 ncols <- NCOL(retp)
 optimd <- optim(par=rep(1, ncols),
                 fn=objfun,
@@ -969,12 +1164,12 @@ indexf <- as.numeric(.index(foo))
 nearl <- calc_nearest(matrix(indexf), matrix(indexp))
 blah <- cbind(foo, coredata(pricev[nearl]))
 colnames(blah) <- c("zscores", "price")
-colnamev <- colnames(blah)
+colv <- colnames(blah)
 dygraphs::dygraph(blah, main="Zscores and SPY") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(axis="y2", label=colv[2], strokeWidth=2, col="red") %>%
   dyLegend(show="always", width=300)
 
 # Calculate the difference of returns
@@ -1009,7 +1204,7 @@ zscores <- techindic$zscores
 
 
 
-############### test
+############## test
 # Summary: Rank the stocks according to their alpha.
 
 ## Run all the setup code below.
@@ -1317,12 +1512,12 @@ dygraph(pricelast)
 posv <- xts::xts(dtable$posv, order.by=datev)
 datav <- cbind(pricelast, posv)
 colnames(datav) <- c("price", "posv")
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav, main="SPY Prices and Positions") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(axis="y2", label=colv[2], strokeWidth=2, col="red") %>%
   dyLegend(show="always", width=300)
 
 
@@ -1384,12 +1579,14 @@ dygraphs::dygraph(cumsum(wealthv),
 
 
 ###############
-# Load daily OHLC bars
+# Trade the daytime and overnight returns
 
+# Load daily OHLC bars
 ohlc <- log(rutils::etfenv$VTI)
+datev <- zoo::index(ohlc)
 openp <- quantmod::Op(ohlc)
-# highp <- quantmod::Hi(ohlc)
-# lowp <- quantmod::Lo(ohlc)
+highp <- quantmod::Hi(ohlc)
+lowp <- quantmod::Lo(ohlc)
 closep <- quantmod::Cl(ohlc)
 retp <- rutils::diffit(closep)
 # colnames(retp) <- "daily"
@@ -1420,6 +1617,19 @@ dygraphs::dygraph(cumsum(wealthv),
   main="Autoregressive Strategy of Daytime Returns") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
   dyLegend(show="always", width=300)
+
+
+# Bollinger strategy using the overnight returns scaled by volatility
+
+volv <- HighFreq::run_var_ohlc(ohlc, lambda=0.7)
+volv <- sqrt(volv)
+zscore <- reton/rutils::lagit(volv, lagg=1)
+dygraph(zscore)
+# Trade the daytime returns based on the overnight returns
+pnls <- -retd*zscore
+pnls[1] <- 0
+
+
 
 
 
@@ -1771,13 +1981,13 @@ zscores <- ifelse(volat > 0, zscores/volat, 0)
 # Plot dygraph of the trailing z-scores of VTI prices
 datav <- cbind(pricev, zscores)
 colnames(datav) <- c("QQQ", "Z-Scores")
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav,
   main="QQQ Trailing Price Z-Scores") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(axis="y2", label=colnamev[2], strokeWidth=2, col="red") %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(axis="y2", label=colv[2], strokeWidth=2, col="red") %>%
   dyLegend(show="always", width=300)
 
 
@@ -1854,12 +2064,12 @@ highcharter::hchart(spyticks$price)
 # Plot SPY and z-scores
 datav <- cbind(closep, zscores)
 colnames(datav) <- c("SPY", "zscores")
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav, main="SPY and z-scores") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="red")
 
 
 
@@ -1904,7 +2114,7 @@ optimd <- DEoptim::DEoptim(fn=objfun,
                                         packages=c("dygraphs", "TTR", "xts", "quantmod", "rutils", "HighFreq")))
 weightv <- optimd$optim$bestmem/sum(abs(optimd$optim$bestmem))
 
-# Perform portfolio optimization using optim
+# # Perform portfolio optimization using the quasi-Newton method
 optimd <- optim(fn=objfun,
                 par=rep(1, nstocks),
                 method="L-BFGS-B",
@@ -2166,12 +2376,12 @@ regs <- HighFreq::run_reg(respv=respv, predv=predv, lambda=lambdaf)
 # Plot the rolling alphas
 datav <- cbind(cumsum(respv), regs[, 2])
 colnames(datav) <- c("XLF", "alphas")
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav, main="Alphas of XLF Versus VTI and IEF") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="red")
 
 # respv <- zoo::coredata(respv)
 # predv <- zoo::coredata(predv)
@@ -2301,12 +2511,12 @@ pnls <- sign(fcasts)*retp[, "VTI"]
 wealth <- cbind(retp[, "VTI"], pnls)
 colnames(wealth) <- c("VTI", "Strategy")
 sqrt(252)*sapply(wealth, function(x) mean(x)/sd(x[x<0]))
-colnamev <- colnames(wealth)
+colv <- colnames(wealth)
 dygraphs::dygraph(cumsum(wealth), main="VIX Strategy In-Sample") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="blue", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="red", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="blue", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="red", strokeWidth=2) %>%
   dyLegend(show="always", width=300)
 
 
@@ -2322,12 +2532,12 @@ pnls <- sign(fcasts)*retp[outsample, "VTI"]
 wealth <- cbind(retp[outsample, "VTI"], pnls)
 colnames(wealth) <- c("VTI", "Strategy")
 sqrt(252)*sapply(wealth, function(x) mean(x)/sd(x[x<0]))
-colnamev <- colnames(wealth)
+colv <- colnames(wealth)
 dygraphs::dygraph(cumsum(wealth), main="VIX Strategy Out-of-Sample") %>%
-dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-dySeries(name=colnamev[1], axis="y", col="blue", strokeWidth=2) %>%
-dySeries(name=colnamev[2], axis="y2", col="red", strokeWidth=2) %>%
+dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+dySeries(name=colv[1], axis="y", col="blue", strokeWidth=2) %>%
+dySeries(name=colv[2], axis="y2", col="red", strokeWidth=2) %>%
 dyLegend(show="always", width=300)
 
 
@@ -2535,12 +2745,12 @@ pnls <- do.call(rbind, pnls)
 vtis <- rutils::diffit(closep[zoo::index(pnls),])
 wealth <- cbind(vtis, pnls)
 colnames(wealth) <- c("VTI", "Strategy")
-colnamev <- colnames(wealth)
+colv <- colnames(wealth)
 dygraphs::dygraph(cumsum(wealth), main="Rolling Weekly Yield Curve Strategy") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="blue", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="red", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="blue", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="red", strokeWidth=2) %>%
   dyLegend(show="always", width=300)
 
 
@@ -2750,14 +2960,14 @@ plot(threshv, sharpev)
 # datav <- data.table::fread(file="/Users/jerzy/Develop/predictive/data/FRED_data.csv", stringsAsFactors=FALSE)
 
 datav <- read.csv(file="/Users/jerzy/Develop/predictive/data/FRED_data.csv")
-colnamev <- colnames(datav)[-1]
+colv <- colnames(datav)[-1]
 sapply(datav, class)
 datav <- lapply(datav[, -1], as.numeric)
 datav <- rutils::do_call(cbind, datav)
 apply(datav, 2, class)
 
 num_nona <- apply(datav, 2, function(x) sum(!is.na(x)))
-colnamev <- colnamev[num_nona > 0]
+colv <- colv[num_nona > 0]
 datav <- lapply(1:NCOL(datav), function(x) {
   if (sum(!is.na(datav[, x])) > 0)
     datav[, x]
@@ -2776,7 +2986,7 @@ corr_el <- sapply(2:NCOL(diff_data), function(x) {
   di_ff <- na.omit(diff_data[, c(1, x)])
   cor(di_ff[, 1], rutils::lagit(di_ff[, 2], pad_zeros=FALSE))
 })  # end lapply
-names(corr_el) <- colnamev[-1]
+names(corr_el) <- colv[-1]
 sort(corr_el)
 
 
@@ -2805,14 +3015,14 @@ datav <- xts::xts(datav[, 2:3], as.Date.IDate(datav[, date]))
 
 
 
-############### - copied to slides
+############## - copied to slides
 ### Simulate an AR strategy for VTI using IR yield curve
 # Comment: PCA of yield curve have some forecasting power for VTI
 
 wealth <- cbind(foo1, foo2, foo3)
 colorv <- colorRampPalette(c("blue", "red"))(NCOL(wealth))
 colnames(wealth) <- c("NoReg", "Reg=3", "Reg=2")
-colnamev <- colnames(wealth)
+colv <- colnames(wealth)
 dygraphs::dygraph(cumsum(wealth), main="Yield Curve Strategy In-sample") %>%
   dyOptions(colors=colorv, strokeWidth=1) %>% dyLegend(show="always", width=300)
 
@@ -2861,12 +3071,12 @@ barplot(foo, main="PACF of Interest Rate PCs")
 
 datav <- cbind(retp, rates_pca[, 1:3])
 colnames(datav) <- c("VTI", "FirstPC", "Steepener", "Butterfly")
-colnamev <- colnames(datav)[c(1, 3)]
+colv <- colnames(datav)[c(1, 3)]
 dygraphs::dygraph(cumsum(datav[, c(1, 3)]), main=paste(colnames(datav)[1], "and IR", colnames(datav)[3])) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="red")
 
 
 # Pure in-sample with aggregations
@@ -2889,12 +3099,12 @@ pnls <- fcasts*respv
 # Plot dygraph of in-sample VTI strategy
 wealth <- cbind(retp, pnls)
 colnames(wealth) <- c("VTI", "Strategy")
-colnamev <- colnames(wealth)
+colv <- colnames(wealth)
 dygraphs::dygraph(cumsum(wealth), main="Autoregressive Strategy Using Yield Curve") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="blue", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="red", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="blue", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="red", strokeWidth=2) %>%
   dyLegend(show="always", width=300)
 
 # Find best numagg
@@ -2968,12 +3178,12 @@ pnls <- fcasts*respv[outsample, ]
 # Plot dygraph of out-of-sample VTI strategy
 wealth <- cbind(retp[outsample, ], pnls)
 colnames(wealth) <- c("VTI", "Strategy")
-colnamev <- colnames(wealth)
+colv <- colnames(wealth)
 dygraphs::dygraph(cumsum(wealth), main="Autoregressive Strategy Using Yield Curve") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="blue", strokeWidth=1) %>%
-  dySeries(name=colnamev[2], axis="y2", col="red", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="blue", strokeWidth=1) %>%
+  dySeries(name=colv[2], axis="y2", col="red", strokeWidth=2) %>%
   dyLegend(show="always", width=300)
 
 # Trade the strategy
@@ -3346,12 +3556,12 @@ hist(zscores)
 # Plot dygraph of z-scores of VTI prices
 prices <- cbind(closep, zscores)
 colnames(prices) <- c(symbol, paste(symbol, "Z-Score"))
-colnamev <- colnames(prices)
+colv <- colnames(prices)
 dygraphs::dygraph(prices["2009"], main=paste(symbol, "Z-Score")) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=2, col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=2, col="red")
 
 # Calculate the thresholds for labeling tops and bottoms
 threshv <- quantile(zscores, c(0.1, 0.9))
@@ -3375,12 +3585,12 @@ sum(abs(rutils::diffit(posv))) / NROW(posv)
 # Plot dygraph of in-sample VTI strategy
 prices <- cbind(closep, pnls)
 colnames(prices) <- c(symbol, paste(symbol, "Strategy"))
-colnamev <- colnames(prices)
+colv <- colnames(prices)
 dygraphs::dygraph(prices, main=paste(symbol, "In-sample Strategy")) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=2, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=2, col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=2, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=2, col="red")
 
 
 
@@ -3710,12 +3920,12 @@ captiont <- paste("Strategy for", symbol, "Returns Scaled by the Trading Volumes
                   paste0(c("Index SR=", "Strategy SR="), sharper, collapse=" / "), "/ \n",
                   "Number of trades=", ntrades)
 
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(cumsum(datav), main="Autoregressive Portfolio") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="red")
 
 dygraphs::dygraph(datav, main="Autoregressive Portfolio") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
@@ -3921,13 +4131,13 @@ cor(rutils::lagit(retp[, 1]), retp[, 2])
 x11(width=6, height=5)
 plot(SPY ~ sentiment, data=retp)
 
-colnamev <- colnames(datav)
-captiont <- paste(colnamev, collapse=" vs ")
+colv <- colnames(datav)
+captiont <- paste(colv, collapse=" vs ")
 dygraphs::dygraph(datav, main=captiont) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="red") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="blue")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="red") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="blue")
 
 
 
@@ -4126,13 +4336,13 @@ pnls <- xts::xts(pnls, datev)
 # dygraphs::dygraph(pnls)
 # Combine index with AAPL
 pnls <- cbind(pnls, tickg$price)
-colnamev <- c("Strategy", "AAPL")
-colnames(pnls) <- colnamev
+colv <- c("Strategy", "AAPL")
+colnames(pnls) <- colv
 dygraphs::dygraph(pnls, main="AAPL Strategy") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="red", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="blue", strokeWidth=2) %>%
   dyLegend(width=300)
 
 datav <- cbind(tickg, posv, pnls$Strategy)
@@ -4157,13 +4367,13 @@ pnls <- xts::xts(pnls, datev)
 dygraphs::dygraph(pnls)
 # Combine index with AAPL
 pnls <- cbind(pnls, big_ticks$price)
-colnamev <- c("Strategy", "AAPL")
-colnames(pnls) <- colnamev
+colv <- c("Strategy", "AAPL")
+colnames(pnls) <- colv
 dygraphs::dygraph(pnls, main="AAPL Strategy") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="red", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="blue", strokeWidth=2) %>%
   dyLegend(width=300)
 
 
@@ -4305,19 +4515,19 @@ pnls <- xts::xts(pnls, datev)
 dygraphs::dygraph(pnls)
 # Combine index with AAPL
 pnls <- cbind(pnls, big_ticks$price)
-colnamev <- c("Strategy", "AAPL")
-colnames(pnls) <- colnamev
+colv <- c("Strategy", "AAPL")
+colnames(pnls) <- colv
 dygraphs::dygraph(pnls, main="AAPL Strategy") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="red", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="blue", strokeWidth=2) %>%
   dyLegend(width=300)
 
 
 
 
-############### temp
+############## temp
 
 indic <- rutils::diffit(posv)
 indic_buy <- (indic > 0)
@@ -4328,19 +4538,19 @@ retc <- cumsum(retp)
 pnls <- cbind(pnls, retc[indic_buy], retc[indic_sell])
 colnames(pnls)[3:4] <- c("Buy", "Sell")
 
-colnamev <- colnames(pnls)
+colv <- colnames(pnls)
 dygraphs::dygraph(pnls, main=captiont) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="red") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="blue") %>%
-  dySeries(name=colnamev[3], axis="y2", label=colnamev[3], drawPoints=TRUE, strokeWidth=0, pointSize=5, col="orange") %>%
-  dySeries(name=colnamev[4], axis="y2", label=colnamev[4], drawPoints=TRUE, strokeWidth=0, pointSize=5, col="green")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="red") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="blue") %>%
+  dySeries(name=colv[3], axis="y2", label=colv[3], drawPoints=TRUE, strokeWidth=0, pointSize=5, col="orange") %>%
+  dySeries(name=colv[4], axis="y2", label=colv[4], drawPoints=TRUE, strokeWidth=0, pointSize=5, col="green")
 
 
 
 
-############### homework
+############## homework
 # Summary: Study how the dispersion of the Hampel z-scores
 # depends on the level of volatility in the interval.
 # Yes, zscores have higher dispersion on more volatile days.
@@ -4605,13 +4815,13 @@ dygraphs::dygraph(wealth)
 # Combine index with AAPL
 wealth <- cbind(wealth, indeks)
 # wealth <- xts(wealth, index(retv100))
-colnamev <- c("Strategy", "Index")
-colnames(wealth) <- colnamev
+colv <- c("Strategy", "Index")
+colnames(wealth) <- colv
 dygraphs::dygraph(wealth, main="S&P500 Mean Reverting Strategy") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="red", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="blue", strokeWidth=2) %>%
   dyLegend(width=300)
 
 
@@ -4650,13 +4860,13 @@ wealth <- btmomdaily(retp=retv100, lookb=5, bidask=0, tre_nd=(-1))
 # Combine index with AAPL
 wealth <- cbind(wealth, indeks)
 wealth <- xts(wealth, index(retv100))
-colnamev <- c("Strategy", "Index")
-colnames(wealth) <- colnamev
+colv <- c("Strategy", "Index")
+colnames(wealth) <- colv
 dygraphs::dygraph(wealth, main="Momentum S&P500 Mean Reverting Strategy") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="red", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="blue", strokeWidth=2) %>%
   dyLegend(width=300)
 
 
@@ -4979,12 +5189,12 @@ wealth <- cumsum(portf_hurst)
 # wealth <- cumprod(1 + portf_hurst)
 datav <- cbind(Cl(rutils::etfenv$VEU)[index(retp)], wealth)
 colnames(datav)[1] <- "VEU"
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav, main="Max Hurst vs VEU") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="blue") %>%
+  dySeries(name=colv[2], axis="y2", col="red")
 
 
 
@@ -5068,12 +5278,12 @@ wealth <- cumsum(portf_hurst)
 # wealth <- cumprod(1 + portf_hurst)
 datav <- cbind(Cl(rutils::etfenv$VEU)[index(retp)], wealth)
 colnames(datav)[1] <- "VEU"
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 dygraphs::dygraph(datav, main="Max Hurst vs VEU") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", col="red")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="blue") %>%
+  dySeries(name=colv[2], axis="y2", col="red")
 
 
 
@@ -5324,11 +5534,11 @@ library(rutils)
 datav <- read.zoo(file="/Users/jerzy/Develop/predictive/data/predictions_long_account.csv", header=TRUE, sep=",")
 datav <- as.xts(datav)
 datev <- index(datav)
-colnamev <- colnames(datav)
+colv <- colnames(datav)
 datav <- lapply(datav, as.numeric)
 datav <- rutils::do_call(cbind, datav)
 datav <- xts(datav, datev)
-colnames(datav) <- colnamev
+colnames(datav) <- colv
 
 core_data <- datav[, 8:9]
 colnames(core_data) <- c("actual", "predicted")
@@ -5462,14 +5672,14 @@ dygraphs::dygraph(prices_scaled[60*(1:(NROW(prices_scaled) %/% 60))], main="SPY 
 
 # Plot the cumulative scaled returns with close prices
 datav <- cbind(prices, prices_scaled)
-colnamev <- c("SPY Prices", "Scaled by Volume")
+colv <- c("SPY Prices", "Scaled by Volume")
 # datav <- xts::to.hourly(datav)
-colnames(datav) <- colnamev
+colnames(datav) <- colv
 dygraphs::dygraph(datav[60*(1:(NROW(datav) %/% 60))], main="SPY Prices") %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", col="red", strokeWidth=2) %>%
-  dySeries(name=colnamev[2], axis="y2", col="blue", strokeWidth=2) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", col="red", strokeWidth=2) %>%
+  dySeries(name=colv[2], axis="y2", col="blue", strokeWidth=2) %>%
   dyLegend(width=300)
 
 
@@ -5609,7 +5819,7 @@ statv <- sapply((1:20)/10, function(expov) {
 
 
 
-############### homework
+############## homework
 # Summary: Strategy using weekly and monthly stock returns.
 # It's implemented in app_roll_portf9.R
 
@@ -5656,7 +5866,7 @@ plot.zoo(-pnls[endd], main="pnls", xlab=NA, ylab=NA)
 
 
 
-############### homework
+############## homework
 # Summary: Create a contrarian strategy using
 # the Hampel filter.
 # It's implemented in app_roll_portf10.R
@@ -5714,7 +5924,7 @@ plot.zoo(pnls[endd], main="pnls", xlab=NA, ylab=NA)
 
 
 
-############### homework - Hurst exponents almost random
+############## homework - Hurst exponents almost random
 # Summary: Calculate a time series of monthly Hurst
 # exponents and the volatility for the SPY series.
 # Demonstrate that the changes of the Hurst exponent
@@ -5818,7 +6028,7 @@ pacf(foo[, 1])
 
 
 # wippp
-############### homework
+############## homework
 # Summary: Calculate a time series of annual Hurst
 # exponents for S&P500 stocks.
 # Plot a scatterplot of Hurst for the years 2008 and 2009.
@@ -5944,10 +6154,10 @@ retp <- prices[, names(tail(bar, 100))]
 retp <- rutils::diffit(log(retp))
 save(retp, file="/Users/jerzy/Develop/lecture_slides/data/sp100_rets.RData")
 
-colnamev <- colnames(hurst_prof$AAPL)
+colv <- colnames(hurst_prof$AAPL)
 bar <- lapply(hurst_prof, function(x) {
   x <- cbind((x[, 1]-min(x[, 1]))/(max(x[, 1]-min(x[, 1]))), (x[, 2]-min(x[, 2]))/(max(x[, 2])-min(x[, 2])))
-  colnames(x) <- colnamev
+  colnames(x) <- colv
   x
 })  # end lapply
 foo <- NULL
@@ -6141,13 +6351,13 @@ prices <- cumsum(rowMeans(retp))
 pnls <- cbind(pnls, prices)
 colnames(pnls) <- c("Strategy", "Index")
 
-colnamev <- colnames(pnls)
+colv <- colnames(pnls)
 captiont <- paste("Momentum Strategy for S&P500 Stocks")
 dygraphs::dygraph(pnls, main=captiont) %>%
-  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="red") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="blue")
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", label=colv[1], strokeWidth=1, col="red") %>%
+  dySeries(name=colv[2], axis="y2", label=colv[2], strokeWidth=1, col="blue")
 
 
 
@@ -6663,7 +6873,7 @@ indicm <- cbind(retp, volv, skew)
 # indicm <- cbind(openp-highp, closep-highp)
 # colnames(indicm) <- c("openp_highp", "closep_highp")
 # indicm <- cbind(retp, skew, indicm)
-colnamev <- colnames(indicm)
+colv <- colnames(indicm)
 
 # Scale indicm using roll_scale()
 lookb <- 11
@@ -6672,7 +6882,7 @@ indicm[1, ] <- 0
 round(cor(indicm), 3)
 indicm <- cbind(indicm, zscores)
 indicm[1:3, ] <- 0
-colnamev <- colnames(indicm)
+colv <- colnames(indicm)
 
 
 # Scale indicm using sigmoid
@@ -6698,7 +6908,7 @@ indicm <- lapply(1:NCOL(indicm), function(colnum) {
   HighFreq::roll_sum(indicm[, colnum], lookb=lookb)/lookb
 })  # end lapply
 indicm <- rutils::do_call(cbind, indicm)
-colnames(indicm) <- colnamev
+colnames(indicm) <- colv
 # predm <- as.data.frame(cbind(retadv, returns, varv))
 # colnames(predm) <- c("indic", "PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7")
 # or
@@ -6735,7 +6945,7 @@ indicm <- lapply(indicm, function(colnum) {
   HighFreq::roll_sum(indicm[, colnum], lookb=lookb)/lookb
 })  # end lapply
 indicm <- rutils::do_call(cbind, indicm)
-colnames(indicm) <- colnamev
+colnames(indicm) <- colv
 predm <- as.data.frame(cbind(retadv, predm))
 # colnames(predm) <- c("indic", "PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7")
 # or
@@ -6764,9 +6974,9 @@ sum(is.na(predm))
 ## run regressions of future returns against different indicators
 
 # lm formula
-colnamev <- colnames(predm)
-formulav <- as.formula(paste(colnamev[1], paste(colnamev[-1], collapse=" + "), sep="~"))
-formulav <- as.formula(paste(colnamev[1], paste(paste(colnamev[-1], collapse=" + "), "- 1"), sep="~"))
+colv <- colnames(predm)
+formulav <- as.formula(paste(colv[1], paste(colv[-1], collapse=" + "), sep="~"))
+formulav <- as.formula(paste(colv[1], paste(paste(colv[-1], collapse=" + "), "- 1"), sep="~"))
 
 
 # find extreme returns
@@ -7022,8 +7232,8 @@ foo <- sapply(1:11, function(lookb) {
 })  # end sapply
 
 foo <- cbind(retadv, returns)
-colnamev <- colnames(foo)
-formulav <- as.formula(paste(colnamev[1], paste(colnamev[-1], collapse=" + "), sep="~"))
+colv <- colnames(foo)
+formulav <- as.formula(paste(colv[1], paste(colv[-1], collapse=" + "), sep="~"))
 # perform regression
 # retadv <- plogis(retadv, scale=-quantile(foo, 0.1))
 excess <- ((foo[, 2]>quantile(foo[, 2], 0.05)) & (foo[, 2]<quantile(foo[, 2], 0.95)))

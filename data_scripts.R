@@ -22,7 +22,8 @@ symboln <- "AAPL"
 # datan <- "_minute_202308"
 # datan <- "_10second_"
 # datan <- "_second_"
-datan <- "_second_202402"
+monthv <- "04"
+datan <- paste0("_second_2024", monthv)
 filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
 # Loop over the file names, load the data from CSV files,
 # and calculate a list of time series of prices.
@@ -71,7 +72,7 @@ save(pricel, file=filen)
 pricel <- lapply(pricel, xts::to.minutes)
 pricel <- lapply(pricel, quantmod::Cl)
 for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
-save(pricel, file=paste0(dirp, symboln, "_minute_202407", ".RData"))
+save(pricel, file=paste0(dirp, symboln, "_minute_2024", monthv, ".RData"))
 
 
 
@@ -284,10 +285,10 @@ endd <- Sys.Date()
 # apikey <- "UJcr9ctoMBXEBK1Mqu_KQAkUuBxLvEtE"
 
 # Select ETF symbols for asset allocation
-symbolv <- c("VTI", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
+symbolv <- c("SPY", "VTI", "QQQ", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
-             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV", "AIEQ", "QQQ")
+             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV", "AIEQ")
 # Create new environment for ETF data
 etfenv <- new.env()
 
@@ -357,7 +358,7 @@ riskstats$Sharpe <- sqrt(252)*riskstats$"Arithmetic Mean"/riskstats$Stdev
 etfenv$riskstats <- riskstats
 # Calculate the beta, alpha, Treynor ratio, and other performance statistics
 capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv],
-                                              Rb=returns[, "VTI"], scale=252)
+                                              Rb=returns[, "SPY"], scale=252)
 colnamev <- strsplit(colnames(capmstats), split=" ")
 colnamev <- do.call(cbind, colnamev)[1, ]
 colnames(capmstats) <- colnamev
@@ -422,9 +423,9 @@ sum(!isdown)
 symbolv[!isdown]
 
 # Rename element "LOW" to "LOWES"
-sp500env$LOWES <- sp500env$LOW
+sp500env$LWES <- sp500env$LOW
 rm(LOW, envir=sp500env)
-colnames(sp500env$LOWES) <- paste("LOVES", rutils::get_name(colnames(sp500env$LOWES), 2), sep=".")
+colnames(sp500env$LWES) <- paste("LWES", rutils::get_name(colnames(sp500env$LWES), 2), sep=".")
 # Rename element "BRK.B" to "BRKB"
 sp500env$BRKB <- sp500env$BRK.B
 rm(BRK.B, envir=sp500env)
@@ -680,6 +681,49 @@ sum(!unlist(foo))
 save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
+###############
+# Save OHLC prices for the most liquid S&P500 stocks. 
+
+# Load the daily OHLC prices for S&P500 stocks
+load(file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+
+# Calculate the daily trading volumes
+volumv <- eapply(sp500env, quantmod::Vo)
+volumv <- do.call(cbind, volumv)
+colnames(volumv) <- rutils::get_name(colnames(volumv))
+
+# Calculate the total trading volumes
+volumt <- sapply(volumv, sum, na.rm=TRUE)
+volumt <- sort(volumt, decreasing=TRUE)
+
+# Calculate the symbols of the 200 most liquid stocks 
+# in every year, since 1999.
+
+yearv <- as.character(1999:2024)
+volumy <- sapply(yearv, function(yearn) {
+  volumy <- sapply(volumv[yearn], sum, na.rm=TRUE)
+  names(head(sort(volumy, decreasing=TRUE), 200))
+}) # end sapply
+
+# Copy the OHLC prices for all the top stocks
+# with highest into an environment called sp500top.
+
+symbolv <- sort(unique(c(volumy)))
+sp500top <- as.list(sp500env)[symbolv]
+sp500top <- as.environment(sp500top)
+save(sp500top, file="/Users/jerzy/Develop/lecture_slides/data/sp500top.RData")
+
+## Calculate the stock prices and log returns from OHLC prices
+pricestock <- eapply(sp500top, quantmod::Cl)
+pricestock <- rutils::do_call(cbind, pricestock)
+colnamev <- rutils::get_name(colnames(pricestock))
+colnames(pricestock) <- colnamev
+retstock <- xts::diff.xts(log(pricestock))
+## Save the prices and returns
+save(pricestock, file="/Users/jerzy/Develop/lecture_slides/data/sp500_pricestop.RData")
+save(retstock, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returnstop.RData")
+
+
 
 ###############
 # Load S&P500 constituent stock prices from .RData file
@@ -701,7 +745,7 @@ colnames(pricestock) <- colnamev
 # pricestock <- zoo::na.locf(pricestock, na.rm=FALSE)
 # pricestock <- zoo::na.locf(pricestock, fromLast=TRUE)
 
-## Calculate log percentage returns of the S&P500 constituent stocks
+## Calculate log returns of the S&P500 constituent stocks
 retstock <- xts::diff.xts(log(pricestock))
 # retstock[1, ] <- 0.01
 # Or
