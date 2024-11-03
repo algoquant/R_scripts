@@ -151,7 +151,7 @@ dygraphs::dygraph(posv, main=captiont) %>%
   dyLegend(show="always", width=500)
 
 
-## Calculate the average range of daily prices for ETFs, 
+## Calculate the average rescaled range of daily prices for ETFs, 
 ## relative to the volatility of the close-minus-open returns.
 
 # Calculate the range of daily prices for VTI
@@ -159,13 +159,35 @@ ohlc <- log(rutils::etfenv$VTI)
 openp <- quantmod::Op(ohlc)
 closep <- quantmod::Cl(ohlc)
 retd <- (closep - openp)
+colnames(retd) <- "daytime"
+reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
+colnames(reton) <- "overnight"
 highp <- quantmod::Hi(ohlc)
 lowp <- quantmod::Lo(ohlc)
 hilo <- highp - lowp
-# Actual value is:
+# Actual value of the rescaled range is:
 mean(hilo)/sd(retd)
-# theoretical range is:
+foo <- ((hilo < 0.03) & !(retd == 0.0))
+mean(hilo[foo]/abs(retd[foo]))
+# Average profit?
+mean(hilo[foo]/2 - abs(retd[foo]))
+# The theoretical range is:
 sqrt(pi/2)
+
+# The rescaled range for small overnight returns
+foo <- ((abs(reton) < 0.01) & !(retd == 0.0))
+mean(hilo[foo])/sd(retd[foo])
+# Average profit?
+mean(hilo[foo]/2 - abs(retd[foo]))
+
+# Rescaled Range of VTI versus Overnight Returns
+# shows that the range is larger when the overnight returns are smaller.
+plot(x=abs(coredata(reton)), y=abs(coredata(hilo/retd)), 
+     main="Rescaled Range of VTI 
+     versus Overnight Returns",
+     xlab="ONReturn", ylab="RescRange", 
+     xlim=c(0, 0.03), ylim=c(0, 100))
+
 
 # Calculate the range of daily prices for all the ETFs
 rangev <- sapply(rutils::etfenv$symbolv, function(symboln) {
