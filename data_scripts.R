@@ -9,7 +9,7 @@ library(HighFreq)
 
 
 ###############
-# Load intraday prices from CSV files, create a list of time series of prices, 
+# Load intraday prices from CSV files, create a list of time series of prices,
 # and save it into a binary file.
 
 # Set parameters for directory with CSV files
@@ -75,6 +75,26 @@ for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
 save(pricel, file=paste0(dirp, symboln, "_minute_2024", monthv, ".RData"))
 
 
+## Subset prices in CSV files to a single day - 2024-10-04
+# Two days of data were in each file, so needed to subset to a single day
+
+startime <- as.POSIXct("2024-10-04 9:30", origin="1970-01-01", tz="America/New_York")
+endtime <- as.POSIXct("2024-10-04 16:00", origin="1970-01-01", tz="America/New_York")
+
+filev <- Sys.glob("/Users/jerzy/Develop/data/raw/*_second_20241005.csv")
+
+filenn <- lapply(filev, function(filen) {
+  cat("file: ", filen, "\n")
+  dtable <- data.table::fread(filen)
+  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
+  datev <- (datev > startime) & (datev < endtime)
+  dtable <- dtable[datev, ]
+  data.table::fwrite(dtable, file=filen)
+  filen
+}) # end lapply
+
+
+
 
 ## Calculate a list of returns
 retl <- lapply(pricel, function(pricev) {
@@ -88,8 +108,6 @@ sapply(retl, function(retv) {max(abs(retv))})
 
 # Save the lists of prices and returns
 save(pricel, retl, file=paste0(dirin, symboln, datan, format(Sys.Date(), "%Y%m%d"), ".RData"))
-
-
 
 
 
@@ -110,8 +128,9 @@ all.equal(foo, pricev)
 save(pricel, file=filen)
 
 
+
 ###############
-# Load the intraday bar data from CSV files, chain it, and save the monthly time series into a binary file.
+# Load the intraday OHLC prices from CSV files, chain them, and save the monthly time series into a binary file.
 
 # Set parameters for directory with CSV files
 dirin <- "/Users/jerzy/Develop/data/"
@@ -129,9 +148,9 @@ load(file=filen)
 # Get all CSV file names in the dirin directory
 filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
 
-## Load the intraday bar data from CSV files, chain it, and save the monthly time series into a binary file.
+## Load the intraday OHLC prices from CSV files, chain them, and save the monthly time series into a binary file.
 # Loop over the filev, load the data from CSV files,
-# and save the bar data to a binary file
+# and save the OHLC prices to a binary file
 countn <- 1
 for (filen in filev) {
   cat("Counter: ", countn, "\n")
@@ -161,6 +180,78 @@ pricevo <- rbind(pricev, pricevo)
 load(file=Sys.glob(paste0("/Users/jerzy/Develop/data/", symboln, datan, "*8.RData")))
 pricev <- rbind(pricev, pricevo)
 save(pricev, file=paste0("/Users/jerzy/Develop/data/", symboln, datan, "2023.RData"))
+
+
+
+###############
+# Load the intraday OHLC prices from CSV files, chain them, and save them into a binary file.
+# NVDA and XLK prices for November, December 2024, to January 2025.
+
+# Chain the NVDA seconds prices
+dirin <- "/Users/jerzy/Develop/data/raw/"
+dirp <- "/Users/jerzy/Develop/data/"
+symboln <- "NVDA"
+datan <- "_second_"
+# Find all available NVDA files
+filev <- Sys.glob(paste0(dirin, symboln, datan, "*.csv"))
+pricel <- lapply(filev, function(filen) {
+  cat("file: ", filen, "\n")
+  dtable <- data.table::fread(filen)
+  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
+  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
+  pricen <- pricen["T09:30:00/T16:00:00"]
+  colnames(pricen)[1] <- symboln
+  # Remove stale unchanged prices
+  retp <- rutils::diffit(pricen[, 1])
+  pricen <- pricen[!(retp==0), ]
+  pricen
+}) # end lapply
+namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
+namev <- unname(namev)
+names(pricel) <- namev
+save(pricel, file=paste0(dirp, symboln, "_seconds_202425.RData"))
+
+# Aggregate the NVDA seconds prices to 10 seconds
+pricel <- lapply(pricel, xts::to.period, period="seconds", k=10)
+pricel <- lapply(pricel, quantmod::Cl)
+for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
+save(pricel, file=paste0(dirp, symboln, "_10seconds_202425.RData"))
+# Aggregate the NVDA seconds prices to minutes
+pricel <- lapply(pricel, xts::to.minutes)
+pricel <- lapply(pricel, quantmod::Cl)
+for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
+save(pricel, file=paste0(dirp, symboln, "_minute_202425.RData"))
+
+
+# Chain the XLK seconds prices, for the months with NVDA prices
+symboln <- "XLK"
+namev <- sapply(namev, gsub, pattern="-", replacement="")
+filev <- sapply(namev, function(x) paste0(dirin, symboln, "_second_", x, ".csv"))
+pricel <- lapply(filev, function(filen) {
+  cat("file: ", filen, "\n")
+  dtable <- data.table::fread(filen)
+  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
+  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
+  pricen <- pricen["T09:30:00/T16:00:00"]
+  colnames(pricen)[1] <- symboln
+  pricen
+}) # end lapply
+namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
+namev <- unname(namev)
+names(pricel) <- namev
+save(pricel, file=paste0(dirp, symboln, "_202425.RData"))
+
+# Aggregate the XLK seconds prices to 10 seconds
+pricel <- lapply(pricel, xts::to.period, period="seconds", k=10)
+pricel <- lapply(pricel, quantmod::Cl)
+for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
+save(pricel, file=paste0(dirp, symboln, "_10seconds_202425.RData"))
+# Aggregate the XLK seconds prices to minutes
+pricel <- lapply(pricel, xts::to.minutes)
+pricel <- lapply(pricel, quantmod::Cl)
+for (x in 1:NROW(pricel)) {colnames(pricel[[x]]) <- symboln}
+save(pricel, file=paste0(dirp, symboln, "_minute_202425.RData"))
+
 
 
 ###############
@@ -204,6 +295,75 @@ dygraphs::dygraph(pricev, main=paste(colnames(pricev), "Ticks")) %>%
 
 
 ###############
+# Download intraday OHLC bars from Alpaca.
+
+# https://docs.alpaca.markets/reference/stockbars
+
+# Define the parameters for the Alpaca API
+library(httr)
+urls <- "https://data.alpaca.markets/v2/stocks/bars"
+symboln <- "SPY"
+startd <- "2024-01-01"
+# Get the business days since 2024-01-01 using RQuantLib
+datev <- seq.Date(from=as.Date(startd), to=Sys.Date(), by="day")
+datev <- datev[RQuantLib::isBusinessDay("UnitedStates/NYSE", datev)]
+# Output directory
+dirp <- paste0("/Users/jerzy/Develop/data/minutes/", symboln, "/")
+
+
+# Loop over the dates, download the intraday prices from Alpaca,
+# save them to CSV files.
+pricel <- lapply(datev, function(x) {
+
+  cat("datev: ", format(x), "\n")
+  # Define the start time for the query
+  startdt <- paste0(x, "T08:00:00Z")
+  # Create the query string
+  queryString <- list(
+    symbols = symboln,
+    timeframe = "1Min",
+    start = startdt,
+    limit = "1000",
+    adjustment = "all",
+    feed = "sip",
+    sort = "asc"
+  ) # end list
+
+  # Submit the request to the Alpaca API
+  respv <- httr::VERB("GET", urls, query=queryString, add_headers('APCA-API-KEY-ID'='PK4R79RKDPTHIELAEUJM', 'APCA-API-SECRET-KEY'='1bkm70sEJbHzE3VlTE1CpnU0U7hX865OqjRakgLu'), content_type("application/octet-stream"), accept("application/json"))
+  # Extract the content from the response
+  contv <- content(respv)
+  # Extract the JSON data from the content
+  ohlc <- contv$bars[[1]]
+  # Convert the JSON data into OHLC matrix
+  ohlc <- lapply(ohlc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
+  ohlc <- do.call(rbind, ohlc)
+  # Coerce the time from string to date-time
+  datev <- as.POSIXct(ohlc[, "t"], origin="1970-01-01", format="%Y-%m-%dT%H:%M:%OSZ")
+  # Select the rows of ohlc from the same day
+  datet <- as.Date(datev[1]) # Today's date
+  sameday <- (as.Date(datev) == datet)
+  ohlc <- ohlc[sameday, ]
+  datev <- datev[sameday]
+  # Remove the first time column from the OHLC prices
+  ohlc <- ohlc[, -1]
+  colnames(ohlc) <- paste(symboln, c("Open", "High", "Low", "Close", "Volume", "VWAP"), sep=".")
+  # Coerce from matrix to xts
+  ohlc <- xts::xts(ohlc, order.by=datev)
+  # Save the OHLC prices to a CSV file
+  filen <- paste0(dirp, x, ".csv")
+  write.zoo(ohlc, file=filen, row.names=FALSE, col.names=TRUE, sep=",")
+  ohlc
+
+}) # end lapply
+
+# Save the list of time series of prices to an RData file
+filen <- paste0("/Users/jerzy/Develop/data/minutes/", symboln, ".RData")
+save(pricel, file=filen)
+
+
+
+###############
 # Download OHLC bars from Polygon
 # 20 years of data with current MT plan
 
@@ -233,7 +393,7 @@ ohlcn <- ohlcn$results
 # Coerce from list to matrix
 ohlcn <- lapply(ohlcn, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
 ohlcn <- do.call(rbind, ohlcn)
-# Coerce time from milliseconds to date-time
+# Coerce the time from milliseconds to date-time
 datev <- ohlcn[, "t"]/1e3
 datev <- as.POSIXct(datev, origin="1970-01-01")
 head(datev)
@@ -422,7 +582,7 @@ isdown <- symbolv %in% ls(sp500env)
 sum(!isdown)
 symbolv[!isdown]
 
-# Rename element "LOW" to "LOWES"
+# Rename element "LOW" to "LWES"
 sp500env$LWES <- sp500env$LOW
 rm(LOW, envir=sp500env)
 colnames(sp500env$LWES) <- paste("LWES", rutils::get_name(colnames(sp500env$LWES), 2), sep=".")
@@ -587,7 +747,7 @@ tickold <- unique(sp500old$Ticker)
 # Save as CSV file and remove header and footer
 # Load CSV file with current SPY holdings
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/SPY_holdings.csv")
-# Remove some tickers
+# Remove the tickers for US DOLLAR
 # sp500table <- sp500table[-which(sp500table$Ticker == "CASH_USD"), ]
 sp500table <- sp500table[-which(sp500table$Name == "US DOLLAR"), ]
 # Switch the first two columns
@@ -681,8 +841,9 @@ sum(!unlist(foo))
 save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
+
 ###############
-# Save OHLC prices for the most liquid S&P500 stocks. 
+# Save OHLC prices for the most liquid S&P500 stocks.
 
 # Load the daily OHLC prices for S&P500 stocks
 load(file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
@@ -696,7 +857,7 @@ colnames(volumv) <- rutils::get_name(colnames(volumv))
 volumt <- sapply(volumv, sum, na.rm=TRUE)
 volumt <- sort(volumt, decreasing=TRUE)
 
-# Calculate the symbols of the 200 most liquid stocks 
+# Calculate the symbols of the 200 most liquid stocks
 # in every year, since 1999.
 
 yearv <- as.character(1999:2024)
@@ -705,8 +866,8 @@ volumy <- sapply(yearv, function(yearn) {
   names(head(sort(volumy, decreasing=TRUE), 200))
 }) # end sapply
 
-# Copy the OHLC prices for all the top stocks
-# with highest into an environment called sp500top.
+# Copy the OHLC prices for all the top stocks with
+# highest liquidity into an environment called sp500top.
 
 symbolv <- sort(unique(c(volumy)))
 sp500top <- as.list(sp500env)[symbolv]
@@ -847,7 +1008,7 @@ symbolv <- rownames(datev)
 indeks <- 19:NROW(symbolv)
 symbolv <- symbolv[indeks]
 filev <- file.path(dirin, paste0(symbolv, ".csv"))
-log_file <- file.path(dirin, "log_file.txt")
+filelog <- file.path(dirin, "log_file.txt")
 urlcboe <- "https://markets.cboe.com/us/futures/market_statistics/historical_data/products/csv/VX/"
 urls <- paste0(urlcboe, datev[indeks, 1])
 # Download files in a loop
@@ -856,7 +1017,7 @@ for (it in seq_along(urls)) {
     download.file(urls[it], destfile=filev[it], quiet=TRUE),
     # Warning handler captures warning condition
     warning=function(warning_cond) {
-      cat(paste("warning handler: ", warning_cond, "\n"), file=log_file, append=TRUE)
+      cat(paste("warning handler: ", warning_cond, "\n"), file=filelog, append=TRUE)
     },  # end warning handler
     # Error handler captures error condition
     error=function(error_cond) {
@@ -885,7 +1046,7 @@ filev <- Sys.glob(paste(dirin, "VX*.csv", sep="/"))
 env_vixn <- new.env()
 
 # Loop over the filev, load data from CSV files,
-# and copy the bar data to env_vixn
+# and copy the OHLC prices to env_vixn
 for (filen in filev) {
   # Load time series data from CSV file
   ohlc <- read.zoo(file=filen, header=TRUE, sep=",")
@@ -941,7 +1102,7 @@ assign(x="ohlc",
 etfenv$ohlc <- na.omit(etfenv$ohlc)
 # Subset to trading hours
 etfenv$ohlc <- etfenv$ohlc["T09:00:00/T16:30:00"]
-# Save the bar data to binary file
+# Save the OHLC prices to binary file
 save(etfenv, file=paste0(dirin, "etf_series.RData"))
 
 
@@ -974,7 +1135,7 @@ com_bo <- cbind(com_bo, ohlc)
 
 # Combine into a single xts series
 ohlc <- na.omit(com_bo)
-# Save the bar data to binary file
+# Save the OHLC prices to binary file
 save(com_bo, file="/Users/jerzy/Develop/data/combined.RData")
 # load(file="/Users/jerzy/Develop/data/combined.RData")
 
@@ -985,7 +1146,6 @@ dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), label_s], main="OHLC Data") 
   dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
   dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%
   dySeries(label_s[2], axis="y2", col=c("blue", "red"))
-
 
 
 
@@ -1017,7 +1177,7 @@ filev <- filev[-1]
 datenv <- new.env()
 
 # Loop over the filev, load data from CSV files,
-# and save the bar data to binary files
+# and save the OHLC prices to binary files
 countn <- 1
 for (filen in filev) {
   cat("Counter: ", countn, "\n")
@@ -1100,6 +1260,7 @@ setwd(dir=dirin)
 
 load(file=paste0("/Users/jerzy/Develop/data/ib_data/", symboln, "_ohlc.RData"))
 dim(ohlc)
+
 
 
 ###############
@@ -1271,7 +1432,6 @@ save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-
 ###############
 # Download multiple symbols from Bloomberg
 
@@ -1364,7 +1524,7 @@ colnamev <- rutils::get_name(colnames(prices))
 
 
 ###############
-# Load and save OHLC bar data
+# Load and save OHLC prices
 
 library(HighFreq)
 
@@ -1380,7 +1540,7 @@ ohlc <- read.zoo(file="/Users/jerzy/Develop/data/bar_data/ES1.csv",
 ohlc <- as.xts(ohlc)
 # Subset to trading hours
 ohlc <- ohlc["T09:00:00/T16:30:00"]
-# Save the bar data to binary file
+# Save the OHLC prices to binary file
 save(ohlc, file="/Users/jerzy/Develop/data/ES1.RData")
 
 
@@ -1401,7 +1561,7 @@ dirin <- paste(dirin, collapse="/")
 setwd(dir=dirin)
 
 # Loop over the filev, load data from CSV files,
-# and save the bar data to binary files
+# and save the OHLC prices to binary files
 for (filen in filev) {
   filen <- strsplit(filen, split="/")[[1]]
   filen <- filen[NROW(filen)]
@@ -1417,7 +1577,7 @@ for (filen in filev) {
   colnames(ohlc) <- paste(symboln, colnames(ohlc), sep=".")
   # Subset to trading hours
   # ohlc <- ohlc["T09:00:00/T16:30:00"]
-  # Save the bar data to binary file
+  # Save the OHLC prices to binary file
   save(ohlc, file=paste0(symboln, ".RData"))
 }  # end for
 
