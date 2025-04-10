@@ -33,7 +33,7 @@ pricel <- lapply(filev, function(filen) {
   dtable <- data.table::fread(filen)
   # Calculate a time series of prices
   datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
-  # pricen <- xts::xts(dtable[, .(aapl_price, aapl_volume)], order.by=datev)
+  # pricev <- xts::xts(dtable[, .(aapl_price, aapl_volume)], order.by=datev)
   # strprice <- paste0(tolower(symboln), "_price")
   # strvol <- paste0(tolower(symboln), "_volumee")
   # Adjust price for SVXY stock split
@@ -42,11 +42,11 @@ pricel <- lapply(filev, function(filen) {
   # Adjust price for VXX reverse stock split
   # indeks <- as.logical(dtable[, 2] < 20)
   # dtable[indeks, 2] <- 4*dtable[indeks, 2]
-  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
-  pricen <- pricen["T09:30:00/T16:00:00"]
-  # pricen <- pricen[, 1]
-  colnames(pricen)[1] <- symboln
-  pricen
+  pricev <- xts::xts(dtable[, 2:3], order.by=datev)
+  pricev <- pricev["T09:30:00/T16:00:00"]
+  # pricev <- pricev[, 1]
+  colnames(pricev)[1] <- symboln
+  pricev
 }) # end lapply
 
 # Assign names to the list equal to the dates
@@ -198,13 +198,13 @@ pricel <- lapply(filev, function(filen) {
   cat("file: ", filen, "\n")
   dtable <- data.table::fread(filen)
   datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
-  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
-  pricen <- pricen["T09:30:00/T16:00:00"]
-  colnames(pricen)[1] <- symboln
+  pricev <- xts::xts(dtable[, 2:3], order.by=datev)
+  pricev <- pricev["T09:30:00/T16:00:00"]
+  colnames(pricev)[1] <- symboln
   # Remove stale unchanged prices
-  retp <- rutils::diffit(pricen[, 1])
-  pricen <- pricen[!(retp==0), ]
-  pricen
+  retp <- rutils::diffit(pricev[, 1])
+  pricev <- pricev[!(retp==0), ]
+  pricev
 }) # end lapply
 namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
 namev <- unname(namev)
@@ -231,10 +231,10 @@ pricel <- lapply(filev, function(filen) {
   cat("file: ", filen, "\n")
   dtable <- data.table::fread(filen)
   datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
-  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
-  pricen <- pricen["T09:30:00/T16:00:00"]
-  colnames(pricen)[1] <- symboln
-  pricen
+  pricev <- xts::xts(dtable[, 2:3], order.by=datev)
+  pricev <- pricev["T09:30:00/T16:00:00"]
+  colnames(pricev)[1] <- symboln
+  pricev
 }) # end lapply
 namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
 namev <- unname(namev)
@@ -906,6 +906,22 @@ colnames(pricestock) <- colnamev
 # pricestock <- zoo::na.locf(pricestock, na.rm=FALSE)
 # pricestock <- zoo::na.locf(pricestock, fromLast=TRUE)
 
+# Scrub the prices
+pricel <- lapply(pricestock, function(pricev) {
+  pricelog <- log(pricev)
+  pricelag <- rutils::lagit(pricelog)
+  pricelag[1] <- pricelag[2]
+  pricadv <- rutils::lagit(pricelog, lagg=-1)
+  pricadv[NROW(pricadv)] <- pricadv[NROW(pricadv)-1]
+  diffl <- ifelse(abs(pricelag-pricadv) < 0.01, 0.01, abs(pricelag-pricadv))
+  priced <- abs((pricelog - 0.5*(pricelag+pricadv))/diffl)
+  indeks <- which(priced > 10)
+  pricev[indeks] <- 0.5*(as.numeric(pricev[indeks-1]) + as.numeric(pricev[indeks+1]))
+  pricev
+}) # end lapply
+pricestock <- do.call(cbind, pricel)
+
+
 ## Calculate log returns of the S&P500 constituent stocks
 retstock <- xts::diff.xts(log(pricestock))
 # retstock[1, ] <- 0.01
@@ -917,6 +933,7 @@ retstock <- xts::diff.xts(log(pricestock))
 # retstock <- (24*3600)*xts::diff.xts(pricestock)/rutils::lagit(pricestock)/xts::diff.xts(.index(pricestock))
 
 # Get the symbols with at least 2000 days of prices and a recent price
+endd <- end(pricestock)
 symbolg <- unlist(sapply(pricestock, function(pricev) {
   pricev <- na.omit(pricev)
   if ((NROW(pricev) > 2000) & (end(pricev) == endd)) {
@@ -928,12 +945,19 @@ symbolg <- unlist(sapply(pricestock, function(pricev) {
 ## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
 samplev <- sample(NROW(symbolg), s=100, replace=FALSE)
-pricestock100 <- mget(symbolg[samplev], sp500env)
-pricestock100 <- lapply(pricestock100, quantmod::Cl)
-pricestock100 <- rutils::do_call(cbind, pricestock100)
-colnamev <- rutils::get_name(colnames(pricestock100))
-colnames(pricestock100) <- colnamev
-retstock100 <- xts::diff.xts(log(pricestock100))
+pricestock100 <- pricestock[, symbolg[samplev]]
+retstock100 <- retstock[, symbolg[samplev]]
+
+
+# Old code
+# set.seed(1121)
+# samplev <- sample(NROW(symbolg), s=100, replace=FALSE)
+# pricestock100 <- mget(symbolg[samplev], sp500env)
+# pricestock100 <- lapply(pricestock100, quantmod::Cl)
+# pricestock100 <- rutils::do_call(cbind, pricestock100)
+# colnamev <- rutils::get_name(colnames(pricestock100))
+# colnames(pricestock100) <- colnamev
+# retstock100 <- xts::diff.xts(log(pricestock100))
 
 ## Save the prices and returns
 save(pricestock, pricestock100, file="/Users/jerzy/Develop/lecture_slides/data/sp500_prices.RData")

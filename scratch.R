@@ -1,4 +1,100 @@
 
+# Load daily S&P500 percentage stock returns
+load(file="/Users/jerzy/Develop/data/SPY_minute_202425.RData")
+pricev <- pricel[[300]]
+pricev <- Cl(pricev)
+colnames(pricev) <- "SPY"
+retp <- rutils::diffit(pricev)
+# Simulate the strategy
+posv <- sign(pricev - as.numeric(pricev[1]))
+posv[1] <- 0
+posv <- rutils::lagit(posv)
+pnls <- retp*posv
+# Plot the strategy
+wealthv <- cbind(retp, pnls)
+colnames(wealthv) <- c("Stocks", "Strategy")
+sqrt(252)*sapply(wealthv, function(x)
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+dygraphs::dygraph(cumsum(wealthv), main="Switching Strategy") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+bidask <- 0.01
+wealthv <- lapply(pricel, function(pricev) {
+  # pricev <- Cl(pricev)
+  pricev <- pricev["T09:30:00/T16:00:00"]
+  retp <- rutils::diffit(pricev)
+  posv <- sign(pricev - as.numeric(pricev[1]))
+  posv[1] <- 0
+  posv <- rutils::lagit(posv)
+  pnlv <- retp*posv
+  costv <- bidask*abs(rutils::diffit(posv))
+  pnlv <- pnlv - costv
+  cbind(retp, pnlv)
+}) # end lapply
+wealthv <- do.call(rbind, wealthv)
+
+colnames(wealthv) <- c(symboln, "Strategy")
+colv <- colnames(wealthv)
+dygraphs::dygraph(cumsum(wealthv), main="Switching Strategy") %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", strokeWidth=2, col="blue") %>%
+  dySeries(name=colv[2], axis="y2", strokeWidth=2, col="red") %>%
+  dyLegend(show="always", width=300)
+
+
+pricel <- lapply(filev, function(filen) {
+  cat("file: ", filen, "\n")
+  dtable <- data.table::fread(filen)
+  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
+  pricev <- xts::xts(dtable[, 2], order.by=datev)
+  pricev <- pricev["T09:30:00/T16:00:00"]
+  colnames(pricev)[1] <- symboln
+  retp <- rutils::diffit(pricev)
+  # Compress the prices by removing the unchanged prices
+  retp[1, ] <- 1
+  pricev[!(retp==0), ]
+}) # end lapply
+namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
+namev <- unname(namev)
+names(pricel) <- namev
+filen <- paste0(dirp, symboln, datan, ".RData")
+save(pricel, file=filen)
+
+
+# Prices of SPY vs QQQ pair
+pricel <- lapply(seq_along(qqq), function(it) {
+  cbx <- na.omit(cbind(qqq[[it]], spy[[it]]))
+  cbx[, 1] - cbx[, 2]
+  # (qqq[[it]] - spy[[it]])
+}) # end lapply
+
+
+# Calculate the distribution of intraday stock price crossings of the open price.
+crossv <- lapply(pricel, function(pricev) {
+  
+  # pricev <- pricev[, 1]
+  # pricev <- pricev["T09:30:00/T16:00:00"]
+  posv <- sign(pricev - as.numeric(pricev[1]))
+  # posv[1] <- 0
+  which(as.logical(rutils::diffit(posv)))[-1]
+  # indeks <- as.numeric(index(pricev))
+  
+}) # end lapply
+crossv <- do.call(c, crossv)
+plot(density(crossv))
+
+# Brownian motion
+crossv <- lapply(pricel, function(pricev) {
+  pricev <- cumsum(rnorm(NROW(pricev)))
+  posv <- sign(pricev - pricev[1])
+  which(as.logical(rutils::diffit(posv)))[-1]
+}) # end lapply
+crossv <- do.call(c, crossv)
+plot(density(crossv))
+
+
 ################################################
 # Plots for Udemy
 
@@ -101,8 +197,7 @@ colnames(wealthv) <- c("Stocks", "Strategy")
 wealthv <- xts(wealthv, index(retp))
 sqrt(252)*sapply(wealthv, function(x)
   c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-dygraphs::dygraph(cumsum(wealthv),
-                  main="Autoregressive Strategy In-Sample") %>%
+dygraphs::dygraph(cumsum(wealthv), main="Autoregressive Strategy In-Sample") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
   dyLegend(show="always", width=300)
 
@@ -149,7 +244,7 @@ dtable <- lapply(dtable, as.numeric)
 dtable <- do.call(cbind, dtable)
 dtable <- xts::xts(dtable, order.by=datev)
 
-# Remove unchanged prices
+# Compress the prices by removing the unchanged prices
 retp <- rutils::diffit(dtable$pricePortf)
 dtable <- dtable[!(retp==0), ]
 
@@ -413,10 +508,10 @@ pricel <- lapply(filev, function(filen) {
   cat("file: ", filen, "\n")
   dtable <- data.table::fread(filen)
   datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
-  pricen <- xts::xts(dtable[, 2:3], order.by=datev)
-  pricen <- pricen["T09:30:00/T16:00:00"]
-  colnames(pricen)[1] <- symboln
-  pricen
+  pricev <- xts::xts(dtable[, 2:3], order.by=datev)
+  pricev <- pricev["T09:30:00/T16:00:00"]
+  colnames(pricev)[1] <- symboln
+  pricev
 }) # end lapply
 namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
 namev <- unname(namev)
@@ -1499,7 +1594,7 @@ retl <- lapply(seq_along(pricel), function(numv) {
   # Load time series data from CSV file
   retqqq <- rutils::diffit(pricel[[numv]])
   retaapl <- rutils::diffit(pricaapl[[numv]])
-  # colnames(pricen)[1] <- symboln
+  # colnames(pricev)[1] <- symboln
   retaapl - 0.5*retqqq
 }) # end lapply
 
