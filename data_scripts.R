@@ -8,7 +8,7 @@ Sys.setenv(TZ=Sys.timezone())
 library(HighFreq)
 
 
-###############
+##############
 # Load intraday prices from CSV files, create a list of time series of prices,
 # and save it into a binary file.
 
@@ -111,7 +111,7 @@ save(pricel, retl, file=paste0(dirin, symboln, datan, format(Sys.Date(), "%Y%m%d
 
 
 
-###############
+##############
 # Convert the monthly time series of prices into a list of daily prices called pricel.
 # filen <- "/Users/jerzy/Develop/data/SPY_minute_202307.RData"
 filen <- "/Users/jerzy/Develop/data/SPY_second_202307.RData"
@@ -129,7 +129,7 @@ save(pricel, file=filen)
 
 
 
-###############
+##############
 # Load the intraday OHLC prices from CSV files, chain them, and save the monthly time series into a binary file.
 
 # Set parameters for directory with CSV files
@@ -183,7 +183,7 @@ save(pricev, file=paste0("/Users/jerzy/Develop/data/", symboln, datan, "2023.RDa
 
 
 
-###############
+##############
 # Load the intraday OHLC prices from CSV files, chain them, and save them into a binary file.
 # NVDA and XLK prices for November, December 2024, to January 2025.
 
@@ -254,7 +254,7 @@ save(pricel, file=paste0(dirp, symboln, "_minute_202425.RData"))
 
 
 
-###############
+##############
 # Load trades data from CSV files, rbind it, and save into a CSV file
 
 # Set parameters for directory with CSV files
@@ -294,7 +294,7 @@ dygraphs::dygraph(pricev, main=paste(colnames(pricev), "Ticks")) %>%
 
 
 
-###############
+##############
 # Download intraday OHLC bars from Alpaca.
 
 # https://docs.alpaca.markets/reference/stockbars
@@ -363,7 +363,7 @@ save(pricel, file=filen)
 
 
 
-###############
+##############
 # Download OHLC bars from Polygon
 # 20 years of data with current MT plan
 
@@ -432,7 +432,7 @@ dygraphs::dygraph(ohlc[, 4], main=paste(symboln, "Close prices")) %>%
 
 
 
-###############
+##############
 # Download daily OHLC bars from Tiingo for multiple ETF symbols in a loop
 # Polygon doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
 # Polygon has bad QQQ prices - Download from Tiingo
@@ -535,7 +535,7 @@ save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-###############
+##############
 # Download daily OHLC bars from Tiingo for multiple S&P500 symbols in a loop
 # Polygon doesn't adjust VTI, VXX, and SVXY prices - Download from Tiingo
 # Polygon has bad QQQ prices - Download from Tiingo
@@ -620,7 +620,7 @@ write.csv(sp500old, file="/Users/jerzy/Develop/lecture_slides/data/sp500_constit
 
 
 
-###############
+##############
 # Download minute bars for single symbol in a loop
 # Has to be performed in batches since data limit=50000
 
@@ -703,7 +703,7 @@ dygraphs::dygraph(cumsum(returns), main="SPY and VXX Returns") %>%
 
 
 
-###############
+##############
 # Coerce time zones
 # Index had America/New_York time zone while the clock time was actually UTC
 
@@ -718,7 +718,7 @@ save(spyohlc, file="/Volumes/external/Develop/data/spy_minutes.RData")
 
 
 
-###############
+##############
 # Update CSV files with S&P500 constituents
 
 # Load CSV file with S&P500 old constituents
@@ -775,64 +775,64 @@ write.csv(sp500table, file="/Users/jerzy/Develop/lecture_slides/data/sp500_const
 
 
 
-###############
+##############
 # (old) Read CSV file with S&P500 constituents
 
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv")
-duplicatv <- table(sp500table$gvkey)
-duplicatv <- duplicatv[duplicatv > 1]
-duplicatv <- sp500table[match(as.numeric(names(duplicatv)), sp500table$gvkey), ]
+dupv <- table(sp500table$gvkey)
+dupv <- dupv[dupv > 1]
+dupv <- sp500table[match(as.numeric(names(dupv)), sp500table$gvkey), ]
 # Select unique gvkeys
-sp500gvkeys <- unique(sp500table$gvkey)
-# foo <- sp500table[match(sp500gvkeys, sp500table$gvkey), ]
-# Save gvkeys into text file
-cat(sp500gvkeys, file="/Users/jerzy/Develop/data/WRDS/sp500gvkeys.txt", sep="\n")
+keyv <- unique(sp500table$gvkey)
+# foo <- sp500table[match(keyv, sp500table$gvkey), ]
+# Save gvkeys into text file using the function cat()
+cat(keyv, file="/Users/jerzy/Develop/data/WRDS/gvkeys.txt", sep="\n")
 # Select unique cusips and remove empty cusips
-sp500cusips <- unique(sp500table$co_cusip)
-sp500cusips <- sp500cusips[-which(sp500cusips == "")]
+cusipv <- unique(sp500table$co_cusip)
+cusipv <- cusipv[-which(cusipv == "")]
 # Some cusips are empty
-which(sp500cusips == "")
+which(cusipv == "")
 # Remove empty cusips
-sp500cusips <- sp500cusips[-which(sp500cusips == "")]
-cat(sp500cusips, file="/Users/jerzy/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
-# Find the rows corresponding to the sp500cusips
-rowv <- sp500table[match(sp500cusips, sp500table$co_cusip), ]
+cusipv <- cusipv[-which(cusipv == "")]
+cat(cusipv, file="/Users/jerzy/Develop/data/WRDS/sp500_cusips.txt", sep="\n")
+# Find the rows corresponding to the cusipv
+rowv <- sp500table[match(cusipv, sp500table$co_cusip), ]
 # Find the rows corresponding to duplicate gvkeys
-duplicatv <- table(rowv$gvkey)
-duplicatv <- duplicatv[duplicatv > 1]
-duplicatv <- rowv[rowv$gvkey %in% as.numeric(names(duplicatv)), ]
+dupv <- table(rowv$gvkey)
+dupv <- dupv[dupv > 1]
+dupv <- rowv[rowv$gvkey %in% as.numeric(names(dupv)), ]
 # Select unique sp500 tickers
-sp500tickers <- unique(sp500table$Ticker)
+tickv <- unique(sp500table$Ticker)
 
 
 
-###############
+##############
 # Read CSV file with S&P500 OHLC prices
 
 # Read CSV file with S&P500 constituents
 sp500table <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", stringsAsFactors=FALSE)
 # Select unique cusips and remove empty cusips
-sp500cusips <- unique(sp500table$co_cusip)
-sp500cusips <- sp500cusips[-which(sp500cusips == "")]
+cusipv <- unique(sp500table$co_cusip)
+cusipv <- cusipv[-which(cusipv == "")]
 # Load OHLC prices from CSV file downloaded from WRDS by cusip
-sp500_prices <- read.csv(file="/Users/jerzy/Develop/data/WRDS/sp500_prices_bycusip.csv", stringsAsFactors=FALSE)
-# sp500_prices contains cusips not in sp500cusips
-cusips <- unique(sp500_prices$cusip)
-NROW(sp500cusips); NROW(cusips)
-# Select data only for sp500cusips
-sp500_prices <- sp500_prices[sp500_prices$cusip %in% sp500cusips, ]
-# sp500_prices contains tickers not in sp500tickers
-tickers <- unique(sp500_prices$tic)
-NROW(sp500tickers); NROW(tickers)
-# Select data only for sp500tickers
-sp500_prices <- sp500_prices[sp500_prices$tic %in% sp500tickers, ]
+pricev <- read.csv(file="/Users/jerzy/Develop/data/WRDS/sp500_prices_bycusip.csv", stringsAsFactors=FALSE)
+# pricev contains cusips not in cusipv
+cusipv <- unique(pricev$cusip)
+NROW(cusipv); NROW(cusipv)
+# Select data only for cusipv
+pricev <- pricev[pricev$cusip %in% cusipv, ]
+# pricev contains tickers not in tickv
+tickers <- unique(pricev$tic)
+NROW(tickv); NROW(tickers)
+# Select data only for tickv
+pricev <- pricev[pricev$tic %in% tickv, ]
 # Create new data environment
 sp500env <- new.env()
 # Read names table from csv file
 names_table <- read.csv(file="/Users/jerzy/Develop/data/WRDS/compustat_table.csv", stringsAsFactors=FALSE)
 # Perform OHLC aggregations by cusip column
-sp500_prices <- split(sp500_prices, sp500_prices$cusip)
-pricep <- lapply(sp500_prices, format_ohlc, environ_ment=sp500env)
+pricev <- split(pricev, pricev$cusip)
+pricep <- lapply(pricev, format_ohlc, environ_ment=sp500env)
 plot(quantmod::Cl(sp500env$MSFT))
 # Check if time indices are OK
 foo <- eapply(sp500env, function(x) xts::isOrdered(index(x)))
@@ -842,7 +842,7 @@ save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 
 
-###############
+##############
 # Save OHLC prices for the most liquid S&P500 stocks.
 
 # Load the daily OHLC prices for S&P500 stocks
@@ -886,7 +886,7 @@ save(retstock, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returnstop.R
 
 
 
-###############
+##############
 # Load S&P500 constituent stock prices from .RData file
 # and calculate the daily percentage returns.
 
@@ -897,16 +897,16 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 pricestock <- eapply(sp500env, quantmod::Cl)
 pricestock <- rutils::do_call(cbind, pricestock)
 # Modify column names
-colnamev <- rutils::get_name(colnames(pricestock))
+symbolv <- rutils::get_name(colnames(pricestock))
 # colnamev <- do.call(rbind, strsplit(colnames(pricestock), split="[.]"))[, 1]
-colnames(pricestock) <- colnamev
+colnames(pricestock) <- symbolv
 # No: Carry forward and backward non-NA prices - no only forward because backward skews volatility
 # Don't carry prices forward because it skews correlations
 # sum(is.na(pricestock))
 # pricestock <- zoo::na.locf(pricestock, na.rm=FALSE)
 # pricestock <- zoo::na.locf(pricestock, fromLast=TRUE)
 
-# Scrub the prices
+# Scrub the prices using a three-point classifier (tri-filter)
 pricel <- lapply(pricestock, function(pricev) {
   pricelog <- log(pricev)
   pricelag <- rutils::lagit(pricelog)
@@ -916,7 +916,7 @@ pricel <- lapply(pricestock, function(pricev) {
   diffl <- ifelse(abs(pricelag-pricadv) < 0.01, 0.01, abs(pricelag-pricadv))
   priced <- abs((pricelog - 0.5*(pricelag+pricadv))/diffl)
   indeks <- which(priced > 10)
-  pricev[indeks] <- 0.5*(as.numeric(pricev[indeks-1]) + as.numeric(pricev[indeks+1]))
+  pricev[indeks] <- as.numeric(pricev[indeks-1])
   pricev
 }) # end lapply
 pricestock <- do.call(cbind, pricel)
@@ -924,6 +924,9 @@ pricestock <- do.call(cbind, pricel)
 
 ## Calculate log returns of the S&P500 constituent stocks
 retstock <- xts::diff.xts(log(pricestock))
+# Remove the first row of NA returns
+retstock <- retstock[-1, ]
+
 # retstock[1, ] <- 0.01
 # Or
 # retstock <- lapply(pricestock, function(x)
@@ -932,6 +935,7 @@ retstock <- xts::diff.xts(log(pricestock))
 # Calculate percentage returns by accounting for extra time over weekends
 # retstock <- (24*3600)*xts::diff.xts(pricestock)/rutils::lagit(pricestock)/xts::diff.xts(.index(pricestock))
 
+# First approach - allow for NA prices
 # Get the symbols with at least 2000 days of prices and a recent price
 endd <- end(pricestock)
 symbolg <- unlist(sapply(pricestock, function(pricev) {
@@ -941,6 +945,13 @@ symbolg <- unlist(sapply(pricestock, function(pricev) {
   }
 }))  # end lapply
 
+# Second approach - don't allow NA prices
+# Get the symbols without any NA prices
+symbolg <- unlist(lapply(pricestock, function(pricev) {
+  if ((sum(is.na(pricev)) == 0)) {
+    return(rutils::get_name(colnames(pricev)))
+  } # end if
+}))  # end lapply
 
 ## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
 set.seed(1121)
@@ -996,7 +1007,7 @@ returns100_scaled <- returns_scaled[, samplev]
 
 
 
-###############
+##############
 # Read minute OHLC stock prices from CSV files and coerce them into xts.
 
 # Load time series data from CSV file
@@ -1009,7 +1020,7 @@ save(ohlc, file="/Volumes/external/Develop/data/spy_minutes.RData")
 
 
 
-###############
+##############
 ## Download VIX CSV files from CBOE
 
 # Old stuff - ignore?
@@ -1173,7 +1184,7 @@ dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), label_s], main="OHLC Data") 
 
 
 
-###############
+##############
 # Read daily futures prices from CSV files and save
 # them into an environment.
 # The OHLC futures prices were collected from IB on
@@ -1226,7 +1237,7 @@ save(datenv, file="datenv.RData")
 
 
 
-###############
+##############
 # Chain together futures prices and save them into
 # an .RData file.
 
@@ -1274,7 +1285,7 @@ save(ohlc, file=paste0(symboln, "_ohlc.RData"))
 
 
 
-###############
+##############
 # Load futures OHLC prices from RData file.
 
 # Set parameters for directory with CSV files
@@ -1287,7 +1298,7 @@ dim(ohlc)
 
 
 
-###############
+##############
 # Chain together VIX futures prices in a loop.
 # Perform a for() loop, and one-by-one add to chaind
 # the VIX futures prices given by the remaining symbolv.
@@ -1335,7 +1346,7 @@ colnames(chaind) <- c("Open", "High", "Low", "Close", "Volume")
 
 
 
-###############
+##############
 # Download ETF OHLC prices from Alpha Vantage and save them
 # to an .RData file.
 
@@ -1456,7 +1467,7 @@ save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-###############
+##############
 # Download multiple symbols from Bloomberg
 
 # install.packages("Rblpapi")
@@ -1490,7 +1501,7 @@ lapply(seq_along(bbg_symbolv), function(indeks) {
 
 
 
-###############
+##############
 # Load data from CSV files
 
 ## Load time series data from a single CSV file
@@ -1547,7 +1558,7 @@ colnamev <- rutils::get_name(colnames(prices))
 
 
 
-###############
+##############
 # Load and save OHLC prices
 
 library(HighFreq)
@@ -1610,7 +1621,7 @@ setwd(dir=dirname)
 
 
 
-###############
+##############
 # Download TAP ETF OHLC prices from WRDS to CSV file, read
 # it, and format into xts series.
 # WRDS query name EMM_OHLC
@@ -1621,16 +1632,16 @@ setwd(dir=dirname)
 
 # Read CSV file with TAP OHLC prices
 ohlc <- read.csv(file="/Users/jerzy/Develop/lecture_slides/data/TAP.csv", stringsAsFactors=FALSE)
-# ohlc contains cusips not in sp500cusips
+# ohlc contains cusips not in cusipv
 cusips <- unique(ohlc$cusip)
-cusips %in% sp500cusips
-# Select data only for sp500cusips
-ohlc <- ohlc[ohlc$cusip %in% sp500cusips, ]
-# ohlc contains tickers not in sp500tickers
+cusips %in% cusipv
+# Select data only for cusipv
+ohlc <- ohlc[ohlc$cusip %in% cusipv, ]
+# ohlc contains tickers not in tickv
 tickers <- unique(ohlc$tic)
-tickers %in% sp500tickers
-# Select data only for sp500tickers
-ohlc <- ohlc[ohlc$tic %in% sp500tickers, ]
+tickers %in% tickv
+# Select data only for tickv
+ohlc <- ohlc[ohlc$tic %in% tickv, ]
 # Select ticker from sp500table
 symboln <- sp500table$co_tic[match(ohlc$gvkey[1], sp500table$gvkey)]
 # Plot adjusted close prices
@@ -1662,7 +1673,7 @@ tail(ohlc)
 
 
 
-###############
+##############
 # Define formatting function for OHLC prices.
 # Download from WRDS into CSV files.
 # Output is an OHLCV xts series.
@@ -1712,7 +1723,7 @@ load("/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
 
 
-###############
+##############
 # Download from WRDS the Compustat names table using package rWRDS
 
 devtools::install_github("davidsovich/rwrds")

@@ -1,11 +1,86 @@
+################################################
+# Kitchen sink strategy using returns, the log trading volumes, and volatility.
+# The log differences of the trading volumes have no forecasting ability.
+# The log of the trading volumes have small forecasting ability, but they failed in March 2020.
+# The volatility has small forecasting ability for very small lambda.
 
-# Load daily S&P500 percentage stock returns
+
+ohlc <- rutils::etfenv$VTI
+datev <- zoo::index(ohlc)
+nrows <- NROW(ohlc)
+closep <- quantmod::Cl(ohlc)
+colnames(closep) <- "VTI"
+retp <- rutils::diffit(log(closep))
+retv <- sqrt(HighFreq::run_var(retp, lambda=0.1)[, 2])
+# Predictor matrix
+respv <- retp["2010/"]
+predm <- lapply(1:orderp, rutils::lagit, input=respv)
+predm <- rutils::do_call(cbind, predm)
+colnames(predm) <- paste0("VTI", 1:orderp)
+# Add the volatility of VTI
+predx <- lapply(1:orderp, rutils::lagit, input=retv)
+predx <- rutils::do_call(cbind, predx)
+colnames(predx) <- paste0("Vol", 1:orderp)
+predm <- cbind(predm, predx)
+# Add the volume of VTI
+volumv <- rutils::diffit(log(quantmod::Vo(ohlc))["2010/"])
+predx <- lapply(1:orderp, rutils::lagit, input=volumv)
+predx <- rutils::do_call(cbind, predx)
+colnames(predx) <- paste0("Vol", 1:orderp)
+predm <- cbind(predm, predx)
+# predm <- lapply(predm, function(x) {
+#   x/sd(x)
+# }) # end lapply
+# predm <- do.call(cbind, predm)
+
+regmod <- lm(respv ~ predm - 1)
+summary(regmod)
+
+regmod <- lm(respv["/2019"] ~ predm["/2019"] - 1)
+summary(regmod)
+
+coeff <- coef(summary(regmod))[, 3]
+
+predinv <- MASS::ginv(predm["/2019"])
+coeff <- drop(predinv %*% respv["/2019"])
+
+names(coeff) <- colnames(predm)
+barplot(coeff, xlab="", ylab="coeff", col="grey",
+        main="Coefficients of Kitchen Sink Autoregressive Model")
+# Calculate the in-sample forecasts of VTI (fitted values)
+fcasts <- predm %*% coeff
+pnls <- respv*fcasts
+pnls <- pnls*sd(respv[respv<0])/sd(pnls[pnls<0])
+
+wealthv <- cbind(respv, pnls)
+colnames(wealthv) <- c("VTI", "Kitchen sink")
+sqrt(252)*sapply(wealthv["/2019"], function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+sqrt(252)*sapply(wealthv["2019/"], function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+
+endw <- rutils::calc_endpoints(wealthv, interval="weeks")
+colorv <- colorRampPalette(c("blue", "red"))(NCOL(wealthv))
+dygraphs::dygraph(cumsum(wealthv)[endd], 
+                  main="Kitchen Sink Autoregressive Strategy") %>%
+  dyOptions(colors=colorv, strokeWidth=2) %>%
+  dyEvent(as.Date("2019-01-01"), label="cutoff", strokePattern="solid", color="red") %>%
+  dyLegend(show="always", width=300)
+
+
+
+################################################
+# Intraday strategy with position is equal to the sign of the price difference
+
+# Load intraday minute prices for SPY
 load(file="/Users/jerzy/Develop/data/SPY_minute_202425.RData")
 pricev <- pricel[[300]]
 pricev <- Cl(pricev)
 colnames(pricev) <- "SPY"
 retp <- rutils::diffit(pricev)
+
 # Simulate the strategy
+# The position is equal to the sign of the price difference
 posv <- sign(pricev - as.numeric(pricev[1]))
 posv[1] <- 0
 posv <- rutils::lagit(posv)
@@ -260,26 +335,6 @@ dygraphs::dygraph(datav, main="XLK/SPY Pair") %>%
   dySeries(name=colv[1], axis="y", strokeWidth=1, col="blue") %>%
   dySeries(name=colv[2], axis="y2", strokeWidth=1, col="red") %>%
   dyLegend(show="always", width=300)
-
-
-############## test
-# Summary: Troubleshoot the covariance matrix for stocks.
-# Find the symbols that produce the most NA values in the
-# covariance matrix for stocks.
-
-covmat <- cov(retp, use="pairwise.complete.obs")
-# Number of NA values in the column of the covariance matrix
-foo <- apply(covmat, 2, function(x) sum(!is.na(x)))
-sort(foo)
-# Which symbols produce the most NA values in the covariance matrix?
-foo <- which(is.na(covmat), arr.ind=TRUE)
-unique(rownames(foo))
-bar <- table(foo[, 2])
-bar[bar>22]
-colv <- colv
-bar[which.max(bar)]
-colv[317]
-
 
 
 
@@ -818,7 +873,7 @@ colnames(wealthv) <- c("VTI", "Strategy")
 sqrt(252)*sapply(wealthv, function(x)
   c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
 # Plot dygraph of autoregressive strategy
-endd <- rutils::calc_endpoints(wealthv, interval="weeks")
+endw <- rutils::calc_endpoints(wealthv, interval="weeks")
 dygraphs::dygraph(cumsum(wealthv)[endd],
   main="Autoregressive Strategy In-Sample") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
@@ -850,7 +905,7 @@ colv <- colnames(wealthv)
 sqrt(252)*sapply(wealthv, function(x)
   c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
 # Plot dygraph of autoregressive strategy
-endd <- rutils::calc_endpoints(wealthv, interval="weeks")
+endw <- rutils::calc_endpoints(wealthv, interval="weeks")
 dygraphs::dygraph(cumsum(wealthv)[endd], main="Autoregressive Strategy In-Sample") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
   dyLegend(show="always", width=300)
@@ -2121,7 +2176,7 @@ colnames(wealthv) <- c("VTI", "Strategy")
 sqrt(252)*sapply(wealthv, function(x)
   c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
 # Plot dygraph of autoregressive strategy
-endd <- rutils::calc_endpoints(wealthv, interval="weeks")
+endw <- rutils::calc_endpoints(wealthv, interval="weeks")
 dygraphs::dygraph(cumsum(wealthv)[endd],
   main="Autoregressive Strategy With Returns Scaled By Volume") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%

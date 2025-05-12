@@ -41,7 +41,8 @@ sapply(filen[!isproc], function(file_name) {
     # finally=print(paste("file_name=", file_name))
   )  # end tryCatch
 })  # end sapply
-# See files that have not been processed
+
+# List the files that have not been processed
 isproc <- filen %in% nameproc
 filen[!isproc]
 
