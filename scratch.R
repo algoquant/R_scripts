@@ -1,176 +1,128 @@
-################################################
-# Kitchen sink strategy using returns, the log trading volumes, and volatility.
-# The log differences of the trading volumes have no forecasting ability.
-# The log of the trading volumes have small forecasting ability, but they failed in March 2020.
-# The volatility has small forecasting ability for very small lambda.
+####################################
+# Jolyon strategy PnLs
 
+library(rutils)
+pnlj <- zoo::read.zoo("/Users/jerzy/Develop/trading/jolyon/JMSPY2.csv", header=TRUE, sep=",", FUN = as.Date)
+pnlj <- xts::as.xts(pnlj)
+colnames(pnlj) <- c("PnLs")
+dygraphs::dygraph(cumsum(pnlj), main="JM Strategy PnLs") %>%
+  dyOptions(colors=c("blue"), strokeWidth=2) %>%
+  dyLegend(show="never", width=300)
 
-ohlc <- rutils::etfenv$VTI
-datev <- zoo::index(ohlc)
-nrows <- NROW(ohlc)
-closep <- quantmod::Cl(ohlc)
-colnames(closep) <- "VTI"
-retp <- rutils::diffit(log(closep))
-retv <- sqrt(HighFreq::run_var(retp, lambda=0.1)[, 2])
-# Predictor matrix
-respv <- retp["2010/"]
-predm <- lapply(1:orderp, rutils::lagit, input=respv)
-predm <- rutils::do_call(cbind, predm)
-colnames(predm) <- paste0("VTI", 1:orderp)
-# Add the volatility of VTI
-predx <- lapply(1:orderp, rutils::lagit, input=retv)
-predx <- rutils::do_call(cbind, predx)
-colnames(predx) <- paste0("Vol", 1:orderp)
-predm <- cbind(predm, predx)
-# Add the volume of VTI
-volumv <- rutils::diffit(log(quantmod::Vo(ohlc))["2010/"])
-predx <- lapply(1:orderp, rutils::lagit, input=volumv)
-predx <- rutils::do_call(cbind, predx)
-colnames(predx) <- paste0("Vol", 1:orderp)
-predm <- cbind(predm, predx)
-# predm <- lapply(predm, function(x) {
-#   x/sd(x)
-# }) # end lapply
-# predm <- do.call(cbind, predm)
-
-regmod <- lm(respv ~ predm - 1)
-summary(regmod)
-
-regmod <- lm(respv["/2019"] ~ predm["/2019"] - 1)
-summary(regmod)
-
-coeff <- coef(summary(regmod))[, 3]
-
-predinv <- MASS::ginv(predm["/2019"])
-coeff <- drop(predinv %*% respv["/2019"])
-
-names(coeff) <- colnames(predm)
-barplot(coeff, xlab="", ylab="coeff", col="grey",
-        main="Coefficients of Kitchen Sink Autoregressive Model")
-# Calculate the in-sample forecasts of VTI (fitted values)
-fcasts <- predm %*% coeff
-pnls <- respv*fcasts
-pnls <- pnls*sd(respv[respv<0])/sd(pnls[pnls<0])
-
-wealthv <- cbind(respv, pnls)
-colnames(wealthv) <- c("VTI", "Kitchen sink")
-sqrt(252)*sapply(wealthv["/2019"], function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-sqrt(252)*sapply(wealthv["2019/"], function(x) 
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-
-endw <- rutils::calc_endpoints(wealthv, interval="weeks")
-colorv <- colorRampPalette(c("blue", "red"))(NCOL(wealthv))
-dygraphs::dygraph(cumsum(wealthv)[endd], 
-                  main="Kitchen Sink Autoregressive Strategy") %>%
-  dyOptions(colors=colorv, strokeWidth=2) %>%
-  dyEvent(as.Date("2019-01-01"), label="cutoff", strokePattern="solid", color="red") %>%
-  dyLegend(show="always", width=300)
-
-
-
-################################################
-# Intraday strategy with position is equal to the sign of the price difference
-
-# Load intraday minute prices for SPY
-load(file="/Users/jerzy/Develop/data/SPY_minute_202425.RData")
-pricev <- pricel[[300]]
-pricev <- Cl(pricev)
-colnames(pricev) <- "SPY"
-retp <- rutils::diffit(pricev)
-
-# Simulate the strategy
-# The position is equal to the sign of the price difference
-posv <- sign(pricev - as.numeric(pricev[1]))
-posv[1] <- 0
-posv <- rutils::lagit(posv)
-pnls <- retp*posv
-# Plot the strategy
-wealthv <- cbind(retp, pnls)
-colnames(wealthv) <- c("Stocks", "Strategy")
-sqrt(252)*sapply(wealthv, function(x)
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-dygraphs::dygraph(cumsum(wealthv), main="Switching Strategy") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-bidask <- 0.01
-wealthv <- lapply(pricel, function(pricev) {
-  # pricev <- Cl(pricev)
-  pricev <- pricev["T09:30:00/T16:00:00"]
-  retp <- rutils::diffit(pricev)
-  posv <- sign(pricev - as.numeric(pricev[1]))
-  posv[1] <- 0
-  posv <- rutils::lagit(posv)
-  pnlv <- retp*posv
-  costv <- bidask*abs(rutils::diffit(posv))
-  pnlv <- pnlv - costv
-  cbind(retp, pnlv)
-}) # end lapply
-wealthv <- do.call(rbind, wealthv)
-
-colnames(wealthv) <- c(symboln, "Strategy")
+retp <- etfenv$returns$SPY[index(pnlj)]
+wealthv <- cbind(retp, pnlj)
+colnames(wealthv) <- c("SPY", "PnLs")
 colv <- colnames(wealthv)
-dygraphs::dygraph(cumsum(wealthv), main="Switching Strategy") %>%
+dygraphs::dygraph(cumsum(wealthv), main="JM Strategy PnLs") %>%
   dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
   dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
   dySeries(name=colv[1], axis="y", strokeWidth=2, col="blue") %>%
   dySeries(name=colv[2], axis="y2", strokeWidth=2, col="red") %>%
   dyLegend(show="always", width=300)
 
+pnlj <- pnlj*sd(retp)/sd(pnlj)
+cor(retp, pnlj)
+wealthv <- cbind(retp, pnlj, 0.5*(retp + pnlj))
+colnames(wealthv) <- c("SPY", "Strategy", "Combined")
+colv <- colnames(wealthv)
+sharper <- sqrt(252)*sapply(wealthv, function(x) mean(x)/sd(x))
+sharper <- round(sharper, 3)
+captiont <- paste0(paste(colv, sharper, sep=" = "), collapse=" / ")
+captiont <- paste0("Sharpe Ratios: ", captiont)
+dygraph(cumsum(wealthv), main=captiont) %>%
+  dyOptions(colors=c("blue", "red", "green"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
 
-pricel <- lapply(filev, function(filen) {
-  cat("file: ", filen, "\n")
-  dtable <- data.table::fread(filen)
-  datev <- as.POSIXct(dtable$timestamp/1e3, origin="1970-01-01", tz="America/New_York")
-  pricev <- xts::xts(dtable[, 2], order.by=datev)
-  pricev <- pricev["T09:30:00/T16:00:00"]
-  colnames(pricev)[1] <- symboln
-  retp <- rutils::diffit(pricev)
-  # Compress the prices by removing the unchanged prices
-  retp[1, ] <- 1
-  pricev[!(retp==0), ]
+
+####################################
+# Daily SPY AR strategy for Jolyon's data
+
+
+# Daily log returns
+retp <- na.omit(etfenv$returns$SPY["2020/"])
+# Predictor matrix
+orderp <- 5
+respv <- retp
+predm <- lapply(1:orderp, rutils::lagit, input=respv)
+predm <- rutils::do_call(cbind, predm)
+colnames(predm) <- paste0(symboln, 1:orderp)
+rangev <- paste0("/", start(pnlj))
+# Calculate the fitted AR coefficients
+predinv <- MASS::ginv(predm[rangev])
+coeff <- 1e2*drop(predinv %*% respv[rangev])
+names(coeff) <- colnames(predm)
+# Calculate the in-sample forecasts of SPY (fitted values)
+fcasts <- predm %*% coeff
+# Scale the forecasts
+# scalev <- HighFreq::run_mean(abs(fcasts), lambda=0.999)
+# fcasts <- ifelse(scalev > 1e-4, fcasts/scalev, 0)
+# Calculate the AR strategy PnLs
+pnls <- retp*fcasts
+colnames(pnls) <- c("PnLAR")
+pnls <- pnls[index(pnlj)]
+# Scale the PnL volatility to that of SPY
+pnls <- pnls*sd(retp[index(pnlj)])/sd(pnls)
+
+# Calculate the Sharpe and Sortino ratios
+wealthv <- cbind(pnlj, pnls)
+colnames(wealthv) <- c("Strategy", "AR")
+cor(wealthv)
+# Plot dygraph of the AR strategy
+colv <- colnames(wealthv)
+sharper <- sqrt(252)*sapply(wealthv, function(x) mean(x)/sd(x))
+sharper <- round(sharper, 3)
+captiont <- paste0(paste(colv, sharper, sep=" = "), collapse=" / ")
+captiont <- paste0("Sharpe Ratios: ", captiont)
+dygraph(cumsum(wealthv), main=captiont) %>%
+  dyOptions(colors=c("blue", "red", "green"), strokeWidth=2) %>%
+  dyLegend(show="always", width=300)
+
+
+
+####################################
+# Load a single day of intraday minute bar prices
+
+filen <- "/Users/jerzy/Develop/data/minutes/SPY/2024-02-29.csv"
+pricet <- xts::as.xts(zoo::read.zoo(file = filen,
+                        header = TRUE, sep = ",",
+                        FUN = as.POSIXct,
+                        format = "%Y-%m-%d %H:%M:%S"))
+dygraphs::dygraph(pricet$SPY.Volume, main="SPY Minute Volumes on 2024-02-29")
+
+
+
+####################################
+# Load the list of intraday minute prices, coerce them numeric, and change the time zone to UTC
+
+load("/Users/jerzy/Develop/data/minutes/SPY.RData")
+pricev <- rutils::do_call(rbind, pricel)
+datev <- index(pricev)
+pricev <- lapply(pricev, as.numeric)
+pricev <- rutils::do_call(cbind, pricev)
+colnames(pricev) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+pricev <- xts(pricev, datev)
+
+load("/Users/jerzy/Develop/data/minutes/XLK.RData")
+pricel <- lapply(pricel, function(pricev) {
+  datev <- index(pricev)
+  datev <- lubridate::force_tz(datev, "UTC") # Same clock time in UTC time zone
+  datev <- lubridate::with_tz(datev, "America/New_York") # Same moment of time in New_York time zone.
+  pricev <- lapply(pricev, as.numeric)
+  pricev <- rutils::do_call(cbind, pricev)
+  pricev <- xts(pricev, datev)
+  colnames(pricev) <- c("Open", "High", "Low", "Close", "Volume", "VWAP")
+  pricev
 }) # end lapply
-namev <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
-namev <- unname(namev)
-names(pricel) <- namev
-filen <- paste0(dirp, symboln, datan, ".RData")
-save(pricel, file=filen)
+save(pricel, file="/Users/jerzy/Develop/data/minutes/XLK.RData")
+
+pricev <- pricel[[111]]
+class(drop(coredata(pricev$Close)))
+dygraph(pricev$Volume)
+
+datev <- index(pricev)
 
 
-# Prices of SPY vs QQQ pair
-pricel <- lapply(seq_along(qqq), function(it) {
-  cbx <- na.omit(cbind(qqq[[it]], spy[[it]]))
-  cbx[, 1] - cbx[, 2]
-  # (qqq[[it]] - spy[[it]])
-}) # end lapply
-
-
-# Calculate the distribution of intraday stock price crossings of the open price.
-crossv <- lapply(pricel, function(pricev) {
-  
-  # pricev <- pricev[, 1]
-  # pricev <- pricev["T09:30:00/T16:00:00"]
-  posv <- sign(pricev - as.numeric(pricev[1]))
-  # posv[1] <- 0
-  which(as.logical(rutils::diffit(posv)))[-1]
-  # indeks <- as.numeric(index(pricev))
-  
-}) # end lapply
-crossv <- do.call(c, crossv)
-plot(density(crossv))
-
-# Brownian motion
-crossv <- lapply(pricel, function(pricev) {
-  pricev <- cumsum(rnorm(NROW(pricev)))
-  posv <- sign(pricev - pricev[1])
-  which(as.logical(rutils::diffit(posv)))[-1]
-}) # end lapply
-crossv <- do.call(c, crossv)
-plot(density(crossv))
-
-
-################################################
+####################################
 # Plots for Udemy
 
 # Extract SPY prices
@@ -218,227 +170,7 @@ dygraphs::dygraph(pricev["2008/2009"], main=paste(symboln, "EMA Returns")) %>%
   dyLegend(show="always", width=300)
 
 
-################################################
-# Daily trading strategy for XLK and NVDA
-
-# Load daily S&P500 percentage stock returns
-load(file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
-
-retp <- na.omit(rutils::etfenv$returns$XLK - 1.7*retstock$NVDA)
-
-dygraph(cumsum(retp))
-pacf(retp)
-
-### Autoregressive strategy for cointegrated AAPL and XLK
-
-nrows <- NROW(retp)
-# Define the response and predictor matrices
-orderp <- 21
-predm <- lapply(1:orderp, rutils::lagit, input=retp)
-predm <- rutils::do_call(cbind, predm)
-colnames(predm) <- paste0("lag", 1:orderp)
-
-# Calculate the fitted autoregressive coefficients
-predinv <- MASS::ginv(predm)
-coeff <- predinv %*% retp
-# Calculate the in-sample forecasts of VTI (fitted values)
-fcasts <- predm %*% coeff
-resids <- (fcasts - retp)
-vars <- sum(resids^2)/(nrows-NROW(coeff))
-pred2 <- crossprod(predm)
-covmat <- vars*MASS::ginv(pred2)
-coeffsd <- sqrt(diag(covmat))
-coefft <- drop(coeff/coeffsd)
-coeffn <- paste0("phi", 0:(NROW(coefft)-1))
-barplot(coefft ~ coeffn, xlab="", ylab="t-value", col="grey",
-        main="Coefficient t-values of AR Forecasting Model")
-fcastv <- sqrt(HighFreq::run_var(fcasts, lambda=0.2)[, 2])
-fcastsc <- ifelse(fcastv > 0, fcasts/fcastv, 0)
-# Trade the scaled forecasts
-pnls <- retp*fcastsc
-# Trade only on very large forecasts - not really better
-threshz <- 5
-posv <- rep(NA_integer_, nrows)
-posv[1] <- 0
-posv <- ifelse(fcastsc > threshz, 1, posv)
-posv <- ifelse(fcastsc < (-threshz), -1, posv)
-posv <- zoo::na.locf(posv, na.rm=FALSE)
-pnls <- retp*posv
-
-
-pnls <- pnls*sd(retp[retp<0])/sd(pnls[pnls<0])
-wealthv <- cbind(retp, pnls)
-colnames(wealthv) <- c("Stocks", "Strategy")
-wealthv <- xts(wealthv, index(retp))
-sqrt(252)*sapply(wealthv, function(x)
-  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
-dygraphs::dygraph(cumsum(wealthv), main="Autoregressive Strategy In-Sample") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-
-################################################
-# Intraday trading strategy for SPY and NVDA
-
-pricel <- lapply(names(spy), function(x) {
-  datav <- na.omit(cbind(spy[[x]][, 1], nvda[[x]][, 1]))
-  datav[, 1] - 4*datav[, 2]
-}) # end lapply
-
-datav <- pricel[[1]]
-colv <- colnames(datav)
-dygraphs::dygraph(datav, main="SPY/NVDA Pair") %>%
-  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
-  dySeries(name=colv[1], axis="y", strokeWidth=1, col="blue") %>%
-  dySeries(name=colv[2], axis="y2", strokeWidth=1, col="red") %>%
-  dyLegend(show="always", width=300)
-
-dygraph(datav, main="SPY/NVDA Pair") %>%
-  dyLegend("always", width=300)
-
-
-
-################################################
-
-pricev <- na.omit(rutils::etfenv$prices[, c("XLK", "SPY")])
-retp <- rutils::diffit(pricev)
-betav <- seq(1.0, 3.0, 0.1)
-foo <- sapply(betav, function(betac) {
-  retp <- (retp[, 2] - betac*retp[, 1])
-  sum(pacf(retp, lag=10, plot=FALSE)$acf)
-}) # end sapply
-plot(betav, foo, type="l", xlab="Beta", ylab="Sum of PACF", main="Sum of PACF for XLK/SPY Pair")
-
-# Load the prices
-dtable <- data.table::fread("/Users/jerzy/Develop/data/raw/state_XLK2SPY1RatchetpricEMAzScoreLamb95Volf70_20250304.csv")
-datev <- as.POSIXct(dtable$timeMillisec/1e3, origin="1970-01-01", tz="America/New_York")
-dtable <- dtable[, -2]
-dtable <- lapply(dtable, as.numeric)
-dtable <- do.call(cbind, dtable)
-dtable <- xts::xts(dtable, order.by=datev)
-
-# Compress the prices by removing the unchanged prices
-retp <- rutils::diffit(dtable$pricePortf)
-dtable <- dtable[!(retp==0), ]
-
-dygraphs::dygraph(dtable[, c("pricePortf", "priceRef")], main="XLK/SPY Pair") %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-datav <- dtable[, c("pricePortf", "zScore")]
-colv <- colnames(datav)
-dygraphs::dygraph(datav, main="XLK/SPY Pair") %>%
-  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
-  dySeries(name=colv[1], axis="y", strokeWidth=1, col="blue") %>%
-  dySeries(name=colv[2], axis="y2", strokeWidth=1, col="red") %>%
-  dyLegend(show="always", width=300)
-
-
-
-
-################################################
-# Daily stock low volatility strategies
-
-# VTI returns
-retv <- na.omit(rutils::etfenv$returns$VTI)
-datev <- zoo::index(retv) # Dates vector
-# Load daily S&P500 percentage stock returns
-load(file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
-retp <- retstock[datev]
-nrows <- NROW(retp) # number of rows
-nstocks <- NCOL(retp) # number of stocks
-# To simplify, set NAs to zero
-# retp[is.na(retp)] <- 0
-
-# Calculate the average of all stock returns
-retew <- rowMeans(retp, na.rm=TRUE)
-volew <- sd(retew)
-
-# Define backtest functional for daily low volatility strategy
-# If trend=(-1) then it backtests a mean reverting strategy
-btmomdaily <- function(retp, lambdaf=0.8, varf=2e-5, prob=0.5, trend=1, bidask=0.0, ...) {
-  stopifnot("package:quantmod" %in% search() || require("quantmod", quietly=TRUE))
-  # Calculate the trailing Kelly ratio
-  nstocks <- NCOL(retp)
-  varm <- HighFreq::run_var(retp, lambda=lambdaf)
-  meanm <- varm[, 1:nstocks]
-  vars <- varm[, (nstocks+1):(2*nstocks)]
-  # varmean <- rowMeans(vars, na.rm=TRUE)
-  # meanm[is.na(meanm) | is.nan(meanm)] <- 0
-  # vars[is.na(vars) | is.nan(vars) | vars==0] <- 1
-  # vars[is.na(vars) | is.nan(vars)] <- 1
-  # vars[vars < varf] <- varf
-  # varq <- matrixStats::rowQuantiles(vars, probs=prob, na.rm=TRUE)
-  # Calculate the trailing inverse volatility
-  # weightv <- 1/vars
-  weightv <- ifelse(vars < varf, 1, 0)
-  # weightv <- ifelse(vars < varq, 1/vars, 0)
-  # weightv <- ifelse(vars < varq, meanm/vars, 0)
-  # weightv <- weightv/rowSums(weightv, na.rm=TRUE)
-  # Calculate the trailing Kelly ratio
-  # weightv <- meanm/vars
-  weightv <- weightv/sqrt(rowSums(weightv^2, na.rm=TRUE))
-  weightv <- rutils::lagit(weightv)
-  # Calculate the momentum profits and losses
-  pnls <- trend*rowSums(weightv*retp, na.rm=TRUE)
-  # Calculate the transaction costs
-  # costv <- 0.5*bidask*rowSums(abs(rutils::diffit(weightv)), na.rm=TRUE)
-  costv <- 0
-  return (pnls - costv)
-}  # end btmomdaily
-
-# Simulate multiple daily stock momentum strategies
-lambdav <- seq(0.5, 0.9, 0.1)
-pnls <- sapply(lambdav, btmomdaily, retp=retp, varf=5.4e-5, trend=1)
-
-volv <- 1e-5*seq(2.5, 6.5, 0.5)
-pnls <- sapply(volv, btmomdaily, retp=retp, lambdaf=0.8)
-
-probs <- seq(0.2, 0.9, 0.1)
-pnls <- sapply(probs, btmomdaily, retp=retp, lambdaf=0.8, varf=2e-5)
-
-# pnls[1:100, ] <- 0
-# pnls[is.na(pnls) | is.nan(pnls)] <- 0
-# Scale the momentum volatility to the equal weight index
-# pnls <- apply(pnls, MARGIN=2, function(pnl) volew*pnl/sd(pnl))
-pnls <- xts::xts(pnls, datev)
-# colnames(pnls) <- paste0("lambda=", lambdav)
-sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
-sharper <- round(sharper, 3)
-colnames(pnls) <- paste0("lambda=", lambdav, " / sharpe=", sharper)
-# colnames(pnls) <- paste0("volf=", volv, " / sharpe=", sharper)
-# colnames(pnls) <- paste0("prob=", probs, " / sharpe=", sharper)
-# sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
-
-# Plot dygraph of daily stock low volatility strategies
-colorv <- colorRampPalette(c("blue", "red"))(NCOL(pnls))
-endd <- rutils::calc_endpoints(retp, interval="weeks")
-dygraphs::dygraph(cumsum(pnls)[endd],
-  main="Daily Stock Momentum Strategies") %>%
-  dyOptions(colors=colorv, strokeWidth=2) %>%
-  dyLegend(show="always", width=500)
-
-# Combine the low volatility strategy with VTI
-pnlb <- pnls[, which.max(sharper)]
-pnlb <- sd(retv)*pnlb/sd(pnlb)
-combv <- na.omit(cbind(retv, pnlb))
-colnames(combv) <- c("VTI", "LoVol")
-colv <- colnames(combv)
-sharper <- sqrt(252)*sapply(combv, function(x) mean(x)/sd(x[x<0]))
-sharper <- round(sharper, 3)
-captiont <- paste("LoVol Strategy", "/ \n",
-                  paste0(paste0(colv, " SR="), sharper, collapse=" / "))
-dygraphs::dygraph(cumsum(combv)[endd], main=captiont) %>%
-  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
-  dyLegend(show="always", width=300)
-
-
-
-################################################
-
+####################################
 # The overnight returns of XLK were negatively correlated with
 # its previous daytime returns, until 2010, but not after that.
 # Below is a strategy that holds an overnight position opposite
@@ -515,7 +247,7 @@ pnls <- sapply(rutils::etfenv$symbolv, function(symboln) {
 pnls <- sort(pnls)
 
 
-################################################
+####################################
 
 
 
@@ -550,7 +282,7 @@ dygraphs::dygraph(posv, main=captiont) %>%
 
 
 
-################################################
+####################################
 # Calculate the price range and daytime returns of intraday ETF pair prices.
 
 # Load the intraday second prices for SPY and aggregate them to minute prices.
@@ -599,7 +331,7 @@ plot(foo)
 which.max(foo)
 
 
-################################################
+####################################
 # Calculate the average rescaled range of daily prices for ETFs,
 # relative to the volatility of the close-minus-open returns.
 
@@ -4692,11 +4424,11 @@ get_data <- function(symbolv,
     invisible(output)
   } else {
     # load from csv files
-    file_names <- file.path(data_dir, paste0(symbolv, ".csv"))
-    invisible(sapply(file_names, function(file_name) {
+    filens <- file.path(data_dir, paste0(symbolv, ".csv"))
+    invisible(sapply(filens, function(filen) {
       if (echo)
-        cat("Loading instrument: \t", file_name, "\n")
-      datav <- xts::as.xts(zoo::read.zoo(file = file_name,
+        cat("Loading instrument: \t", filen, "\n")
+      datav <- xts::as.xts(zoo::read.zoo(file = filen,
                                          header = header, sep = ",",
                                          drop = FALSE,
                                          FUN = date_fun,
@@ -4709,7 +4441,7 @@ get_data <- function(symbolv,
       assign(rutils::get_name(colnames(datav)[1]),
              datav,
              envir = data_env)
-      file_name
+      filen
     }))  # end sapply
   }  # end if
 }  # end get_data

@@ -1,4 +1,22 @@
 ####################################
+# Save OHLC prices of ETFs to CSV files.
+
+dirout <- "/Users/jerzy/Develop/data/etfdaily/"
+
+for (symboln in rutils::etfenv$symbolv) {
+  cat("Processing:", symboln, "\n")
+  # Extract the OHLC prices
+  ohlc <- get(symboln, envir=rutils::etfenv)
+  # Coerce the index to date
+  # zoo::index(ohlc) <- as.Date(zoo::index(ohlc))
+  # Save to CSV file
+  filen <- paste0(dirout, symboln, "_daily.csv")
+  write.zoo(ohlc, file=filen, row.names=FALSE, col.names=TRUE, sep=",")
+}  # end for
+
+
+
+####################################
 # Scripts for downloading data from external sources,
 # and for loading data from files.
 
@@ -307,6 +325,8 @@ startd <- "2024-01-01"
 # Get the business days since 2024-01-01 using RQuantLib
 datev <- seq.Date(from=as.Date(startd), to=Sys.Date(), by="day")
 datev <- datev[RQuantLib::isBusinessDay("UnitedStates/NYSE", datev)]
+# Delete mourning day for Jimmy Carter
+datev <- datev[-which(datev == "2025-01-09")]
 # Output directory
 dirp <- paste0("/Users/jerzy/Develop/data/minutes/", symboln, "/")
 
@@ -315,22 +335,24 @@ dirp <- paste0("/Users/jerzy/Develop/data/minutes/", symboln, "/")
 # save them to CSV files.
 pricel <- lapply(datev, function(x) {
 
-  cat("datev: ", format(x), "\n")
+  cat("Date: ", format(x), "\n")
   # Define the start time for the query
-  startdt <- paste0(x, "T08:00:00Z")
+  startdt <- paste0(x, "T10:00:00Z")
+  endd <- paste0(x, "T23:59:00Z")
   # Create the query string
   queryString <- list(
     symbols = symboln,
     timeframe = "1Min",
     start = startdt,
-    limit = "1000",
+    end = endd,
+    limit = "10000",
     adjustment = "all",
     feed = "sip",
     sort = "asc"
   ) # end list
 
   # Submit the request to the Alpaca API
-  respv <- httr::VERB("GET", urls, query=queryString, add_headers('APCA-API-KEY-ID'='PK4R79RKDPTHIELAEUJM', 'APCA-API-SECRET-KEY'='1bkm70sEJbHzE3VlTE1CpnU0U7hX865OqjRakgLu'), content_type("application/octet-stream"), accept("application/json"))
+  respv <- httr::VERB("GET", urls, query=queryString, add_headers('APCA-API-KEY-ID'='PKAPLTMINR09AEAI4ZVR', 'APCA-API-SECRET-KEY'='GrNrQ8lSbLBCkC82XBPa4fnec7ie9MRggrRqFZYx'), content_type("application/octet-stream"), accept("application/json"))
   # Extract the content from the response
   contv <- content(respv)
   # Extract the JSON data from the content
@@ -339,14 +361,17 @@ pricel <- lapply(datev, function(x) {
   ohlc <- lapply(ohlc, function(x) unlist(x)[c("t","o","h","l","c","v","vw")])
   ohlc <- do.call(rbind, ohlc)
   # Coerce the time from string to date-time
-  datev <- as.POSIXct(ohlc[, "t"], origin="1970-01-01", format="%Y-%m-%dT%H:%M:%OSZ")
-  # Select the rows of ohlc from the same day
-  datet <- as.Date(datev[1]) # Today's date
-  sameday <- (as.Date(datev) == datet)
-  ohlc <- ohlc[sameday, ]
-  datev <- datev[sameday]
+  datev <- as.POSIXct(ohlc[, "t"], origin="1970-01-01", format="%Y-%m-%dT%H:%M:%OSZ", tz="UTC")
+  # Coerce the time zone to New_York
+  datev <- lubridate::with_tz(datev, "America/New_York")
+  # Select the rows of ohlc from the same day - not needed anymore because added the end parameter to the query
+  # datet <- as.Date(datev[1]) # Today's date
+  # sameday <- (as.Date(datev) == datet)
+  # ohlc <- ohlc[sameday, ]
+  # datev <- datev[sameday]
   # Remove the first time column from the OHLC prices
   ohlc <- ohlc[, -1]
+  ohlc <- apply(ohlc, 2, as.numeric)
   colnames(ohlc) <- paste(symboln, c("Open", "High", "Low", "Close", "Volume", "VWAP"), sep=".")
   # Coerce from matrix to xts
   ohlc <- xts::xts(ohlc, order.by=datev)
@@ -1503,6 +1528,17 @@ lapply(seq_along(bbg_symbolv), function(indeks) {
 
 ##############
 # Load data from CSV files
+
+## Load intraday prices from a single CSV file
+filen <- "/Users/jerzy/Develop/data/minutes/SPY/2024-02-29.csv"
+pricet <- xts::as.xts(zoo::read.zoo(file = filen,
+                        header = TRUE, sep = ",",
+                        drop = FALSE,
+                        FUN = as.POSIXct,
+                        format = "%Y-%m-%d %H:%M:%S"))
+dygraphs::dygraph(pricet$SPY.Volume, main="SPY Minute Volumes on 2024-02-29")
+
+
 
 ## Load time series data from a single CSV file
 
