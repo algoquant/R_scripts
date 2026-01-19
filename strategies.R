@@ -1,4 +1,8 @@
 ####################################
+# Scripts with backtests of various trading strategies.
+
+
+####################################
 # Daily SPY AR strategy using the range volatility.
 
 symboln <- "SPY"

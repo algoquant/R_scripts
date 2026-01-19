@@ -1,4 +1,4 @@
-####################################
+##############
 # Save OHLC prices of ETFs to CSV files.
 
 dirout <- "/Users/jerzy/Develop/data/etfdaily/"
@@ -16,7 +16,7 @@ for (symboln in rutils::etfenv$symbolv) {
 
 
 
-####################################
+##############
 # Scripts for downloading data from external sources,
 # and for loading data from files.
 
@@ -313,7 +313,7 @@ dygraphs::dygraph(pricev, main=paste(colnames(pricev), "Ticks")) %>%
 
 
 ##############
-# Download intraday OHLC bars from Alpaca.
+# Download intraday minute OHLC bars from Alpaca.
 
 # https://docs.alpaca.markets/reference/stockbars
 
@@ -352,7 +352,7 @@ pricel <- lapply(datev, function(x) {
   ) # end list
 
   # Submit the request to the Alpaca API
-  respv <- httr::VERB("GET", urls, query=queryString, add_headers('APCA-API-KEY-ID'='PKAPLTMINR09AEAI4ZVR', 'APCA-API-SECRET-KEY'='GrNrQ8lSbLBCkC82XBPa4fnec7ie9MRggrRqFZYx'), content_type("application/octet-stream"), accept("application/json"))
+  respv <- httr::VERB("GET", urls, query=queryString, add_headers('APCA-API-KEY-ID'='PKMIDDD0B792FZO6HF7E', 'APCA-API-SECRET-KEY'='u89kQV6dRJyom4ONFgpWHOr7jho8fY3SrMTD6Fvs'), content_type("application/octet-stream"), accept("application/json"))
   # Extract the content from the response
   contv <- content(respv)
   # Extract the JSON data from the content
@@ -382,6 +382,9 @@ pricel <- lapply(datev, function(x) {
 
 }) # end lapply
 
+# Add the names to the list of time series of prices
+names(pricel) <- as.Date(sapply(pricel, function(x) as.Date(end(x))))
+
 # Save the list of time series of prices to an RData file
 filen <- paste0("/Users/jerzy/Develop/data/minutes/", symboln, ".RData")
 save(pricel, file=filen)
@@ -391,10 +394,11 @@ save(pricel, file=filen)
 ##############
 # Download OHLC bars from Polygon
 # 20 years of data with current MT plan
+# Minute bars for Jolyon
 
 # Setup code
 symboln <- "SPY"
-startd <- as.Date("2019-01-01")
+startd <- as.Date("2025-06-01")
 # startd <- as.Date("2021-05-01")
 endd <- Sys.Date()
 tspan <- "minute"
@@ -435,7 +439,7 @@ tail(ohlcn)
 ohlc <- rbind(ohlc, ohlcn[zoo::index(ohlcn) > end(ohlc)])
 
 # Save to file
-filen <- paste0("/Users/jerzy/Develop/data/", symboln, "_minute.RData")
+filen <- paste0("/Users/jerzy/Develop/data/", symboln, "_minute_20260107.RData")
 save(ohlc, file=filen)
 # rm(ohlc)
 
@@ -454,6 +458,40 @@ dygraphs::dygraph(ohlc[, 4], main=paste(symboln, "Close prices")) %>%
   dySeries(colnames(ohlc[, 4]), label=symboln) %>%
   dyOptions(colors="blue", strokeWidth=1) %>%
   dyLegend(show="always", width=500)
+
+
+### Load OHLC bars from RData file and save into daily CSV files
+
+# Load the OHLC bars from RData file
+symboln <- "SPY"
+dirout <- "/Users/jerzy/Develop/data/minutes/"
+filen <- paste0(dirout, symboln, "_20260107.RData")
+load(file=filen)
+# Convert the index to date-time in UTC timezone
+zoo::index(ohlc) <- as.POSIXct(zoo::index(ohlc), tz="UTC")
+# Write the OHLC bars to a single CSV file
+filen <- paste0(dirout, symboln, "_20260107.csv")
+write.zoo(ohlc, file=filen, row.names=FALSE, col.names=TRUE, sep=",")
+
+# Write the OHLC bars to daily CSV files
+# Get unique dates from the time series
+datev <- as.Date(index(ohlc), tz="America/New_York")
+datu <- unique(datev)
+
+# Loop through each date and save separate CSV files
+for (date in datu) {
+  # Extract data for the specific date
+  daily_data <- ohlc[datev == date]
+  
+  # Create filename with date
+  filen <- paste0(dirout, "/", symboln, "/", date, ".csv")
+  
+  # Write the daily data to CSV
+  write.zoo(daily_data, file=filen, row.names=FALSE, col.names=TRUE, sep=",")
+  
+  cat("Saved", nrow(daily_data), "rows for", as.character(date), "to", filen, "\n")
+  
+} # end for
 
 
 
@@ -1789,7 +1827,7 @@ cat(etf_gvkeys, file="/Users/jerzy/Develop/data/WRDS/etf_gvkeys.txt", sep="\n")
 
 
 
-####################################
+##############
 # Ignore below
 
 
