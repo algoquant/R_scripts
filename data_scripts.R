@@ -511,7 +511,7 @@ endd <- Sys.Date()
 symbolv <- c("SPY", "VTI", "QQQ", "VEU", "EEM", "XLY", "XLP", "XLE", "XLF",
              "XLV", "XLI", "XLB", "XLK", "XLU", "VYM", "IVW", "IWB", "IWD",
              "IWF", "IEF", "TLT", "VNQ", "DBC", "GLD", "USO", "VXX", "SVXY",
-             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV", "AIEQ")
+             "MTUM", "IVE", "VLUE", "QUAL", "VTV", "USMV", "AIEQ", "DYNF")
 # Create new environment for ETF data
 etfenv <- new.env()
 
@@ -553,6 +553,7 @@ while (sum(!isdown) > 0) {
 # Save OHLC prices to .RData file
 save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
 
+
 ### Add stats to etfenv
 
 # Extract Close prices
@@ -580,7 +581,7 @@ riskstats$Sharpe <- sqrt(252)*riskstats$"Arithmetic Mean"/riskstats$Stdev
 # Copy riskstats into etfenv
 etfenv$riskstats <- riskstats
 # Calculate the beta, alpha, Treynor ratio, and other performance statistics
-capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv],
+capmstats <- PerformanceAnalytics::table.CAPM(Ra=returns[, symbolv[-1]],
                                               Rb=returns[, "SPY"], scale=252)
 colnamev <- strsplit(colnames(capmstats), split=" ")
 colnamev <- do.call(cbind, colnamev)[1, ]
@@ -754,8 +755,8 @@ colnamev <- colnames(returns)
 dygraphs::dygraph(cumsum(returns), main="SPY and VXX Returns") %>%
   dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
   dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
-  dySeries(name=colnamev[1], axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
-  dySeries(name=colnamev[2], axis="y2", label=colnamev[2], strokeWidth=1, col="red")
+  dySeries(axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
+  dySeries(axis="y2", label=colnamev[2], strokeWidth=1, col="red")
 
 
 # Old code
@@ -767,18 +768,29 @@ dygraphs::dygraph(cumsum(returns), main="SPY and VXX Returns") %>%
 
 
 ##############
-# Coerce time zones
-# Index had America/New_York time zone while the clock time was actually UTC
+# Convert the time index from "UTC" to the "America/New_York".
 
-load("/Volumes/external/Develop/data/spy_minutes.RData")
-datev <- zoo::index(spyohlc)
-# Get same moment of time in UTC time zone
-datev <- lubridate::with_tz(datev, "UTC")
-# Get same clock time in America/New_York time zone
-datev <- lubridate::force_tz(datev, "America/New_York")
-zoo::index(spyohlc) <- datev
-save(spyohlc, file="/Volumes/external/Develop/data/spy_minutes.RData")
-
+# Set parameters for directory with CSV files
+dirn <- "/Users/jerzy/Develop/data/minutes/"
+symboln <- "SPY"
+filen <- paste0(dirn, symboln, "_minutes.RData")
+# Load the OHLC bars from RData file
+loadd <- load(filen)
+# Get the time index of the ohlc time series
+datev <- index(ohlc)
+# Add the "UTC" time zone to the datev vector
+datev <- as.POSIXct(format(datev), tz="UTC")
+# Convert the datev vector to the "America/New_York" time zone
+datev <- as.POSIXct(format(datev, tz="America/New_York"), tz="America/New_York")
+# Set the time index of the ohlc time series
+index(ohlc) <- datev
+# Save the ohlc object with the converted time index
+save(ohlc, file=filen)
+# Subset the ohlc time series to the trading hours
+ohlc <- ohlc["T09:30:00/T16:00:00"]
+# Save the ohlc time series
+filen <- paste0(dirn, symboln, "_minutes_markets.RData")
+save(ohlc, file=filen)
 
 
 ##############
@@ -908,7 +920,7 @@ save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 ##############
 # Save OHLC prices for the most liquid S&P500 stocks.
 
-# Load the daily OHLC prices for S&P500 stocks
+# Load the daily OHLC prices of S&P500 stocks
 load(file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 # Calculate the daily trading volumes
@@ -921,9 +933,9 @@ volumt <- sapply(volumv, sum, na.rm=TRUE)
 volumt <- sort(volumt, decreasing=TRUE)
 
 # Calculate the symbols of the 200 most liquid stocks
-# in every year, since 1999.
+# in every year, since 1993.
 
-yearv <- as.character(1999:2024)
+yearv <- as.character(1993:2025)
 volumy <- sapply(yearv, function(yearn) {
   volumy <- sapply(volumv[yearn], sum, na.rm=TRUE)
   names(head(sort(volumy, decreasing=TRUE), 200))
@@ -950,8 +962,7 @@ save(retstock, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returnstop.R
 
 
 ##############
-# Load S&P500 constituent stock prices from .RData file
-# and calculate the daily percentage returns.
+# Calculate the daily percentage returns of S&P500 stocks.
 
 # Load OHLC prices from .RData file
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
@@ -969,6 +980,9 @@ colnames(pricestock) <- symbolv
 # pricestock <- zoo::na.locf(pricestock, na.rm=FALSE)
 # pricestock <- zoo::na.locf(pricestock, fromLast=TRUE)
 
+
+## Skip!!!
+# Because it creates look-ahead bias, because it uses future prices to fill in the missing values.
 # Scrub the prices using a three-point classifier (tri-filter)
 pricel <- lapply(pricestock, function(pricev) {
   pricelog <- log(pricev)
@@ -983,13 +997,23 @@ pricel <- lapply(pricestock, function(pricev) {
   pricev
 }) # end lapply
 pricestock <- do.call(cbind, pricel)
+## end Skip!
 
 
-## Calculate log returns of the S&P500 constituent stocks
+## Calculate log returns of the S&P500 stocks
 retstock <- xts::diff.xts(log(pricestock))
-# Remove the first row of NA returns
-retstock <- retstock[-1, ]
+# Remove the first row of NA returns?
+# retstock <- retstock[-1, ]
 
+## Select a random sample of 100 prices and returns of the S&P500 stocks
+set.seed(1121)
+samplev <- sample(NROW(symbolg), s=100, replace=FALSE)
+pricestock100 <- pricestock[, symbolg[samplev]]
+retstock100 <- retstock[, symbolg[samplev]]
+
+
+
+## Extra
 # retstock[1, ] <- 0.01
 # Or
 # retstock <- lapply(pricestock, function(x)
@@ -1016,11 +1040,7 @@ symbolg <- unlist(lapply(pricestock, function(pricev) {
   } # end if
 }))  # end lapply
 
-## Select a random sample of 100 prices and returns of the S&P500 constituent stocks
-set.seed(1121)
-samplev <- sample(NROW(symbolg), s=100, replace=FALSE)
-pricestock100 <- pricestock[, symbolg[samplev]]
-retstock100 <- retstock[, symbolg[samplev]]
+# Extra end
 
 
 # Old code
@@ -1069,6 +1089,144 @@ returns100_scaled <- returns_scaled[, samplev]
 ## Experimental end
 
 
+##############
+# Calculate the idiosyncratic returns of S&P500 stocks.
+
+# Load the daily returns of SP500 stocks
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
+
+# Calculate the idiosyncratic returns by regressing the stock returns on the SPY returns
+datev <- index(retstock)
+symboln <- "SPY"
+retspy <- na.omit(rutils::etfenv$returns[, symboln])
+
+library(parallel)  ##  Load package parallel
+ncores <- detectCores() - 1
+retid <- mclapply(retstock[index(retspy)], function(rets) {
+  rets <- na.omit(rets)
+  retm <- retspy[index(rets)]
+  betav <- drop(cov(rets, retm)/var(retm))
+  return(rets - betav*retm)
+}, mc.cores=ncores) # end mclapply
+retid <- do.call(cbind, retid)
+
+save(retid, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_idiosyncratic.RData")
+
+
+##############
+# Calculate the overnight returns of S&P500 stocks.
+
+# Load OHLC prices from .RData file
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+
+# Perform a loop over the sp500env environment and calculate the overnight returns for each stock
+reton <- eapply(sp500env, function(ohlc) {
+  ohlc <- log(ohlc)
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  # retp <- rutils::diffit(closep) ##  daily returns
+  # colnames(retp) <- "daily"
+  # retd <- (closep - openp) ##  daytime returns
+  # colnames(retd) <- "daytime"
+  reton <- (openp - rutils::lagit(closep, lagg=1)) ##  overnight returns
+  # colnames(reton) <- "overnight"
+  # Set the first overnight return to 0 because it is biased by the first price
+  reton[1] <- 0
+  # highp <- quantmod::Hi(ohlc)
+  # lowp <- quantmod::Lo(ohlc)
+  # hilo <- (highp - lowp) ##  range of daily prices
+  return(reton)
+}) # end lapply
+reton <- do.call(cbind, reton)
+colnames(reton) <- rutils::get_name(names(sp500env))
+
+## Save the overnight returns
+save(reton, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_overnight.RData")
+
+
+############## homework
+# Summary: Select the stocks with the highest trading volumes
+# and the largest rescaled range of the overnight returns.  
+
+# Load OHLC prices from .RData file
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+
+# Finds stocks with highest volumes since 2010
+lqd <- eapply(sp500env, function(ohlc) {
+  return(sum(quantmod::Vo(ohlc["2010/"])))
+}) # end lapply
+lqd <- do.call(cbind, lqd)
+names(lqd) <- rutils::get_name(names(sp500env))
+lqd <- sort(lqd, decreasing=TRUE)
+head(lqd)
+tail(lqd)
+
+# Load the overnight stock returns
+load(file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_overnight.RData")
+
+# Select the top 200 stocks for the analysis
+reton <- reton[, head(names(lqd), 200)]
+
+# Calculate the rescaled range of the overnight returns
+ranger <- sapply(reton, sd, na.rm=TRUE)
+ranger <- sapply(reton["2010/"], function(x) {
+  x <- na.omit(x)
+  nrows <- NROW(x)
+  if (nrows < 300) return(NULL)
+  csum <- cumsum(x)
+  return((max(csum)-min(csum))/sd(x)/nrows)
+}) ##  end sapply
+ranger <- unlist(ranger)
+ranger <- sort(ranger, decreasing=TRUE)
+head(ranger)
+
+# Reorder the columns of reton to match the order of ranger
+reton <- reton[, names(ranger)]
+# Remove the first three columns of reton that correspond to the highest rescaled range
+# reton <- reton[, -(1:3)]
+# Select stocks with the largest rescaled ranges
+ncols <- NCOL(reton)
+reton <- reton[, -((ncols/2):ncols)]
+
+## Save the overnight returns
+save(reton, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_overnight_top.RData")
+
+
+# Plot the cumulative overnight returns of the stock with the largest rescaled range
+symboln <- "AAPL"
+pricev <- cumsum(na.omit(get(symboln, reton)))
+dygraph(pricev, main=paste("Cumulative Overnight Returns of", symboln)) %>%
+  dyOptions(colors="blue", strokeWidth=1)
+
+
+
+##############
+# Calculate the overnight returns for ETFs.
+
+# Perform a loop over the ETF symbols
+symbolv <- rutils::etfenv$symbolv
+reton <- lapply(symbolv, function(symboln) {
+  ohlc <- log(get(symboln, rutils::etfenv))
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  # retp <- rutils::diffit(closep) ##  daily returns
+  # colnames(retp) <- "daily"
+  # retd <- (closep - openp) ##  daytime returns
+  # colnames(retd) <- "daytime"
+  reton <- (openp - rutils::lagit(closep, lagg=1)) ##  overnight returns
+  # colnames(reton) <- "overnight"
+  # reton[1] <- 0
+  # highp <- quantmod::Hi(ohlc)
+  # lowp <- quantmod::Lo(ohlc)
+  # hilo <- (highp - lowp) ##  range of daily prices
+  return(reton)
+}) # end lapply
+reton <- do.call(cbind, reton)
+colnames(reton) <- symbolv
+
+## Save the overnight returns
+save(reton, file="/Users/jerzy/Develop/lecture_slides/data/etf_returns_overnight.RData")
+
 
 ##############
 # Read minute OHLC stock prices from CSV files and coerce them into xts.
@@ -1082,11 +1240,31 @@ ohlc <- xts::xts(ohlc[, -(1:2)], order.by=datev)
 save(ohlc, file="/Volumes/external/Develop/data/spy_minutes.RData")
 
 
+##############
+## Download VIX index from CBOE
 
+# Download VIX index data from CBOE
+vixohlc <- data.table::fread("https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv", skip=1)
+class(vixohlc)
+dim(vixohlc)
+tail(vixohlc)
+sapply(vixohlc, class)
+vixohlc <- xts(vixohlc[, -1],
+                order.by=as.Date(vixohlc$V1, format="%m/%d/%Y"))
+colnames(vixohlc) <- c("Open", "High", "Low", "Close")
+# Save the VIX data to binary file
+load(file="/Users/jerzy/Develop/data/vix/vix_data.RData")
+vixenv <- new.env()
+ls(vixenv)
+vixenv$vixohlc <- vixohlc
+save(vixenv, file="/Users/jerzy/Develop/data/vix/vix_data.RData")
+
+
+
+# Old needs updating
 ##############
 ## Download VIX CSV files from CBOE
 
-# Old stuff - ignore?
 # Download text data from URL - doesn't download data - just html code
 foo <- RCurl::getURL("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
 foo <- readLines("https://markets.cboe.com/us/futures/market_statistics/historical_data/")
@@ -1238,12 +1416,12 @@ save(com_bo, file="/Users/jerzy/Develop/data/combined.RData")
 # load(file="/Users/jerzy/Develop/data/combined.RData")
 
 # plot dygraph
-label_s <- c("TY1.Close", "TU1.Close")
+labelv <- c("TY1.Close", "TU1.Close")
 # dygraphs::dygraph(cbind(closep, datenv())["2018-02-09"], main="OHLC Technicals Strategy") %>%
-dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), label_s], main="OHLC Data") %>%
-  dyAxis("y", label=label_s[1], independentTicks=TRUE) %>%
-  dyAxis("y2", label=label_s[2], independentTicks=TRUE) %>%
-  dySeries(label_s[2], axis="y2", col=c("blue", "red"))
+dygraphs::dygraph(ohlc[endpoints(ohlc, on="hours"), labelv], main="OHLC Data") %>%
+  dyAxis("y", label=labelv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=labelv[2], independentTicks=TRUE) %>%
+  dySeries(labelv[2], axis="y2", col=c("blue", "red"))
 
 
 

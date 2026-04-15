@@ -4,9 +4,9 @@
 
 ###############
 # Get all file names with *.Rnw in the lecture_slides directory
-filen <- Sys.glob("/Users/jerzy/Develop/lecture_slides/*.Rnw")
+filev <- Sys.glob("/Users/jerzy/Develop/lecture_slides/*.Rnw")
 # Get all *.Rnw files in the lecture_slides directory, except those that contain "FRE"
-filen <- filen[-grep("FRE", filen)]
+filev <- filev[-grep("FRE", filev)]
 
 
 
@@ -18,33 +18,33 @@ knitr::knit2pdf("/Users/jerzy/Develop/lecture_slides/data_management.Rnw", bib_e
 # Loop over all the *.Rnw files in the cwd, and render them into *.pdf files.
 setwd("/Users/jerzy/Develop/lecture_slides")
 # Render files without using error handler.
-sapply(filen, knitr::knit2pdf, bib_engine="biber")
+sapply(filev, knitr::knit2pdf, bib_engine="biber")
 
 ## Render files using error handler.
 # Create a Boolean vector of names already processed.
 nameproc <- NULL
-isproc <- filen %in% nameproc
-# Loop over the filen and render them into *.pdf files.
-sapply(filen[!isproc], function(file_name) {
+isproc <- filev %in% nameproc
+# Loop over the filev and render them into *.pdf files.
+sapply(filev[!isproc], function(filen) {
   tryCatch(  # With error handler
     {
-      cat("Processing: ", file_name, "\n")
-      knitr::knit2pdf(file_name, bib_engine="biber", quiet=TRUE)
-      nameproc <<- c(nameproc, file_name)
+      cat("Processing: ", filen, "\n")
+      knitr::knit2pdf(filen, bib_engine="biber", quiet=TRUE)
+      nameproc <<- c(nameproc, filen)
     },
     # Error handler captures error condition
     error=function(error_cond) {
-      # Reference to file_name produces error and tryCatch() fails
-      # cat("Error in: ", file_name, "\n")
+      # Reference to filen produces error and tryCatch() fails
+      # cat("Error in: ", filen, "\n")
       print(paste("error handler: ", error_cond))
     }  # end error handler
-    # finally=print(paste("file_name=", file_name))
+    # finally=print(paste("filen=", filen))
   )  # end tryCatch
 })  # end sapply
 
 # List the files that have not been processed
-isproc <- filen %in% nameproc
-filen[!isproc]
+isproc <- filev %in% nameproc
+filev[!isproc]
 
 
 ###############
@@ -52,7 +52,7 @@ filen[!isproc]
 knitr::purl("/Users/jerzy/Develop/lecture_slides/FRE6871_Lecture_1.Rnw", documentation=0, quiet=TRUE)
 
 # Extract R chunks from all *.Rnw files, except those that contain "FRE".
-sapply(filen, knitr::purl, documentation=0, quiet=TRUE)
+sapply(filev, knitr::purl, documentation=0, quiet=TRUE)
 
 
 
@@ -74,36 +74,36 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
 dirn <- "/Users/jerzy/Develop/data/"
 # Using lapply() and zoo::write.zoo()
-filen <- lapply(ls(etfenv), function(symbol) {
+filev <- lapply(ls(etfenv), function(symbol) {
   xtes <- get(symbol, envir=etfenv)
   zoo::write.zoo(xtes, file=paste0(dirn, symbol, ".csv"))
   symbol
 })  # end lapply
-unlist(filen)
+unlist(filev)
 
 # Or using lapply() and data.table::fwrite()
-filen <- lapply(ls(sp500env), function(symbol) {
+filev <- lapply(ls(sp500env), function(symbol) {
   xtes <- get(symbol, envir=sp500env)
   data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, symbol, ".csv"))
   symbol
 })  # end eapply
-names(filen)
+names(filev)
 
 # Or using eapply() and data.table::fwrite()
-filen <- eapply(sp500env, function(xtes) {
-  file_name <- rutils::get_name(colnames(xtes)[1])
-  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, file_name, ".csv"))
-  file_name
+filev <- eapply(sp500env, function(xtes) {
+  filen <- rutils::get_name(colnames(xtes)[1])
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, filen, ".csv"))
+  filen
 })  # end eapply
-names(filen)
+names(filev)
 
 # Or
-filen <- lapply(as.list(sp500env), function(xtes) {
-  file_name <- rutils::get_name(colnames(xtes)[1])
-  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, file_name, ".csv"))
-  file_name
+filev <- lapply(as.list(sp500env), function(xtes) {
+  filen <- rutils::get_name(colnames(xtes)[1])
+  data.table::fwrite(data.table::as.data.table(xtes), file=paste0(dirn, filen, ".csv"))
+  filen
 })  # end lapply
-names(filen)
+names(filev)
 
 
 
@@ -138,9 +138,9 @@ sapply(seq_along(foo), function(x) {
 ###############
 # Extract futures symbols from file names
 
-filen <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec2017/raw/*")
+filev <- Sys.glob("/Users/jerzy/Develop/data_def/hull_data/dec2017/raw/*")
 
-namesv <- sapply(filen, function(x) {
+namesv <- sapply(filev, function(x) {
   foo <- strsplit(x, split='/')
   foo <- strsplit(xts::last(foo[[1]]), split='_')
   foo[[1]][1]

@@ -1,21 +1,4 @@
-#################################
-### FRE7241 Homework #6 Solution Tuesday, December 9, 2025
-#################################
-# Max score 100pts
-
-# This is the old code with the bug in it:
-lookb <- 1 ##  Look-back interval in months
-startp <- endd[max(1, tday-lookb)]
-retis <- retp[startp:(endd[tday-1]-1), ]
-
-# The bug is that the look-back period should
-# greater than 1, because then endd[tday-1]
-# is 1 day before startp.
-# But it works fine for lookb = 1
-# Why?
-
-
-############## Part II
+############## homework
 # Summary: Simulate a momentum strategy using the 
 # idiosyncratic stock returns (residuals).
 
@@ -44,18 +27,6 @@ retis <- retp[startp:(endd[tday-1]-1), ]
 # Trade long only, without shorting stocks.
 
 # Idea:
-# Calculate the stock betas using aggregated returns.
-
-# The equally-weighted portfolio of the aggregated
-# returns has very good pnls?  Not really
-retagg <- rowMeans(retw)
-datev <- zoo::index(retw)
-retagg <- xts(retagg, datev)
-dygraph(cumsum(retagg))
-
-
-
-# Idea:
 # Test separately the low and high volatility stocks.
 # Calculate the stock betas and alphas using
 # different look-back intervals.
@@ -67,9 +38,124 @@ dygraph(cumsum(retagg))
 # The best performance is for both look-back 
 # intervals equal to about 65 months.
 
-
 # Idea:
 # Bet against beta.
+
+## Version using fixed betas
+
+# Summary: Simulate a momentum strategy using the 
+# idiosyncratic stock returns (residuals).
+
+
+# Load SPY returns
+symboln <- "SPY" # SPY is the market return proxy
+retm <- na.omit(get(symboln, rutils::etfenv$returns))
+datev <- zoo::index(retm) # Dates vector
+
+# Load daily S&P500 percentage stock returns
+load(file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
+retp <- retstock[datev]
+nrows <- NROW(retp) # number of rows
+nstocks <- NCOL(retp) # number of stocks
+
+# Calculate the idiosyncratic stock returns
+varm <- var(retm)
+retid <- lapply(retp, function(rets) {
+  betac <- drop(cov(rets, retm, use="complete.obs")/varm)
+  return(rets - betac*retm)
+}) # end lapply
+retid <- do.call(cbind, retid)
+
+# Calculate the sum of the first 20 partial autocorrelation coefficients
+pacsum <- sapply(retid, function(x) {
+  x <- na.omit(x)
+  if (NROW(x) > 100) {
+    pacff <- stats::pacf(x, plot=FALSE, lag.max=20)
+    return(sum(pacff$acf))
+  } else {
+    return(NA)
+  } # end if
+}) ## end sapply
+
+
+# Objective function equal to the Kelly ratio
+objfun <- function(retp) {
+  retp <- na.omit(retp)
+  if (NROW(retp) > 3) {
+    varv <- var(retp)
+    if (varv > 0) mean(retp)/varv else 0
+  } else 0
+}  ##  end objfun
+
+# Calculate a vector of weekly end points
+endd <- rutils::calc_endpoints(retp, interval="weeks")
+npts <- NROW(endd)
+lookb <- 80 ##  Lookback period
+volt <- 0.01 ##  Volatility target
+
+# Loop through the weekly end points and calculate the momentum returns
+library(parallel)  ##  Load package parallel
+ncores <- detectCores() - 1
+
+lookbv <- seq(5, 12, by=1)
+
+pnll <- mclapply(lookbv, function(lookb) {
+  
+  pnls <- mclapply(1:(npts-1), function(tday) {
+    ##  Select the in-sample returns
+    startp <- endd[max(1, tday-lookb)]
+    retis <- retp[startp:endd[tday], ]
+    intos <- (endd[tday]+1):endd[tday+1]
+    retos <- retp[intos]
+    datos <- zoo::index(retos)
+    if (NROW(retis) < 4) return(xts::xts(numeric(NROW(intos)), datos))
+    ##  Calculate weights proportional to the performance
+    perfstat <- sapply(retis, objfun)
+    weightv <- perfstat
+    ##  Calculate the in-sample portfolio returns
+    pnlis <- HighFreq::mult_mat(weightv, retis)
+    pnlis <- rowMeans(pnlis, na.rm=TRUE)
+    ##  Scale weights so in-sample pnl volatility is same as target
+    weightv <- weightv*volt/sd(pnlis)
+    ##  Calculate the out-of-sample momentum returns
+    pnlos <- HighFreq::mult_mat(weightv, retos)
+    pnlos <- rowMeans(pnlos, na.rm=TRUE)
+    return(xts::xts(pnlos, datos))
+  }, mc.cores=ncores)  ##  end lapply
+  pnls <- rutils::do_call(rbind, pnls)
+  
+  return(pnls)
+  
+}) ##  end lapply
+
+sharpev <- sapply(pnll, function(pnls) {
+  sharper <- sqrt(252)*c(Sharpe=mean(pnls)/sd(pnls), Sortino=mean(pnls)/sd(pnls[pnls<0]))
+  return(round(sharper, 3))
+}) ## end sapply
+colnames(sharpev) <- paste("lookb", lookbv, sep="")
+pnls <- pnll[[which.max(sharpev[1, ])]]
+lookb <- lookbv[which.max(sharpev[1, ])]
+
+
+# Calculate cumulative returns and performance metrics
+wealthv <- cbind(retm, pnls, 0.5*(retm+pnls))
+wealthv[is.na(wealthv)] <- 0
+colnames(wealthv) <- c("SPY", "Momentum", "Combined")
+cor(wealthv)
+sharper <- sqrt(252)*sapply(wealthv, function(x)
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+sharper <- round(sharper, 3)
+colnames(wealthv) <- paste(c("SPY", "Momentum", "Combined"), sharper[1, ], sep="=")
+
+# Dygraphs plot of cumulative returns
+# captiont <- paste("Momentum for Idiosyncratic Stock Returns, lookb =", lookb, "months, \n",
+#                   paste("Sharpe", paste(colnames(sharper), sharper[1, ], sep="="), collapse=", "))
+captiont <- paste("Idiosyncratic Stock Momentum, lookb =", lookb, "months")
+
+dygraphs::dygraph(cumsum(wealthv)[endd], main=captiont) %>%
+  dyOptions(colors=c("blue", "red", "green"), strokeWidth=1) %>%
+  dySeries(name=colnames(wealthv)[3], strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
 
 
 ## Run the setup code below
@@ -141,16 +227,16 @@ plot(pacsum, type="b",
      xlab="PCA Index", ylab="Sum of Partial Autocorrelations")
 
 
-# Calculate the alphas 
+# Calculate the idiosyncratic stock returns
 varm <- drop(var(retm))
 retmm <- mean(retm)
-alphav <- lapply(retp, function(rets) {
-  betac <- drop(cov(rets, retp)/varm)
+retid <- lapply(retp, function(rets) {
+  betac <- drop(cov(rets, retm, use="complete.obs")/varm)
   return(rets - betac*retm)
 })  ## end lapply
-alphav <- do.call(cbind, alphav)
+retid <- do.call(cbind, retid)
 # Calculate the correlation of the alphas
-cormat <- cor(alphav, use="pairwise.complete.obs")
+cormat <- cor(retid, use="pairwise.complete.obs")
 sum(cormat) - sum(diag(cormat))
 
 
@@ -191,19 +277,26 @@ npts <- NROW(endd)
 # the equal-weighted portfolio.
 
 lookb <- 65 ##  Look-back interval in months
+volt <- 0.01 ##  Volatility target
+
 library(parallel)  ##  Load package parallel
 ncores <- detectCores() - 1
 
+lookbv <- seq(5, 12, by=1)
+pnll <- mclapply(lookbv, function(lookb) {
+
+
 pnls <- mclapply(3:(npts-1), function(tday) {
   
+  # cat("\nProcessing step:", tday, "\n")
   ##  Select the in-sample returns
   startp <- endd[max(1, tday-lookb)]
   # startp <- max(1, endd[tday-1]-lookb)
   # Include the most recent period
-  # endp <- endd[tday]
+  endp <- endd[tday]
   # Exclude the most recent period
-  endp <- endd[tday-1]
-  retis <- retp[startp:endp, ]
+  # endp <- endd[tday-1]
+  retis <- retp[startp:endp]
   datis <- zoo::index(retis)
   retmis <- retm[datis]
   varm <- drop(var(retmis))
@@ -227,31 +320,64 @@ pnls <- mclapply(3:(npts-1), function(tday) {
   # Calculate the momentum weights
   weightv <- alphav/ivarv
   weightv[is.na(weightv)] <- 0
+  # Calculate the in-sample idiosyncratic returns
+  retid <- lapply(colnames(retp), function(symb) {
+    retis[, symb] - retmis*betav[symb]
+  }) ## end lapply
+  retid <- do.call(cbind, retid)
+  # retid <- retis
+  retid[is.na(retid)] <- 0
+  ##  Calculate the in-sample portfolio returns
+  pnlis <- HighFreq::mult_mat(weightv, retid)
+  pnlis <- rowSums(pnlis, na.rm=TRUE)
+  # For some reason the parallel loop produces an error because of the inner product below
+  # pnlis <- retid %*% weightv
+  ##  Scale weights so in-sample pnl volatility is same as target
+  weightv <- weightv*volt/sd(pnlis)
   ##  Select the out-of-sample returns
-  retos <- retp[(endd[tday]+1):endd[tday+1], ]
+  retos <- retp[(endd[tday]+1):endd[tday+1]]
   datos <- zoo::index(retos)
-  # Calculate the out-of-sample stock alphas
+  # Calculate the out-of-sample idiosyncratic returns
   retmos <- retm[datos]
-  alphav <- lapply(colnames(retp), function(symb) {
+  retid <- lapply(colnames(retp), function(symb) {
     retos[, symb] - retmos*betav[symb]
   }) ## end lapply
-  alphav <- do.call(cbind, alphav)
-  alphav[is.na(alphav)] <- 0
+  retid <- do.call(cbind, retid)
+  # retid <- retos
+  retid[is.na(retid)] <- 0
   # Calculate the out-of-sample pnls of low and high alpha stocks
-  pnlos <- alphav %*% weightv
+  pnlos <- retid %*% weightv
   # Calculate the equal-weighted portfolio pnls
   retew <- rowMeans(retos, na.rm=TRUE)
-  
-  return(xts(cbind(retew, pnlos*sd(retew)/sd(pnlos)), order.by=datos))
+  # The bug is below: scaling the momentum strategy returns using the out-of-sample volatility
+  # return(xts(cbind(retew, pnlos*sd(retew)/sd(pnlos)), order.by=datos))
+  return(xts(cbind(retew, pnlos), order.by=datos))
   
 }, mc.cores=ncores)  ## end mclapply
 
 # Combine the PnLs into a single xts series
 pnls <- rutils::do_call(rbind, pnls)
 pnls[is.na(pnls)] <- 0
-pnls[, 2] <- pnls[, 2]*sd(retm)/sd(pnls[, 2])
+
+return(pnls)
+
+}) ##  end lapply
+
+sharpev <- sapply(pnll, function(pnls) {
+  pnls <- pnls[, 2]
+  sharper <- sqrt(252)*c(Sharpe=mean(pnls)/sd(pnls), Sortino=mean(pnls)/sd(pnls[pnls<0]))
+  return(round(sharper, 3))
+}) ## end sapply
+colnames(sharpev) <- paste("lookb", lookbv, sep="")
+pnls <- pnll[[which.max(sharpev[1, ])]]
+lookb <- lookbv[which.max(sharpev[1, ])]
+
+
+# pnls[, 2] <- pnls[, 2]*sd(retm)/sd(pnls[, 2])
+pnls <- cbind(retm, pnls[, -1])
 pnls <- cbind(pnls, 0.5*(pnls[, 1] + pnls[, 2]))
-colnames(pnls) <- c("EqualWeight", "Momentum", "Combined")
+pnls <- na.omit(pnls)
+colnames(pnls) <- c("SPY", "Momentum", "Combined")
 
 
 # Calculate the Sharpe and Sortino ratios
@@ -266,8 +392,10 @@ sharper <- round(sharper, 3)
 # Sortino   1.1606118 1.351227 1.804493
 
 # Plot a dygraph of the momentum strategy
-captiont <- paste("Idiosyncratic Stock Momentum", "/ \n", 
-                  paste0(paste(colnames(sharper), "= "), sharper[1, ], collapse=" / "))
+# captiont <- paste("Idiosyncratic Stock Momentum", "/ \n", 
+#                   paste0(paste(colnames(sharper), "= "), sharper[1, ], collapse=" / "))
+colnames(pnls) <- paste(c("SPY", "Momentum", "Combined"), sharper[1, ], sep="=")
+captiont <- paste("Idiosyncratic Stock Momentum, lookb =", lookb, "months")
 endw <- rutils::calc_endpoints(pnls, interval="weeks")
 dygraphs::dygraph(cumsum(pnls)[endw], main=captiont) %>%
   dyOptions(colors=c("blue", "red", "green"), strokeWidth=1) %>%
@@ -281,17 +409,18 @@ dygraphs::dygraph(cumsum(pnls)[endw], main=captiont) %>%
 
 
 # Calculate the in-sample stock volatilities, betas, and alphas
-retisync <- lapply(retp, function(rets) {
+retid <- lapply(retp, function(rets) {
   # cat("\nProcessing stock:", colnames(rets), "\n")
   retc <- na.omit(cbind(rets, retm))
   betac <- drop(cov(retc[, 1], retc[, 2])/var(retc[, 2]))
   resid <- retc[, 1] - betac*retc[, 2]
   return(resid)
 })  ## end lapply
-retisync <- do.call(cbind, retisync)
+retid <- do.call(cbind, retid)
 
+# Simulate the momentum strategy using the idiosyncratic returns
 lookb <- 25
-pnls <- mclapply(3:(npts-1), function(tday) {
+pnls <- mclapply(1:(npts-1), function(tday) {
   ##  Select the in-sample returns
   startp <- endd[max(1, tday-lookb)]
   # startp <- max(1, endd[tday-1]-lookb)
@@ -299,14 +428,14 @@ pnls <- mclapply(3:(npts-1), function(tday) {
   # endp <- endd[tday]
   # Exclude the most recent period
   endp <- endd[tday-1]
-  retis <- retisync[startp:endp, ]
+  retis <- retid[startp:endp, ]
   retis[is.na(retis)] <- 0
   ivar <- apply(retis, 2, var)
   # Calculate the momentum weights
   weightv <- colMeans(retis)/ivar
   weightv[is.na(weightv)] <- 0
   ##  Select the out-of-sample returns
-  retos <- retisync[(endd[tday]+1):endd[tday+1], ]
+  retos <- retid[(endd[tday]+1):endd[tday+1], ]
   retos[is.na(retos)] <- 0
   # Calculate the out-of-sample pnls
   pnlos <- retos %*% weightv
