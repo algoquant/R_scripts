@@ -1,4 +1,13 @@
 ##############################
+### Scratch
+##############################
+
+
+
+
+
+
+##############################
 ### Quant
 ##############################
 
@@ -498,7 +507,7 @@ summary(microbenchmark(
 
 
 ##############
-### plot multiple dygraphs in the same RStudio window
+# plot multiple dygraphs in the same RStudio window
 
 # Create the time series
 temperature <- ts(frequency = 12, start = c(1980, 1),
@@ -522,7 +531,7 @@ htmltools::browsable(htmltools::tagList(dyplot))
 
 
 ##############
-### plot multiple dygraphs in the same RStudio window
+## plot multiple dygraphs in the same RStudio window
 
 # load packages
 library(quantmod)
@@ -559,7 +568,7 @@ eapply(data_env, function(xtsv) {
 
 
 ##############
-### dygraph plot with highlighting of specific points
+## dygraph plot with highlighting of specific points
 
 library(xts)
 library(dygraphs)
@@ -601,7 +610,7 @@ dyplot
 
 
 ##############
-### Code to check for duplicate dates
+## Code to check for duplicate dates
 
 # Create xts with duplicate dates
 x <- xts(rnorm(5), order.by=c(Sys.Date() + 1:4, Sys.Date() + 2))
@@ -613,7 +622,7 @@ as.POSIXct(make.index.unique(.index(x), drop=TRUE), origin="1970-01-01")
 
 
 ##############
-### Example of an apply() error.
+## Example of an apply() error.
 # When apply() parses a data frame with a Boolean column by rows,
 # then it adds a leading space to TRUE.
 # This may be because FALSE has 5 letters, while TRUE has only 4 letters.
@@ -967,7 +976,7 @@ pacf(retc)
 
 
 
-### Autoregressive strategy for cointegrated AAPL and XLK
+## Autoregressive strategy for cointegrated AAPL and XLK
 
 nrows <- NROW(retc)
 # Define the response and predictor matrices
@@ -1021,6 +1030,50 @@ dygraphs::dygraph(cumsum(wealthv),
 flipi <- rutils::diffit(fcastsc)
 costv <- 0.5*bidask*abs(flipi)
 wealthv <- cbind(retc, pnls - costv)
+
+
+##############
+# Simulate a ratchet strategy for the price reverting to the open price.
+
+# Calculate SPY dollar returns
+ohlc <- HighFreq::SPY
+nrows <- NROW(ohlc)
+pricev <- quantmod::Cl(ohlc)
+
+loadd <- load("/Users/jerzy/Develop/data/minutes/QQQ_minutes_markets.RData")
+pricev <- quantmod::Cl(ohlc)
+colnames(pricev) <- rutils::get_name(colnames(pricev))
+endd <- rutils::calc_endpoints(pricev, interval=5)
+pricev <- pricev[endd]
+retp <- rutils::diffit(pricev, lagg=1)
+colnames(retp) <- "SPY"
+retl <- rutils::lagit(retp, lagg=1)
+
+# Simulate the ratchet strategy for single day
+pricev <- pricev["2025-06-02"]
+simout <- ratchetx(pricev)
+simout <- xts::xts(simout, order.by=index(pricev))
+colnames(simout) <- c("PnLs", "posv", "zscores")
+pnls <- simout$PnLs
+dygraph(cumsum(pnls), main="Ratchet Strategy PnLs") %>%
+  dyOptions(colors=c("blue"), strokeWidth=1)
+
+# Coerce the pricev into a list of daily prices and apply the ratchet strategy to each day
+pricev <- quantmod::Cl(ohlc)
+pricel <- split(pricev, f="days")
+head(pricel$`2025-11-20`)
+tail(pricel$`2025-11-20`)
+dygraph(pricel$`2025-11-20`)
+
+
+pnll <- lapply(pricel, function(pricev) {
+  simout <- ratchetx(pricev)
+  pnls <- simout[, 1]
+  pnls <- xts::xts(pnls, order.by=index(pricev))
+  return(pnls)
+}) ##  end lapply
+pnls <- rutils::do_call(rbind, pnll)
+pnlsub <- pnls["T9:30/T10:30"]
 
 
 
@@ -1241,7 +1294,7 @@ dygraphs::dygraph(fcasts, main="VTI RunReg Forecasts")
 
 # Needs updating
 ##############
-### Benchmark of HighFreq::run_reg() against R code
+## Benchmark of HighFreq::run_reg() against R code
 
 # Regression of XLF returns versus VTI and IEF
 library(HighFreq)
@@ -1307,7 +1360,7 @@ all.equal(regdatar, regdata, check.attributes=FALSE)
 
 
 ##############
-### Tune parameters of AR strategies
+## Tune parameters of AR strategies
 
 dimaxs <- 2:7
 pnls <- lapply(dimaxs, function(dimax) {
@@ -1543,7 +1596,7 @@ foo <- sapply(2:11, function(x) {
 
 
 ##############
-### Autoregressive strategy using the principal components
+## Autoregressive strategy using the principal components
 # of average returns as predictors.
 # Mostly in app_ar_pca_strat.R
 
@@ -1717,7 +1770,7 @@ dygraphs::dygraph(pnls, main="Autoregressive Strategy Performance") %>%
 
 
 ##############
-### Backtest rescaled range strategy
+## Backtest rescaled range strategy
 
 # Load packages
 library(HighFreq)
@@ -1787,9 +1840,10 @@ plot(pnls, t="l")
 sum(abs(rutils::diffit(posv))) / NROW(posv)
 
 
+
 ##############
-### Relationship between liquidity (turnover) and linear dependence
-### (autocorrelation).
+## Relationship between liquidity (turnover) and linear dependence
+## (autocorrelation).
 
 # Do illiquid stocks with a lower dollar turnover have significant
 # autocorrelation?
@@ -1832,7 +1886,7 @@ dygraphs::dygraph(quantmod::Cl(sp500env$TYL))
 
 
 ##############
-### Test autoregressive strategy for all ETFs in rutils::etfenv
+## Test autoregressive strategy for all ETFs in rutils::etfenv
 
 library(rutils)
 ordern <- 3
@@ -1953,7 +2007,7 @@ hurstl <- log(mean(rrange[!indic, "rrange"]))/log(20)
 
 
 ##############
-### Variance ratios
+## Variance ratios
 
 # Find stocks with largest variance ratios
 load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
@@ -2062,7 +2116,7 @@ dygraphs::dygraph(pnls)
 
 
 ##############
-### Hurst stuff
+## Hurst stuff
 
 lagg <- 25
 ohlc <- rutils::etfenv$VTI
@@ -2333,7 +2387,7 @@ all.equal(hurstlm, hurstfun)
 
 
 ##############
-### Forecasting for univariate regression
+## Forecasting for univariate regression
 
 library(HighFreq)
 source("/Users/jerzy/Develop/R/scripts/market_making.R")
@@ -3089,6 +3143,59 @@ calibrate_garch <- function(r) {
 ##############################
 ### Intraday strategies
 ##############################
+
+
+##############
+# Calculate the seasonality of autocorrelations of intraday returns.
+
+# Calculate SPY percentage returns
+symboln <- "SPY"
+ohlc <- HighFreq::SPY
+# Load the intraday returns of QQQ from RData file
+loadd <- load("/Users/jerzy/Develop/data/minutes/QQQ_minutes_markets.RData")
+# Load the list of intraday returns of QQQ from RData file
+loadd <- load("/Users/jerzy/Develop/data/minutes/QQQ_2025.RData")
+ohlc <- do.call(rbind, get(loadd))
+# Calculate the log prices
+symboln <- rutils::get_name(colnames(ohlc)[1])
+pricev <- log(quantmod::Cl(ohlc))
+colnames(pricev) <- symboln
+nrows <- NROW(ohlc)
+# Calculate the endpoints of 5-minute intervals
+# endd <- rutils::calc_endpoints(pricev, interval=5)
+# pricev <- pricev[endd]
+# Calculate the returns
+retp <- rutils::diffit(pricev, lagg=1)
+# Calculate the lagged returns
+retl <- rutils::lagit(retp, lagg=1)
+# Calculate the instantaneous autocorrelation of returns
+covv <- (retp*retl)/retp^2
+covv[is.na(covv)] <- 0
+sum(is.na(covv))
+madv <- mad(covv)
+plot(density(covv), xlim=c(-20*madv, 20*madv))
+covv[abs(covv) > 100*madv] <- 0
+# Aggregate the autocorrelations by time of day
+dated <- format(zoo::index(pricev), "%H:%M")
+covagg <- tapply(X=covv, INDEX=dated, FUN=mean)
+# Coerce to xts
+datev <- as.POSIXct(paste(Sys.Date(), names(covagg)))
+covagg <- xts::xts(covagg, datev)
+# covagg <- covagg[-(1:6)]
+covagg[abs(covagg) > 1] <- 0
+dygraph(covagg, main="Seasonality of Intraday Autocorrelation") %>%
+  dyOptions(colors="blue", strokeWidth=1)
+# Aggregate covagg by hour
+hourd <- format(zoo::index(covagg), "%H")
+covagh <- tapply(X=covagg, INDEX=hourd, FUN=mean)
+# Plot with x-axis as hour of day
+datev <- as.POSIXct(paste(Sys.Date(), names(covagh)), format="%Y-%m-%d %H")
+covagh <- xts::xts(covagh, datev)
+dygraph(covagh, main="Seasonality of Intraday Autocorrelation by Hour") %>%
+  dyOptions(colors="blue", strokeWidth=1) %>%
+  dyAxis("x", label="Hour of Day", valueFormatter = "function(d) { return new Date(d).getHours(); }")
+
+
 
 ##############
 # Load a single day of intraday minute bar prices
@@ -4164,6 +4271,7 @@ dygraph(cumsum(stratm$pnls))
 dygraph(cumsum(pnls))
 dygraph(pricev)
 dygraph(stratm$zscores)
+
 
 
 ##############
