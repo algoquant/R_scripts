@@ -550,20 +550,57 @@ while (sum(!isdown) > 0) {
 # ohlc <- quantmod::getSymbols.tiingo("SVXY", adjust=TRUE, from="1990-01-01", auto.assign=FALSE, output.size="full", api.key="d84fc2a9c5bde2d68e33034f65a838092c6b9f10")
 # etfenv$SVXY <- ohlc
 
+
+## Alternative code to read OHLCV bars from parquet files
+
+etfdata <- data.table::fread("/Users/jerzy/Develop/data/etf_metadata.csv")
+symbolv <- etfdata$ticker
+etfenv <- new.env()
+
+for (symboln in symbolv) {
+  cat("Processing:", symboln, "\n")
+  # Read OHLCV bars from parquet file
+  filen <- paste0("/Users/jerzy/Develop/data/daily/", symboln, ".parquet")
+  ohlcdf <- nanoparquet::read_parquet(filen)
+  # Coerce the date column from POSIXct to Date class
+  # Coerce from data frame to xts
+  ohlc <- xts::xts(ohlcdf[, -1], order.by=as.Date(ohlcdf$date))
+  assign(symboln, ohlc, envir=etfenv)
+}  # end for
+
+## End parquet code
+
 # Save OHLC prices to .RData file
-save(etfenv, file="/Users/jerzy/Develop/lecture_slides/data/etf_data.RData")
+save(etfenv, file="/Users/jerzy/Develop/data/etf_ohlc.RData")
+
+# Calculate the ETF prices and returns
+load(file="/Users/jerzy/Develop/data/etf_ohlc.RData")
+pricetf <- eapply(etfenv, quantmod::Cl)
+pricetf <- do.call(cbind, pricetf)
+colnames(pricetf) <- names(etfenv)
+retetf <- rutils::diffit(log(pricetf))
+
+# Save ETF prices and returns to .RData files
+save(pricetf, file="/Users/jerzy/Develop/data/etf_prices.RData")
+save(retetf, file="/Users/jerzy/Develop/data/etf_returns.RData")
 
 
 ### Add stats to etfenv
+
+# Select only the symbols in symbolv
+etfenv <- mget(symbolv, etfenv)
+etfenv <- as.environment(etfenv)
 
 # Extract Close prices
 prices <- eapply(etfenv, quantmod::Cl)
 prices <- do.call(cbind, prices)
 # Drop ".Close" from colnames
-colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
+# colnames(prices) <- do.call(rbind, strsplit(colnames(prices), split="[.]"))[, 1]
+colnames(prices) <- names(etfenv)
 # Calculate the log returns
 returns <- xts::diff.xts(log(prices))
 # returns[1, ] <- 0 # No - this biases the correlations
+
 # Copy prices and returns into etfenv
 etfenv$prices <- prices
 etfenv$returns <- returns
@@ -660,6 +697,54 @@ rm(BF.B, envir=sp500env)
 colnames(sp500env$BFB) <- paste("BFB", rutils::get_name(colnames(sp500env$BFB), 2), sep=".")
 
 
+## Alternative code to read OHLCV bars from parquet files
+
+# Get the active S&P500 symbols from stock_metadata.csv
+stockdata <- data.table::fread("/Users/jerzy/Develop/data/stock_metadata.csv")
+symbolv <- stockdata$ticker[stockdata$isActive]
+# Calculate the total dollar trading volume for each symbol
+# Exclude the symbols with the last price less than $5, since they are not liquid enough for backtesting
+volumev <- sapply(symbolv, function(symboln) {
+  cat("Processing:", symboln, "\n")
+  filen <- paste0("/Users/jerzy/Develop/data/daily/", symboln, ".parquet")
+  ohlcdf <- nanoparquet::read_parquet(filen)
+  pricel <- as.numeric(last(ohlcdf[paste0(symboln, ".Close")]))
+  if (pricel > 5)
+    return(sum(ohlcdf[paste0(symboln, ".VolumeD")], na.rm=TRUE))
+  else
+    return(0)
+}) # end sapply
+
+# Select the top 1000 symbols with the largest total trading volumes
+volumev <- sort(volumev, decreasing=TRUE)
+symbolv <- names(volumev)
+symbolv <- symbolv[1:1000]
+
+
+## Or select the symbols from sp500env
+# symbolv <- names(sp500env)
+# stockdata <- stockdata[stockdata$ticker %in% symbolv, ]
+# stockdata <- stockdata[stockdata$isActive, ]
+# Save the stockdata for the top 1000 stocks to a CSV file
+# data.table::fwrite(stockdata, file="/Users/jerzy/Develop/data/stock_metadata_top.csv")
+
+# Get the stock metadata for the top 1000 stocks from
+stockdata <- data.table::fread("/Users/jerzy/Develop/data/stock_metadata_top.csv")
+symbolv <- stockdata$ticker
+
+for (symboln in symbolv) {
+  cat("Processing:", symboln, "\n")
+  # Read OHLCV bars from parquet file
+  filen <- paste0("/Users/jerzy/Develop/data/daily/", symboln, ".parquet")
+  ohlcdf <- nanoparquet::read_parquet(filen)
+  # Coerce the date column from POSIXct to Date class
+  # Coerce from data frame to xts
+  ohlc <- xts::xts(ohlcdf[, -1], order.by=as.Date(ohlcdf$date))
+  assign(symboln, ohlc, envir=sp500env)
+}  # end for
+
+## End parquet code
+
 # Save OHLC prices to .RData file
 save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
@@ -683,9 +768,34 @@ sp500old <- sp500old[!(sp500old$Ticker %in% symbolb), ]
 write.csv(sp500old, file="/Users/jerzy/Develop/lecture_slides/data/sp500_constituents.csv", row.names=FALSE)
 
 
+##############
+# Read parquet file with S&P500 prices downloaded from Tiingo
+
+library(nanoparquet)
+liquidstocks <- nanoparquet::read_parquet("/Users/jerzy/Develop/data/all_liquidity.parquet")
+head(liquidstocks)
+plot(liquidstocks$adv[1:200], main="Stock Liquidity", ylab="Dollar Volume", col="blue", t="b")
+allstocks <- nanoparquet::read_parquet("/Users/jerzy/Develop/data/backtesting_dataset.parquet")
+
+# Read parquet file with SNDK
+symboln <- "SNDK"
+filen <- paste0("/Users/jerzy/Develop/data/daily/", symboln, ".parquet")
+ohlcdf <- nanoparquet::read_parquet(filen)
+# Coerce the date column from POSIXct to Date class
+ohlcdf$date <- as.Date(ohlcdf$date)
+sapply(ohlcdf, class)
+# Coerce from data frame to xts
+ohlc <- xts::xts(ohlcdf[, -1], order.by=ohlcdf$date)
+dygraph(log(Cl(ohlc)), main=paste(symboln))
+dygraph(log(ohlc[, 1:4]), main=paste(symboln, "OHLC")) %>%
+  dyCandlestick() %>%
+  dyOptions(colors=c("blue", "red", "green", "black"), strokeWidth=1) %>%
+  dyLegend(show="always", width=500)
+
+
 
 ##############
-# Download minute bars for single symbol in a loop
+# Download minute bars from Polygon for single symbol in a loop.
 # Has to be performed in batches since data limit=50000
 
 # Setup code
@@ -923,7 +1033,7 @@ save(sp500env, file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 # Load the daily OHLC prices of S&P500 stocks
 load(file="/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
-# Calculate the daily trading volumes
+# Calculate the daily trading volumes - penny stocks may have exaggerated volumes
 volumv <- eapply(sp500env, quantmod::Vo)
 volumv <- do.call(cbind, volumv)
 colnames(volumv) <- rutils::get_name(colnames(volumv))
@@ -952,8 +1062,8 @@ save(sp500top, file="/Users/jerzy/Develop/lecture_slides/data/sp500top.RData")
 ## Calculate the stock prices and log returns from OHLC prices
 pricestock <- eapply(sp500top, quantmod::Cl)
 pricestock <- rutils::do_call(cbind, pricestock)
-colnamev <- rutils::get_name(colnames(pricestock))
-colnames(pricestock) <- colnamev
+# colnamev <- rutils::get_name(colnames(pricestock))
+# colnames(pricestock) <- colnamev
 retstock <- xts::diff.xts(log(pricestock))
 ## Save the prices and returns
 save(pricestock, file="/Users/jerzy/Develop/lecture_slides/data/sp500_pricestop.RData")
@@ -971,9 +1081,9 @@ load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 pricestock <- eapply(sp500env, quantmod::Cl)
 pricestock <- rutils::do_call(cbind, pricestock)
 # Modify column names
-symbolv <- rutils::get_name(colnames(pricestock))
+# symbolv <- rutils::get_name(colnames(pricestock))
 # colnamev <- do.call(rbind, strsplit(colnames(pricestock), split="[.]"))[, 1]
-colnames(pricestock) <- symbolv
+colnames(pricestock) <- names(sp500env)
 # No: Carry forward and backward non-NA prices - no only forward because backward skews volatility
 # Don't carry prices forward because it skews correlations
 # sum(is.na(pricestock))
@@ -1002,14 +1112,16 @@ pricestock <- do.call(cbind, pricel)
 
 ## Calculate log returns of the S&P500 stocks
 retstock <- xts::diff.xts(log(pricestock))
+# Set the returns to zero if the price is less than $1, since they are penny stocks and their returns are not reliable
+retstock[pricestock < 1] <- 0
 # Remove the first row of NA returns?
 # retstock <- retstock[-1, ]
 
 ## Select a random sample of 100 prices and returns of the S&P500 stocks
 set.seed(1121)
-samplev <- sample(NROW(symbolg), s=100, replace=FALSE)
-pricestock100 <- pricestock[, symbolg[samplev]]
-retstock100 <- retstock[, symbolg[samplev]]
+samplev <- sample(NROW(symbolv), s=100, replace=FALSE)
+pricestock100 <- pricestock[, symbolv[samplev]]
+retstock100 <- retstock[, symbolv[samplev]]
 
 
 
@@ -1119,28 +1231,38 @@ save(retid, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_idiosyn
 # Load OHLC prices from .RData file
 load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
 
-# Perform a loop over the sp500env environment and calculate the overnight returns for each stock
-reton <- eapply(sp500env, function(ohlc) {
+# Calculate the daytime and overnight returns for each stock
+retl <- eapply(sp500env, function(ohlc) {
   ohlc <- log(ohlc)
   openp <- quantmod::Op(ohlc)
   closep <- quantmod::Cl(ohlc)
   # retp <- rutils::diffit(closep) ##  daily returns
   # colnames(retp) <- "daily"
-  # retd <- (closep - openp) ##  daytime returns
+  retd <- (closep - openp) ##  daytime returns
   # colnames(retd) <- "daytime"
   reton <- (openp - rutils::lagit(closep, lagg=1)) ##  overnight returns
+  # Set the daytime and overnight return to zero if the price is less than $1, since they are penny stocks and their returns are not reliable
+  retd[closep < 1] <- 0
+  reton[closep < 1] <- 0
   # colnames(reton) <- "overnight"
-  # Set the first overnight return to 0 because it is biased by the first price
+  # Set the first daytime and overnight returns to 0 because it is biased by the first price
+  retd[1] <- 0
   reton[1] <- 0
   # highp <- quantmod::Hi(ohlc)
   # lowp <- quantmod::Lo(ohlc)
   # hilo <- (highp - lowp) ##  range of daily prices
-  return(reton)
+  return(cbind(retd, reton))
 }) # end lapply
+colv <- names(sp500env)
+retd <- lapply(retl, function (x) x[, 1])
+retd <- do.call(cbind, retd)
+colnames(retd) <- colv
+reton <- lapply(retl, function (x) x[, 2])
 reton <- do.call(cbind, reton)
-colnames(reton) <- rutils::get_name(names(sp500env))
+colnames(reton) <- colv
 
-## Save the overnight returns
+## Save the daytime and overnight returns
+save(retd, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_daytime.RData")
 save(reton, file="/Users/jerzy/Develop/lecture_slides/data/sp500_returns_overnight.RData")
 
 
@@ -1203,9 +1325,14 @@ dygraph(pricev, main=paste("Cumulative Overnight Returns of", symboln)) %>%
 ##############
 # Calculate the overnight returns for ETFs.
 
-# Perform a loop over the ETF symbols
+# Load the daily OHLC prices of the most liquid ETFs
+# load("/Users/jerzy/Develop/data/etf_ohlc.RData")
+# Perform a loop over the ETF symbols in rutils::etfenv
 symbolv <- rutils::etfenv$symbolv
 reton <- lapply(symbolv, function(symboln) {
+# Loop over the most liquid ETFs
+# reton <- eapply(etfenv, function(ohlc) {
+  # ohlc <- log(ohlc)
   ohlc <- log(get(symboln, rutils::etfenv))
   openp <- quantmod::Op(ohlc)
   closep <- quantmod::Cl(ohlc)
@@ -1223,6 +1350,7 @@ reton <- lapply(symbolv, function(symboln) {
 }) # end lapply
 reton <- do.call(cbind, reton)
 colnames(reton) <- symbolv
+# colnames(reton) <- names(etfenv)
 
 ## Save the overnight returns
 save(reton, file="/Users/jerzy/Develop/lecture_slides/data/etf_returns_overnight.RData")

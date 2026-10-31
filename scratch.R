@@ -1,10 +1,1053 @@
+############## research
+## Star50 Chinese index prices
+
+# Download the Star50 prices
+star50 <- data.table::fread("/Users/jerzy/Downloads/Star50_Data.csv", tz="")
+# Convert the timestamp column to Date
+datev <- as.Date(star50$Date, format="%m/%d/%Y", tz="America/New_York")
+# Coerce columns to numeric
+star50 <- star50[, -1]
+star50 <- sapply(star50, function(x) {
+  x <- gsub(",", "", x)
+  x <- gsub("M", "000000", x)
+  x <- gsub("B", "000000000", x)
+  x <- gsub("K", "000", x)
+  x <- gsub("%", "", x)
+  return(as.numeric(x))
+}) # end sapply  
+# Convert to xts and plot
+star50 <- xts::xts(star50, order.by=datev)
+dygraph(star50$Price, main="Star50 Prices") %>%
+  dyOptions(colors=c("blue"), strokeWidth=1)
+
+
+############## research
+## Chain together the intraday PnLs
+
+# Get all the file names
+stratn <- "Ladder"
+datan <- "pnls"
+# Get all the file names for the symbol MU
+filev <- Sys.glob("/Users/jerzy/Develop/trading/logs/Ladder_pnls*.csv")
+# filev <- filev[1:8]
+
+pnls <- lapply(filev, function(filen) {
+  pnls <- data.table::fread(filen, tz="")
+  datev <- as.POSIXct(pnls$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+  pnls <- xts::xts(pnls[, -1], order.by=datev)
+  return(pnls)
+}) # end lapply
+pnls <- do.call(rbind, pnls)
+
+# symboln <- "SPY"
+pnlc <- rowSums(pnls)
+pnlc <- xts::xts(pnlc, order.by=index(pnls))
+dygraph(pnlc, main="Intraday PnLs")
+
+
+# Download the intraday PnLs from Alpaca and save them to a CSV file.
+# Rscript /Users/jerzy/Develop/R/alpaca_pnls.R /Users/jerzy/Develop/trading/config/.env_ladder
+filen <- "/Users/jerzy/Develop/R/alpaca_pnls_20260923_20261002.csv"
+pnls <- data.table::fread(filen, tz="")
+datev <- as.POSIXct(pnls$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+pnls <- xts::xts(pnls$profit_loss, order.by=datev)
+dygraph(pnls, main="Alpaca Intraday PnLs")
+
+
+
+############## research
+## Chain together the intraday minute prices for all the symbols for all the dates.
+
+# Specify the symbols to load
+symbolv <- c("MU", "SPY", "META", "AMAT", "AMD", "MSFT", "AVGO", "GOOGL", "JPM", "PANW", "TSLA", "AAPL", "AMZN", "NVDA", "CRM", "XLK", "XOM", "QCOM", "COIN", "ORCL", "PLTR", "WMT", "INTC", "NFLX", "CRWV", "SPCX")
+# Get all the file names for the symbol MU
+filev <- Sys.glob("/Users/jerzy/Develop/data/minutes/live/MU_*.csv")
+# Extract the dates from the file names
+datev <- gsub(".*MU_(\\d{8})\\.csv", "\\1", filev)
+
+# Load the minute prices for each symbol, chain them, and save them to parquet files
+library(nanoparquet)
+for (symboln in symbolv) {
+  cat("Loading minute prices for", symboln, "\n")
+  filev <- paste0("/Users/jerzy/Develop/data/minutes/live/", symboln, "_", datev, ".csv")
+  # Select only the files that exist
+  filev <- filev[file.exists(filev)]
+  ohlc <- lapply(filev, function(filen) {
+    ohlc <- data.table::fread(filen, tz="")
+    datev <- as.POSIXct(ohlc$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+    ohlc <- xts::xts(ohlc[, -(1:2)], order.by=datev)
+    return(ohlc)
+    # return(ohlc[, -1])
+  }) # end lapply
+  ohlc <- do.call(rbind, ohlc)
+  colnames(ohlc) <- c("Open", "High", "Low", "Close", "Volume", "Trades", "VWAP")
+  # colnames(ohlc) <- c("timestamp", "Open", "High", "Low", "Close", "Volume", "Trades", "VWAP")
+  # filen <- paste0("/Users/jerzy/Develop/data/minutes/chained/", symboln, ".parquet")
+  filen <- paste0("/Users/jerzy/Develop/data/minutes/chained/", symboln, ".RData")
+  # nanoparquet::write_parquet(ohlc, filen)
+  save(ohlc, file=filen)
+} # end for
+
+# Load the chained prices for a specific symbol and plot them
+symboln <- "SPY"
+filen <- paste0("/Users/jerzy/Develop/data/minutes/chained/", symboln, ".parquet")
+ohlc <- nanoparquet::read_parquet(filen)
+datev <- as.POSIXct(ohlc$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+ohlc <- xts::xts(ohlc, order.by=datev)
+# load(filen)
+dygraph(ohlc$Close, main=paste(symboln, "Minute Prices"))
+
+
+# Load the chained prices for all the symbols and cbind their Close prices into a single xts object
+pricel <- lapply(symbolv, function(symboln) {
+  filen <- paste0("/Users/jerzy/Develop/data/minutes/chained/", symboln, ".RData")
+  load(filen)
+  pricev <- ohlc$Close
+  colnames(pricev) <- symboln
+  return(pricev)
+}) # end lapply
+pricestock <- do.call(cbind, pricel)
+pricestock <- zoo::na.locf(pricestock, na.rm=FALSE)
+pricestock <- zoo::na.locf(pricestock, fromLast=TRUE)
+dygraph(pricestock[, symboln], main=paste(symboln, "Minute Prices"))
+# Save the combined prices to an RData file
+save(pricestock, file="/Users/jerzy/Develop/data/minutes/chained/stock_prices.RData")
+retstock <- rutils::diffit(pricestock)
+
+
+# Calculate the trailing variance and z-scores of prices
+lambdaf <- 0.99 # Decay factor
+zscores <- HighFreq::run_zscores(pricestock[, symboln], lambdaf=lambdaf)
+datav <- cbind(pricestock[, symboln], zscores[, 3])
+colnames(datav) <- c(symboln, "Z-Scores")
+colnamev <- colnames(datav)
+dygraphs::dygraph(datav, main=paste0(symboln, " Prices and Z-scores")) %>%
+  dyAxis("y", label=colnamev[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colnamev[2], independentTicks=TRUE) %>%
+  dySeries(axis="y", label=colnamev[1], strokeWidth=1, col="blue") %>%
+  dySeries(axis="y2", label=colnamev[2], strokeWidth=1, col="red") %>%
+  dyLegend(show="always", width=300)
+
+
+
+##############
+# Simulate Bollinger strategies for all the stocks.
+
+load("/Users/jerzy/Develop/data/minutes/chained/stock_prices.RData")
+pricestock <- rutils::diffit(pricestock)
+symbolv <- colnames(pricestock)
+
+lambdaf <- 0.8
+threshv <- 0.1
+
+pnls <- lapply(pricestock, function(pricex) {
+  # Calculate the z-scores
+  zscores <- HighFreq::run_zscores(pricex, lambdaf=lambdaf)
+  zscores <- zscores[, 3]
+  zscores[1:11] <- 0
+  # Simulate the patient Bollinger Strategy quickly
+  posv <- rep(NA_integer_, NROW(pricex)) ##  Stock positions
+  posv[1] <- 0
+  posv <- ifelse(zscores > threshv, -1, posv)
+  posv <- ifelse(zscores < -threshv, 1, posv)
+  posv <- zoo::na.locf(posv)
+  # Lag the positions to trade in the next period
+  posv <- rutils::lagit(posv, lagg=1)
+  retx <- rutils::diffit(pricex)
+  pnls <- posv*retx
+  return(pnls)
+}) # end lapply)
+pnls <- do.call(cbind, pnls)
+colnames(pnls) <- symbolv
+sort(sapply(pnls, function(x) sqrt(252)*mean(x)/sd(x[x<0])), decreasing=TRUE)
+dygraph(cumsum(pnls$CRM), main="CRM Strategy PnLs")
+pnlm <- xts::xts(rowSums(pnls), order.by=index(pnls))
+dygraph(cumsum(pnlm), main="Combined Strategy PnLs") %>%
+  dyOptions(colors=c("blue"), strokeWidth=1)
+
+
+sharpev <- sapply(pnll, function(pnls) {
+  # pnls <- pnls[!is.na(pnls)]
+  pnls <- pnls["2010/"][, "Combined"]
+  sharper <- sqrt(252)*mean(pnls)/sd(pnls[pnls<0])
+  # sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+  # names(sharper) <- colnames(pnls)
+  # sharper <- round(sharper, 3)
+  return(sharper)
+}) # end sapply)
+# names(sharpev) <- colnames(retstock)
+sharpev <- sort(sharpev, decreasing=TRUE)
+head(sharpev, 33)
+tail(sharpev, 33)
+
+symboln <- "BRK-B"
+pnls <- pnll[[symboln]]["2000/"]
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+captiont <- paste0(paste0(names(sharper), " SR=", sharper), collapse=" / ")
+dygraphs::dygraph(cumsum(pnls), main=captiont) %>%
+  dyOptions(colors=c("blue", "red", "green"), strokeWidth=1) %>%
+  dyLegend(show="always", width=300)
+
+
+
+############## research
+## Analyze intraday z-scores, positions, and PnLs for a specific date.
+
+# Load the target positions for a specific date
+daten <- "20261005"
+stratn <- "Ladder"
+datan <- "zscore"
+filen <- paste0("/Users/jerzy/Develop/trading/logs/", stratn, "_", datan, "_", daten, ".csv")
+datam <- data.table::fread(filen, tz="")
+datev <- as.POSIXct(datam$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+datam <- xts::xts(datam[, -1], order.by=datev)
+colv <- colnames(datam)
+# datam <- sign(datam)
+# weightv <- data.table::fread("/Users/jerzy/Downloads/stock_weights2.csv")
+# colv <- weightv$Symbol
+# weightv <- weightv$Weight
+# datam <- HighFreq::mult_mat(weightv, datam)
+# datam <- xts::xts(datam, order.by=datev)
+# colnames(datam) <- colv
+symboln <- "PANW"
+posym <- datam[, symboln]
+colnames(posym) <- stratn
+dygraph(posym, main=paste(symboln, stratn, datan, daten))
+
+# Load the minute prices for all the symbols for daten
+# From /Users/jerzy/Develop/data/minutes/live/
+pricel <- lapply(colv, function(symboln) {
+  file_name <- paste0("/Users/jerzy/Develop/data/minutes/live/", symboln, "_", daten, ".csv")
+  ohlc <- data.table::fread(file_name, tz="")
+  datev <- as.POSIXct(ohlc$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+  pricev <- xts::xts(ohlc$close, order.by=datev)
+  colnames(pricev) <- symboln
+  return(pricev)
+}) # end lapply
+pricel <- do.call(cbind, pricel)
+colnames(pricel) <- colv
+dygraph(pricel[, symboln], main=paste(symboln, "Minute Prices"))
+
+# Load the positions
+datan <- "positions"
+filen <- paste0("/Users/jerzy/Develop/trading/logs/Momentum_", stratn, "_", datan, "_", daten, ".csv")
+posm <- data.table::fread(filen, tz="")
+datev <- as.POSIXct(posm$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+posm <- xts::xts(posm[, -1], order.by=datev)
+dygraph(posm[, symboln], main=paste(symboln, stratn, datan, daten))
+
+# dygraph with two y-axes
+datav <- na.omit(cbind(datam[, symboln], posm[, symboln]))
+lab1 <- "Z-scores"
+lab2 <- "Positions"
+coln <- c(lab1, lab2)
+colnames(datav) <- coln
+dygraphs::dygraph(datav, main=paste(symboln, "Z-scores and Positions")) %>%
+  dyAxis("y", label=lab1, independentTicks=TRUE) %>%
+  dyAxis("y2", label=lab2, independentTicks=TRUE) %>%
+  dySeries(name=coln[1], axis="y", strokeWidth=1, col="blue") %>%
+  dySeries(name=coln[2], axis="y2", strokeWidth=1, col="red") %>%
+  dyLegend(show="always", width=300)
+
+
+# Load the PnLs
+stratn <- "Ladder"
+datan <- "pnls"
+filen <- paste0("/Users/jerzy/Develop/trading/logs/Momentum_", stratn, "_", datan, "_", daten, ".csv")
+pnls <- data.table::fread(filen, tz="")
+datev <- as.POSIXct(pnls$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+pnls <- xts::xts(pnls[, -1], order.by=datev)
+pnlc <- sapply(pnls, last)
+sort(pnlc)
+# pnlc <- rowSums(pnls, na.rm=TRUE)
+# pnlc <- xts::xts(pnlc, order.by=index(pnls))
+# dygraph(pnlc, main=paste0("Intraday PnLs for ", daten))
+
+# Calculate the PnLs
+retm <- rutils::diffit(pricel)
+retm <- retm[index(datam)]
+pnlc <- -rutils::lagit(datam)*retm
+# pnlc <- sapply(pnlc, function(x) sum(x, na.rm=TRUE))
+# symboln <- "MU"
+# dygraph(cumsum(pnlc[, symboln]), main=paste0("Intraday PnL for ", symboln))
+# pnlc <- rowSums(pnlc, na.rm=TRUE)
+# pnlc <- xts::xts(pnlc, order.by=index(datam))
+# dygraph(cumsum(pnlc), main=paste0("Intraday PnLs for ", daten))
+
+# dygraph with two y-axes
+datav <- na.omit(cbind(pricel[, symboln], pnls[, symboln]))
+lab1 <- "Prices"
+lab2 <- "PnLs"
+coln <- c(lab1, lab2)
+colnames(datav) <- coln
+dygraphs::dygraph(datav, main=paste(symboln, "Minute Prices")) %>%
+  dyAxis("y", label=lab1, independentTicks=TRUE) %>%
+  dyAxis("y2", label=lab2, independentTicks=TRUE) %>%
+  dySeries(name=coln[1], axis="y", strokeWidth=1, col="blue") %>%
+  dySeries(name=coln[2], axis="y2", strokeWidth=1, col="red") %>%
+  dyLegend(show="always", width=300)
+
+
+############## research
+## Intraday minute price bars.
+
+ohlc1 <- data.table::fread("/Users/jerzy/Develop/data/minutes/live/AMAT_20260811.csv", tz="")
+ohlc2 <- data.table::fread("/Users/jerzy/Develop/data/minutes/live/XLK_20260724.csv", tz="")
+ohlc3 <- data.table::fread("/Users/jerzy/Develop/data/minutes/live/XLK_20260727.csv", tz="")
+
+date1 <- as.POSIXct(ohlc1$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+date2 <- as.POSIXct(ohlc2$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+date3 <- as.POSIXct(ohlc3$timestamp, FUN = as.POSIXct, format="%Y-%m-%d %H:%M:%S", tz="America/New_York")
+datev <- c(date1, date2, date3)
+
+pricexlk <- c(ohlc1$close, ohlc2$close, ohlc3$close)
+pricexlk <- xts::xts(pricexlk, order.by=datev)
+dygraph(pricexlk, main="SPY Minute Prices") %>%
+  dyOptions(colors=c("blue"), strokeWidth=1)
+
+pricenvda <- c(ohlc1$close, ohlc2$close, ohlc3$close)
+pricenvda <- xts::xts(pricenvda, order.by=datev)
+dygraph(pricenvda, main="NVDA Minute Prices") %>%
+  dyOptions(colors=c("red"), strokeWidth=1)
+
+# Align the two price series to the same time index
+pricev <- merge(pricexlk, pricenvda, join="inner")
+
+# dygraph with two y-axes
+dygraphs::dygraph(pricev, main="XLK and NVDA Minute Prices") %>%
+  dyAxis("y", label="XLK", independentTicks=TRUE) %>%
+  dyAxis("y2", label="NVDA", independentTicks=TRUE) %>%
+  dySeries(name="pricexlk", axis="y", strokeWidth=1, col="blue") %>%
+  dySeries(name="pricenvda", axis="y2", strokeWidth=1, col="red") %>%
+  dyLegend(show="always", width=300)
+
+# Calculate the intraday returns for SPY and NVDA
+retp <- rutils::diffit(pricev)
+retp <- retp[-which.max(abs(rowSums(retp)))]
+volv <- sapply(retp, sd)
+
+# Combine the two returns into a single portfolio return
+pricec <- pricev$pricenvda - pricev$pricexlk*volv["pricenvda"]/volv["pricexlk"]
+betac <- 1.0
+pricec <- pricev$pricenvda - betac*pricev$pricexlk
+colnames(pricec) <- "combined"
+pricec <- pricec["T09:30/T16:00"]
+dygraph(pricec, main=paste0("Combined Minute Prices / betac = ", betac)) %>%
+  dyOptions(colors=c("blue"), strokeWidth=1)
+  
+
+dygraph(pricenvda["T09:30/T16:00"], main="NVDA Minute Prices") %>%
+  dyOptions(colors=c("red"), strokeWidth=1)
+
+foo <- xts::xts(ohlc3$close, order.by=date3)
+foo <- foo["T09:30/T16:00"]
+
+
+############## research
+## OHLC price range as a contrarian indicator.
+# The intraday Close price range relative to the High-Low range 
+# can be used as a contrarian indicator.
+# But it works best during periods of high volatility.
+
+symboln <- "SPY"
+ohlc <- log(get(symboln, rutils::etfenv))
+closep <- quantmod::Cl(ohlc)
+retp <- rutils::diffit(closep)  ##  Daily returns
+openp <- quantmod::Op(ohlc)
+retd <- (closep - openp)  ##  Daytime returns
+colnames(retd) <- "daytime"
+reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))  ##  Overnight returns
+colnames(reton) <- "overnight"
+highp <- quantmod::Hi(ohlc)
+lowp <- quantmod::Lo(ohlc)
+hilo <- highp - lowp  # Intraday High-Low range
+hilol <- rutils::lagit(hilo, lagg=1)
+
+# Calculate the range of the Close price relative to the High-Low range.
+rangev <- (closep - lowp)/hilo
+
+# Scatter plot of the range versus the overnight returns
+plot(x=as.numeric(reton), y=as.numeric(rangev), 
+     main="Range vs Overnight Returns", xlab="Returns", ylab="Range")
+
+# Scatter plot of the daily returns versus the lagged range
+plot(x=as.numeric(rutils::lagit(rangev)), y=as.numeric(retp), 
+     main="Daily Returns vs Range", xlab="Range", ylab="Returns")
+
+# Scatter plot of the Hi-Low range versus the overnight returns
+plot(x=abs(as.numeric(reton)), y=as.numeric(hilo), 
+     main="Hi-Low vs Overnight Returns", xlab="Overnight Returns", ylab="Hi-Low")
+
+# Scatter plot of the Hi-Low range versus the overnight returns
+plot(x=abs(as.numeric(reton)), y=as.numeric(retd), 
+     main="Daytime vs Overnight Returns", xlab="Overnight Returns", ylab="Daytime Returns")
+
+
+
+# Dygraph the rangev of the Close price with two y-axis.
+
+datav <- cbind(rangev, log(closep))
+colnames(datav) <- c("Range", "Close")
+colv <- colnames(datav)
+captiont <- "Range vs Close"
+dygraphs::dygraph(datav, main=captiont) %>%
+  dyAxis("y", label=colv[1], independentTicks=TRUE) %>%
+  dyAxis("y2", label=colv[2], independentTicks=TRUE) %>%
+  dySeries(name=colv[1], axis="y", strokeWidth=1, col="red") %>%
+  dySeries(name=colv[2], axis="y2", strokeWidth=1, col="blue")
+
+# Simulate the contrarian strategy
+threshv <- 0.2
+posv <- rep(NA_integer_, NROW(ohlc)) ##  Stock positions
+posv[1] <- 0
+posv <- ifelse(rangev > (1-threshv), -1, posv)
+posv <- ifelse(rangev < threshv, 1, posv)
+posv <- zoo::na.locf(posv)
+# Lag the positions to trade in the next period
+posv <- rutils::lagit(posv, lagg=1)
+pnls <- posv*retp
+pnls <- cbind(retp, pnls)
+colnames(pnls) <- c(symboln, "Contrarian")
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+names(sharper) <- colnames(pnls)
+
+captiont <- paste0("Contrarian Strategy ", paste0(paste0(names(sharper), " SR=", sharper), collapse=" / "))
+
+dygraphs::dygraph(cumsum(pnls), main=captiont) %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=1) %>%
+  dyLegend(show="always", width=300)
+
+
+
+############## homework
+## Calculate the ratio of the intraday range of prices 
+# divided by the intraday return of prices.
+# The range is larger when the intraday returns are 
+# smaller and when the overnight returns are smaller.
+
+# Calculate the range of daily prices for SPY
+ohlc <- log(rutils::etfenv$SPY)
+openp <- quantmod::Op(ohlc)
+closep <- quantmod::Cl(ohlc)
+retd <- (closep - openp)
+colnames(retd) <- "daytime"
+reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
+colnames(reton) <- "overnight"
+highp <- quantmod::Hi(ohlc)
+lowp <- quantmod::Lo(ohlc)
+hilo <- highp - lowp
+hilol <- rutils::lagit(hilo, lagg=1)
+
+# The rescaled range is slightly larger than the theoretical value
+sqrt(pi/2) ##  Theoretical range 1.253314
+mean(hilo)/sd(retd)
+
+# The rescaled range is larger when the intraday returns are small:
+selv <- (retd < 0.01)
+mean(hilo[selv])/sd(retd[selv])
+# mean(hilo[selv]/abs(retd[selv]))
+# Average profit?
+mean((hilo/2 - abs(retd))[selv])
+
+# The rescaled range is larger when the overnight returns are small
+# selv <- ((hilol+abs(reton)) < 0.01)
+selv <- (abs(reton) < 0.01)
+mean(hilo[selv])/sd(retd[selv])
+# mean(hilo[selv]/abs(retd[selv]))
+# Average profit?
+mean((hilo/2 - abs(retd))[selv])
+
+# Rescaled Range of SPY versus Overnight Returns
+# shows that the range is larger when the overnight returns are smaller.
+plot(x=abs(coredata(reton)), y=abs(coredata(hilo/retd)),
+     main="Rescaled Range of SPY
+     versus Overnight Returns",
+     xlab="ReturnON", ylab="Range",
+     xlim=c(0, 0.03), ylim=c(0, 100))
+
+
+# Calculate the range of daily prices for all the ETFs
+rangev <- sapply(rutils::etfenv$symbolv, function(symboln) {
+  ohlc <- log(get(symboln, rutils::etfenv))
+  ohlc <- ohlc["2021/"]
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  retd <- (closep - openp)
+  highp <- quantmod::Hi(ohlc)
+  lowp <- quantmod::Lo(ohlc)
+  hilo <- highp - lowp
+  mean(hilo)/sd(retd)
+}) ##  end sapply
+rangev <- sort(rangev)
+
+
+##############
+# Momentum Strategy for ETFs
+
+# Extract ETF returns
+symbolv <- c("VTI", "IEF", "DBC")
+retp <- na.omit(rutils::etfenv$returns[, symbolv])
+datev <- zoo::index(retp)
+# Calculate a vector of monthly end points
+rebalf <- "months"
+endd <- rutils::calc_endpoints(retp, interval=rebalf)
+npts <- NROW(endd)
+# Perform backtests for vector of look-back intervals
+lookbv <- seq(3, 12, by=1)
+volt <- 0.01 ##  Target volatility of momentum strategy
+library(parallel)  ##  Load package parallel
+ncores <- detectCores() - 1
+pnll <- mclapply(lookbv, sim_momw, retp=retp, endd=endd, objfun=objfun, volt=volt, mc.cores=ncores)
+sharpev <- sqrt(252)*sapply(pnll, function(pnl) mean(pnl)/sd(pnl[pnl<0]))
+# Plot Sharpe ratios of momentum strategies
+plot(x=lookbv, y=sharpev, t="b",
+     main="Momentum Sharpe as Function of Look-back Interval",
+     xlab=paste0("look-back (", rebalf, ")"), ylab="Sharpe")
+
+# Calculate best pnls of momentum strategy
+whichmax <- which.max(sharpev)
+lookb <- lookbv[whichmax]
+pnls <- pnll[[whichmax]]
+# Calculate returns of all-weather benchmark
+weightaw <- c(0.30, 0.55, 0.15)
+retaw <- retp %*% weightaw
+# Calculate the Sharpe and Sortino ratios
+wealthv <- cbind(retaw, pnls)
+wealthv <- xts::xts(wealthv, order.by=datev)
+colnames(wealthv) <- c("All-weather", "Momentum")
+cor(wealthv)
+wealthv <- xts::xts(wealthv, order.by=datev)
+sharper <- sqrt(252)*sapply(wealthv, function(x) 
+  c(Sharpe=mean(x)/sd(x), Sortino=mean(x)/sd(x[x<0])))
+sharper
+
+# Plot dygraph of all-weather benchmark and momentum strategy
+colnames(wealthv) <- paste(colnames(wealthv), round(sharper[1, ], 3), sep=" = ")
+endw <- rutils::calc_endpoints(wealthv, interval="weeks")
+dygraphs::dygraph(cumsum(wealthv)[endw], main="Optimal Momentum for ETFs") %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
+  dyLegend(show="always", width=500)
+
+
+##############
+# Combine the lists of daily minute OHLC bars.
+
+# Load the new list of daily minute OHLC bars for QQQ
+loadd <- load("/Users/jerzy/Develop/data/minutes/QQQ_minutes_list.RData")
+ohlcn <- ohlc
+# Load the old list of daily minute OHLC bars for QQQ
+loadd <- load("/Users/jerzy/Develop/data/minutes/QQQ_2025.RData")
+ohlco <- pricel
+# Select from the list of ohlco only those elements that are not in the list ohlcn
+ohlco <- ohlco[!(names(ohlco) %in% names(ohlcn))]
+# Combine the ohlco and ohlcn lists into a single list of ohlc
+ohlcl <- c(ohlco, ohlcn)
+save(ohlcl, file="/Users/jerzy/Develop/data/minutes/QQQ_minutes_list.RData")
+
+
+# Convert the OHLC bars to a list of xts objects, one for each day
+loadd <- load("/Users/jerzy/Develop/data/minutes/QQQ_minutes.RData")
+datev <- zoo::index(ohlc)
+datev <- format(datev, "%Y-%m-%d")
+ohlcl <- lapply(unique(datev), function(d) {
+  selv <- (datev == d)
+  return(ohlc[selv, ])
+}) # end lapply
+names(ohlcl) <- unique(datev)
+save(ohlcl, file="/Users/jerzy/Develop/data/minutes/QQQ_minutes_list.RData")
+ohlcn <- ohlcl
+
+datev <- sapply(ohlco, function(x) {
+  return(unique(format(zoo::index(x), "%Y-%m-%d")))
+}) # end lapply
+names(ohlco) <- datev
+
+
+##############
+# Simulate a momentum strategy of Bollinger strategies.
+# First simulate Bollinger strategies and combine them 
+# with stocks.
+# A Bollinger strategy combined with the stock has a 
+# lower volatility and higher Sharpe ratio than the 
+# stock alone.
+# Then simulate a momentum strategy of the combined 
+# Bollinger strategies.
+# Needs more work to optimize the parameters of the 
+# Bollinger and momentum strategy.
+
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
+symbolv <- sort(colnames(retstock))
+
+lambdaf <- 0.4
+threshv <- 0.7
+
+pnll <- lapply(retstock, function(retp) {
+  # retp <- na.omit(get(symboln, retstock))
+  retp <- na.omit(retp)
+  retp <- retp[retp != 0]  # Remove zero returns
+  volp <- HighFreq::run_var(retp, lambdaf=lambdaf)
+  retm <- volp[, 1]
+  volp <- sqrt(volp[, 2])
+  # Calculate the z-scores
+  zscores <- retm/volp
+  zscores[1:11] <- 0
+  # Simulate the patient Bollinger Strategy quickly
+  posv <- rep(NA_integer_, NROW(retp)) ##  Stock positions
+  posv[1] <- 0
+  posv <- ifelse(zscores > threshv, -1, posv)
+  posv <- ifelse(zscores < -threshv, 1, posv)
+  posv <- zoo::na.locf(posv)
+  # Lag the positions to trade in the next period
+  posv <- rutils::lagit(posv, lagg=1)
+  pnls <- posv*retp
+  pnls <- cbind(retp, pnls, 0.5*(retp+pnls))
+  colnames(pnls) <- c(colnames(retp), "Bollinger", "Combined")
+  return(pnls)
+}) # end lapply)
+# pnll <- do.call(cbind, pnll)
+# names(pnll) <- colnames(retstock)
+
+
+sharpev <- sapply(pnll, function(pnls) {
+  # pnls <- pnls[!is.na(pnls)]
+  pnls <- pnls["2010/"][, "Combined"]
+  sharper <- sqrt(252)*mean(pnls)/sd(pnls[pnls<0])
+  # sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+  # names(sharper) <- colnames(pnls)
+  # sharper <- round(sharper, 3)
+  return(sharper)
+}) # end sapply)
+# names(sharpev) <- colnames(retstock)
+sharpev <- sort(sharpev, decreasing=TRUE)
+head(sharpev, 33)
+tail(sharpev, 33)
+
+symboln <- "BRK-B"
+pnls <- pnll[[symboln]]["2000/"]
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+captiont <- paste0(paste0(names(sharper), " SR=", sharper), collapse=" / ")
+dygraphs::dygraph(cumsum(pnls), main=captiont) %>%
+  dyOptions(colors=c("blue", "red", "green"), strokeWidth=1) %>%
+  dyLegend(show="always", width=300)
+
+
+pnlm <- lapply(pnll, function(pnls) {
+  pnls <- pnls["2000/"][, "Combined"]
+  return(pnls)
+}) # end lapply)
+pnlm <- do.call(cbind, pnlm)
+colnames(pnlm) <- colnames(retstock)
+
+lambdaf <- 0.7
+pnlema <- HighFreq::run_mean(pnlm, lambda=lambdaf)
+pnlema <- HighFreq::run_var(pnlm, lambda=lambdaf)
+nstocks <- NCOL(pnlm)
+pnlema <- pnlema[, (1:nstocks)]/sqrt(pnlema[, (nstocks+1):(2*nstocks)])
+# sum(is.na(pnlema))
+
+probv <- 0.9
+quantv <- matrixStats::rowQuantiles(coredata(pnlema), probs=probv, na.rm=TRUE)
+
+weightv <- pnlema
+weightv[is.na(weightv)] <- 0.0
+weightv[weightv < quantv] <- 0.0
+weightv <- rutils::lagit(weightv, lagg=1)
+
+pnls <- weightv*pnlm
+# pnls[is.na(pnls)] <- 0.0
+pnls <- rowSums(pnls, na.rm=TRUE)
+pnls <- xts::xts(pnls, order.by=index(pnlm))
+dygraph(cumsum(pnls), main="Combined Strategy PnLs")
+
+
+# No shorting, so set negative Kelly ratios to zero
+kellyr[kellyr < 0] <- 0.0
+# Scale the Kelly ratios so the portfolio has the target volatility
+# kellyr <- kellyr*volt^2/rowSums(kellyr*varm, na.rm=TRUE)
+kellyr[1:11, ] <- varfloor # Set the first few Kelly ratios to small number to avoid large position sizes at the beginning of the backtest
+# Lag the Kelly ratios to avoid look-ahead bias
+kellyr <- rutils::lagit(kellyr, lagg=1)
+weightv <- kellyr
+
+# Plot the kelly ratios
+symboln <- "ARW"
+colv <- which(colnames(kellyr) == symboln)
+retv <- retsm[, colv]
+retv <- xts::xts(retv, order.by=datev)
+dygraph(retv, main=paste("Ret for", symboln))
+varv <- varm[, colv]
+varv <- xts::xts(varv, order.by=datev)
+dygraph(varv, main=paste("Var for", symboln))
+kellys <- kellyr[, colv]
+kellys <- xts::xts(kellys, order.by=datev)
+dygraph(kellys, main=paste("Kelly Ratios for", symboln))
+
+retv <- get(symboln, reton)
+retv <- xts::xts(retv, order.by=datev)
+dygraph(cumsum(na.omit(retv)), main=paste("Reton for", symboln))
+
+
+##############
+# Volatility regime switching strategy.
+
+load("/Users/jerzy/Develop/data/etf_ohlc.RData")
+envv <- etfenv
+
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+envv <- sp500env
+
+lambdaf <- 0.1
+lambdavol <- 0.3
+volscale <- 0.01
+volthresh <- 0.02
+volt <- 0.01
+rangev <- "2007/"
+symboln <- "SPY"
+
+
+sharpem <- eapply(envv, function(ohlc) {
+  # ohlc <- get(symboln, envv)
+  ohlc <- log(ohlc[rangev])
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  retp <- rutils::diffit(closep) ##  daily returns
+  colnames(retp) <- "daily"
+  retd <- (closep - openp) ##  daytime returns
+  colnames(retd) <- "daytime"
+  reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE)) ##  overnight returns
+  colnames(reton) <- "overnight"
+  
+  rets <- cbind(retp, retd, reton)
+  retp <- rets$daily
+  retm <- HighFreq::run_mean(retp, lambda=lambdaf)
+  varv <- HighFreq::run_var_ohlc(ohlc, lambda=lambdavol)
+  varv[1:5] <- 1.0
+  varv <- rutils::lagit(varv, lagg=1, pad_zeros=FALSE)
+  volv <- sqrt(varv)
+  retp <- rets$daily
+  posv <- -sign(retm)
+  posv <- rutils::lagit(posv, lagg=1)
+  pnls <- posv*retp
+  probv <- (1 + tanh((volv-volthresh)/volscale))/2
+  pnls <- probv*pnls + (1-probv)*retp*volt/volv
+  pnls <- cbind(retp, pnls)
+  colnames(pnls) <- c("Stock", "Strategy")
+  sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+  names(sharper) <- colnames(pnls)
+  sharper <- round(sharper, 3)
+  return(sharper)
+  
+}) # end eapply)
+
+sharpem <- do.call(rbind, sharpem)
+sharpem <- sharpem[order(sharpem[, 2], decreasing=TRUE), ]
+
+head(sharpem, 10)
+
+plot(sharpem[, "Strategy"], t="h", ylab="Sharpe Ratio", xlab="Stock Rank", main="Sharpe Ratios of Volatility Regime Switching Strategy")
+
+
+# Save the positions to a CSV file
+sharpem <- data.frame(cbind(Symbol=rownames(sharpem), sharpem))
+filen <- paste0("/Users/jerzy/Develop/trading/backtests/regimevol_etf.txt")
+filen <- paste0("/Users/jerzy/Develop/trading/backtests/regimevol_stocks.txt")
+data.table::fwrite(sharpem, filen)
+
+
+
+##############
+# Performing the ADF test in daytime returns of S&P500 stocks 
+# shows that most of the stocks have significant negative autocorrelations 
+# in their daytime returns, which is consistent with the presence of mean 
+# reversion in daytime returns. The ADF test statistic is negative and less 
+# than the critical value at the 5% significance level for most of the stocks, 
+# indicating that we can reject the null hypothesis of a unit root and conclude 
+# that the daytime returns are stationary. This suggests that there may be 
+# opportunities for mean reversion strategies in the daytime returns of S&P500 stocks.
+
+
+# Load the S&P500 daytime returns
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns_daytime.RData")
+
+symbolv <- colnames(retd)
+symboln <- "AKAM"
+adfpval <- sapply(symbolv, function(symboln) {
+  retdt <- na.omit(get(symboln, retd))
+  retdt <- retdt[!(retdt == 0)]
+  retc <- cumsum(retdt["2010/"])
+  # adfres <- tseries::adf.test(retc, alternative="stationary")
+  # return(adfres$p.value)
+  return(abs(diff(range(retc)))/sd(retdt))
+})  # end sapply
+adfpval <- sort(adfpval, decreasing=FALSE)
+head(adfpval, 33)
+tail(adfpval, 33)
+plot(adfpval, t="l")
+
+
+symboln <- "AIEQ"
+ohlc <- get(symboln, rutils::etfenv)
+ohlc <- log(ohlc)
+openp <- quantmod::Op(ohlc)
+closep <- quantmod::Cl(ohlc)
+retdt <- (closep - openp) ##  daytime returns
+retc <- cumsum(retdt["2010/"])
+adfres <- tseries::adf.test(retc, alternative="stationary")
+dygraph(retc, main=paste(symboln, "Cumulative Daytime Returns"))
+
+adfpval <- sapply(rutils::etfenv$symbolv, function(symboln) {
+  cat("Calculating ADF p-value for", symboln, "\n")
+  ohlc <- get(symboln, rutils::etfenv)
+  ohlc <- log(ohlc)
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  retdt <- (closep - openp) ##  daytime returns
+  retc <- cumsum(retdt["2010/"])
+  # adfres <- tseries::adf.test(retc, alternative="stationary")
+  # return(adfres$p.value)
+  return(abs(diff(range(retc)))/sd(retdt))
+})  # end sapply
+adfpval <- sort(adfpval, decreasing=FALSE)
+
+
+##############
+# Overnight stock momentum strategy.
+# Code from the file:
+# /Users/jerzy/Develop/Presentations/strat_momentum.R
+
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns.RData")
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_returns_overnight.RData")
+rangev <- "2007/"
+retref <- reton[rangev]
+datev <- index(retref)
+nstocks <- NCOL(retref)
+retm <- rowMeans(retref, na.rm=TRUE)
+retm <- xts::xts(retm, order.by=datev)
+symboln <- "Index"
+
+varfloor <- 1e-8 ##  Variance floor to prevent division by zero in Kelly ratio calculations
+volt <- 0.03 ##  Volatility target for scaling the strategy PnLs
+retstock <- retstock[datev]
+datev <- index(retstock)
+nrows <- length(datev)
+reton <- reton[datev]
+nstocks <- NCOL(reton)
+# Average overnight returns for all stocks
+retm <- rowMeans(reton, na.rm=TRUE)
+retm <- xts::xts(retm, order.by=datev)
+
+stringv <- "Overnight"
+captiont <- paste("Momentum With Overnight Stock Returns")
+
+lambdaf <- 0.99
+probv <- 0.99
+
+# Calculate the EMA returns and volatilities
+varm <- HighFreq::run_var(retref, lambda=lambdaf)
+retsm <- varm[, 1:nstocks]
+retsm[is.na(retsm)] <- 0.0
+colnames(retsm) <- colnames(retref)
+varm <- varm[, (nstocks+1):(2*nstocks)]
+varm[1:3] <- 1.0
+varm[is.na(varm)] <- 1.0
+varm <- varm + varfloor; # Add small number to prevent division by zero
+# Calculate the Kelly ratios
+kellyr <- retsm*volt^2/sqrt(varm)
+
+# Set small Kelly ratios less than the threshold to zero
+# This improves the performance by increasing the leverage on the stocks with large Kelly ratios
+quantv <- matrixStats::rowQuantiles(kellyr, probs=probv, na.rm=TRUE)
+kellyr[kellyr < quantv] <- 0.0
+
+# No shorting, so set negative Kelly ratios to zero
+kellyr[kellyr < 0] <- 0.0
+# Scale the Kelly ratios so the portfolio has the target volatility
+# kellyr <- kellyr*volt^2/rowSums(kellyr*varm, na.rm=TRUE)
+kellyr[1:11, ] <- varfloor # Set the first few Kelly ratios to small number to avoid large position sizes at the beginning of the backtest
+# Lag the Kelly ratios to avoid look-ahead bias
+kellyr <- rutils::lagit(kellyr, lagg=1)
+weightv <- kellyr
+
+# Plot the kelly ratios
+symboln <- "ARW"
+colv <- which(colnames(kellyr) == symboln)
+retv <- retsm[, colv]
+retv <- xts::xts(retv, order.by=datev)
+dygraph(retv, main=paste("Ret for", symboln))
+varv <- varm[, colv]
+varv <- xts::xts(varv, order.by=datev)
+dygraph(varv, main=paste("Var for", symboln))
+kellys <- kellyr[, colv]
+kellys <- xts::xts(kellys, order.by=datev)
+dygraph(kellys, main=paste("Kelly Ratios for", symboln))
+
+retv <- get(symboln, reton)
+retv <- xts::xts(retv, order.by=datev)
+dygraph(cumsum(na.omit(retv)), main=paste("Reton for", symboln))
+
+
+# Calculate the recent kelly ratios
+weightv <- kellyr[nrows, ]
+weightv <- sort(weightv, decreasing = TRUE)
+names(head(weightv, 21))
+tail(weightv, 21)
+weightv[which(names(weightv) == symboln)]
+dygraph(cumsum(na.omit(get(symboln, reton))), main=paste("Reton for", symboln))
+
+# Create a vector of the symbols with positive Kelly ratios
+symbolv <- names(weightv[weightv > 0])
+# Calculate the latest stock prices
+load("/Users/jerzy/Develop/lecture_slides/data/sp500_prices.RData")
+pricev <- drop(coredata(pricestock[NROW(pricestock), symbolv]))
+# Calculate the number of shares needed to buy $1000 for each stock
+nshares <- round(1000/pricev, 1)
+# Calculate the total dollar value of the positions
+posv <- round(sum(nshares*pricev))
+# Calculate the latest SPY price
+load("/Users/jerzy/Develop/data/etf_prices.RData")
+pricespy <- drop(coredata(pricetf[NROW(pricetf), "SPY"]))
+# Calculate the number of shares of SPY needed to short to hedge the market risk of the positions
+pospy <- round(posv/pricespy)
+# Create a data frame of the positions
+posdf <- data.frame(cbind(Ticker=c(symbolv, "SPY"), Shares=c(nshares, -pospy)))
+# Save the positions to a CSV file
+filen <- paste0("/Users/jerzy/Develop/MachineTrader.io/python-trading/strategies-single/args2.csv")
+data.table::fwrite(posdf, filen)
+
+
+# "ARW"  "CRS"  "SATS" "ATI"  "EMN"  "IRM"  "SANM" "NUE"  "AVT"  "CGNX" "LII"
+# "CARR" "HST"  "TNDM" "TLN"  "CHWY" "SMTC" "AXON" "VST"  "AMG"
+
+
+
+# "ARWR" "FCEL" "HUT"  "CRSP" "HOV"  "BZH"  "SIRI" "RIOT" "ENPH" "C"    "NVAX"
+# "OPEN" "BX"   "LNG" "AIG"  "SMR"  "QUBT" "CDE"  "THC"  "CRK"  "SRPT" "MRNA"
+# "TLRY" "NTLA" "MP"   "ODP"  "AVAV" "TSLA" "ALV"  "KKR"  "ET"
+
+# "ARWR" "FCEL" "HOV"  "HUT"  "QUBT" "SIRI" "NVAX" "BZH"  "SMR"  "CRSP" "LNG"
+# "BX"   "AXON" "ENPH" "MGM"  "MP"   "FUBO" "C"    "MRNA" "CDE"  "OPEN" "ET"
+# "CYTK" "AIG"  "HL"   "THC"  "GILD" "RIOT" "NLY"  "AMBA" "KTOS"
+
+# "CRS"  "ARW"  "EMN"  "SANM" "FIVE" "ZD"   "ATI"  "TNDM" "SNX"  "AMG"  "MEDP"
+
+
+
+# Calculate PnLs as the overnight returns times the Kelly ratios
+pnls <- retref*kellyr
+
+# Calculate the cumulative PnLs for each stock
+pnlss <- colSums(pnls["2020/"], na.rm = TRUE)
+pnlss <- sort(pnlss, decreasing = TRUE)
+plot(density(pnlss))
+head(pnlss, 31)
+tail(pnlss, 31)
+# Plot the cumulative PnLs for the top 100 stocks
+plot(pnlss[1:100], t="b", ylab="Cumulative PnL", xlab="Stock Rank", 
+     main="Cumulative Momentum PnLs for the Top 100 Stocks")
+
+# Calculate the combined strategy PnLs
+pnls <- rowSums(pnls, na.rm=TRUE)
+pnls[is.na(pnls)] <- 0
+# Combine the strategy PnLs with the average overnight returns for all stocks
+pnls <- cbind(retm, pnls)
+colnames(pnls) <- c(stringv, "Strategy")
+# Calculate Sharpe ratios
+sharper <- sqrt(252)*sapply(pnls, function(x) mean(x)/sd(x[x<0]))
+sharper <- round(sharper, 3)
+# Calculate the cumulative PnLs
+pnls <- cumsum(pnls)
+# Plot the dygraph
+colnamev <- colnames(pnls)
+captiont <- paste0(paste0(c(stringv, "Momentum"), " SR="), sharper, collapse=" / ")
+dygraphs::dygraph(pnls[, 1:2], main=captiont) %>%
+  dyOptions(colors=c("blue", "red"), strokeWidth=1) %>%
+  dyLegend(show="always", width=300)
+
+
+
+##############
+# Overnight minus daytime returns
+
+load("/Users/jerzy/Develop/lecture_slides/data/sp500.RData")
+
+# Calculate the total trading volume for each symbol
+volumev <- eapply(sp500env, function(ohlc) {
+  # ohlc <- sp500env$GLYC
+  sum(quantmod::Vo(ohlc))
+})  # end eapply
+volumev <- sort(unlist(volumev), decreasing=TRUE)
+
+# Select the top 100 symbols with the largest total trading volumes
+symbolv <- names(volumev[1:100])
+
+# The top 100 most liquid stocks don't have significant overnight minus daytime returns.
+# There's no relationship between overnight minus daytime returns and total trading volume.
+
+envv <- sp500env
+symbolv <- names(envv)
+symboln <- "MKL"
+# Calculate the overnight minus daytime returns
+pnls <- sapply(symbolv, function(symboln) {
+  ohlc <- get(symboln, envir=envv)
+  ohlc <- log(ohlc)
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  retd <- (closep - openp)
+  colnames(retd) <- "daytime"
+  reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
+  colnames(reton) <- "overnight"
+  retx <- (reton - retd)["2026"]
+  return(sum(retx)/var(retx))
+  # dygraph(cumsum(reton - retd)["2026"], main=paste(symboln, "Overnight - Daytime Returns"))
+})  # end sapply
+pnls <- sort(unlist(pnls), decreasing=TRUE)
+names(head(pnls))
+
+plot(x = volumev, y = pnls, xlim = c(0, median(volumev)), ylim = c(-median(pnls), median(pnls)),
+     xlab = "Total Trading Volume", ylab = "Overnight - Daytime Returns",
+     main = "Overnight - Daytime Returns vs Total Trading Volume")
+
+# Calculate the overnight minus daytime returns
+pnls <- eapply(envv, function(ohlc) {
+  # ohlc <- get(symboln, envir=envv)
+  ohlc <- log(ohlc)
+  openp <- quantmod::Op(ohlc)
+  closep <- quantmod::Cl(ohlc)
+  retd <- (closep - openp)
+  colnames(retd) <- "daytime"
+  reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
+  colnames(reton) <- "overnight"
+  retx <- (reton - retd)["2026"]
+  return(sum(retx)/var(retx))
+  # dygraph(cumsum(reton - retd)["2026"], main=paste(symboln, "Overnight - Daytime Returns"))
+})  # end eapply
+# names(pnls) <- names(etfenv)
+pnls <- sort(unlist(pnls), decreasing=TRUE)
+names(head(pnls, 100))
+
+
+
 ##############################
 ### Scratch
 ##############################
 
+colnames(ohlc)[1:4] <- paste(symboln, c("Open","High","Low","Close"), sep=".")
+dygraph(log(Cl(ohlc)), main=paste(symboln))
 
-
-
+symboln <- "QQQ"
+filen <- paste0("/Users/jerzy/Develop/data/minutes/", symboln, "_minutes_markets.RData")
+loadd <- load(filen)
+# loadd <- load("/Users/jerzy/Develop/data/minutes/SPY_2025.RData")
+# closep <- lapply(pricel, quantmod::Cl)
+# closep <- do.call(rbind, closep)
+closep <- quantmod::Cl(ohlc)
+colnames(closep) <- symboln
+retp <- rutils::diffit(closep, lagg=3)
+retl <- rutils::lagit(retp, lagg=3)
+dated <- format(zoo::index(closep), "%H:%M")
 
 
 ##############################
@@ -316,7 +1359,6 @@ objfun <- function(betav) {
 betainit <- rep(0, ncols)
 optimres <- optim(betainit, objfun, method="BFGS")
 optimres$par
-
 
 
 
@@ -2731,7 +3773,7 @@ varv <- HighFreq::run_var(retp, lambdaf=lambdaf)
 varv <- sqrt(varv[, 2])
 vard <- HighFreq::run_var(retd, lambdaf=lambdaf)
 vard <- sqrt(vard[, 2])
-# Plot dygraph of SPY and downside volatility with dual y-axes
+# Plot dygraph of SPY and downside volatility
 datav <- xts::xts(cbind(varv, vard), order.by=datev)
 dygraph(datav, main="SPY Volatility and Downside Volatility") %>%
   dyOptions(colors=c("blue", "red"), strokeWidth=2) %>%
@@ -5104,7 +6146,7 @@ plot(x=xlimv, y=sapply(xlimv, cov1), t="l")
 curve(cov1, from=(-5), to=5)
 
 
-btmomweight <- function(retp,
+sim_momw <- function(retp,
                         objfun=function(retp) (prod(1+retp)/sd(retp)),
                         lookb=12, rfreq="months", bidask=0.001,
                         endd=rutils::calc_endpoints(retp, interval=rfreq), ...) {
@@ -5128,7 +6170,7 @@ btmomweight <- function(retp,
   })  ##  end lapply
   pnls <- rutils::do_call(c, pnls)
   pnls
-}  ##  end btmomweight
+}  ##  end sim_momw
 
 
 ##############
@@ -5731,14 +6773,16 @@ logistic_irls <- function(X, y, tol = 1e-8, maxit = 50) {
 
 ############## homework
 # Simulate a Brownian bridge stopping problem.
-# Given deck of 52 cards, every time you randomly choose a red card your account
-# increases by $1, but if you choose black card your account decreases by -$1
-# At any point you can choose to continue playing, or to stop and keep your net
-# wins.
-# The optimal strategy is to stop playing if the current net wins are greater
-# than the expected value of wins from continuing to play.
-# Calculate the expected value of the optimal strategy, assuming you start with
-# zero in your account.
+# Given deck of 52 cards, every time you randomly choose a
+# red card your account increases by $1, but if you choose
+# black card your account decreases by -$1 At any point you
+# can choose to continue playing, or to stop and keep your
+# net wins.
+# The optimal strategy is to stop playing if the current net
+# wins are greater than the expected value of wins from
+# continuing to play.
+# Calculate the expected value of the optimal strategy,
+# assuming you start with zero in your account.
 
 # stratmat <- matrix(nrow=4, ncol=4)
 npos <- 26
@@ -6276,67 +7320,6 @@ plot(foo, t="l")
 plot(foo[, 1]/foo[, 2], t="l")
 
 ## end perform loop over lookback windows
-
-
-############## homework
-## Calculate the ratio of the intraday range of prices 
-# divided by the intraday return of prices.
-# The range is larger when the intraday returns are 
-# smaller and when the overnight returns are smaller.
-
-# Calculate the range of daily prices for SPY
-ohlc <- log(rutils::etfenv$SPY)
-openp <- quantmod::Op(ohlc)
-closep <- quantmod::Cl(ohlc)
-retd <- (closep - openp)
-colnames(retd) <- "daytime"
-reton <- (openp - rutils::lagit(closep, lagg=1, pad_zeros=FALSE))
-colnames(reton) <- "overnight"
-highp <- quantmod::Hi(ohlc)
-lowp <- quantmod::Lo(ohlc)
-hilo <- highp - lowp
-hilol <- rutils::lagit(hilo, lagg=1)
-
-# The rescaled range is slightly larger than the theoretical value
-sqrt(pi/2) ##  Theoretical range
-mean(hilo)/sd(retd)
-
-# The rescaled range is larger when the intraday returns are small:
-selv <- (retd < 0.01)
-mean(hilo[selv])/sd(retd[selv])
-# mean(hilo[selv]/abs(retd[selv]))
-# Average profit?
-mean((hilo/2 - abs(retd))[selv])
-
-# The rescaled range is larger when the overnight returns are small
-selv <- ((hilol+abs(reton)) < 0.01)
-mean(hilo[selv])/sd(retd[selv])
-# mean(hilo[selv]/abs(retd[selv]))
-# Average profit?
-mean((hilo/2 - abs(retd))[selv])
-
-# Rescaled Range of SPY versus Overnight Returns
-# shows that the range is larger when the overnight returns are smaller.
-plot(x=abs(coredata(reton)), y=abs(coredata(hilo/retd)),
-     main="Rescaled Range of SPY
-     versus Overnight Returns",
-     xlab="ONReturn", ylab="RescRange",
-     xlim=c(0, 0.03), ylim=c(0, 100))
-
-
-# Calculate the range of daily prices for all the ETFs
-rangev <- sapply(rutils::etfenv$symbolv, function(symboln) {
-  ohlc <- log(get(symboln, rutils::etfenv))
-  ohlc <- ohlc["2021/"]
-  openp <- quantmod::Op(ohlc)
-  closep <- quantmod::Cl(ohlc)
-  retd <- (closep - openp)
-  highp <- quantmod::Hi(ohlc)
-  lowp <- quantmod::Lo(ohlc)
-  hilo <- highp - lowp
-  mean(hilo)/sd(retd)
-}) ##  end sapply
-rangev <- sort(rangev)
 
 
 
@@ -8874,7 +9857,7 @@ endd <- rutils::calc_endpoints(retp, interval="weeks")
 npts <- NROW(endd)
 
 
-btmomweight <- function(retp, objfun, lookb=12, rebalf="months", volt=0.01, 
+sim_momw <- function(retp, objfun, lookb=12, rebalf="months", volt=0.01, 
                         bidask=0.0, endd=rutils::calc_endpoints(retp, interval=rebalf), ...) {
   ##  Perform loop over end points
   npts <- NROW(endd)
@@ -8901,7 +9884,7 @@ btmomweight <- function(retp, objfun, lookb=12, rebalf="months", volt=0.01,
     return(xts::xts(pnlos, datos))
   })  ##  end lapply
   return(rutils::do_call(rbind, pnls))
-}  ##  end btmomweight
+}  ##  end sim_momw
 
 ## End of setup code
 
@@ -8913,7 +9896,7 @@ ncores <- detectCores() - 1
 
 # Perform backtests for vector of look-back intervals
 lookbv <- seq(50, 250, by=10)
-pnll <- mclapply(lookbv, btmomweight, retp=retid, endd=endd, objfun=objfun, mc.cores=ncores)
+pnll <- mclapply(lookbv, sim_momw, retp=retid, endd=endd, objfun=objfun, mc.cores=ncores)
 sharpev <- sqrt(252)*sapply(pnll, function(pnl) mean(pnl)/sd(pnl))
 # Plot Sharpe ratios of momentum strategies
 plot(x=lookbv, y=sharpev, t="b",
